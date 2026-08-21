@@ -1,0 +1,10 @@
+/*
+ * XPanel local utilities.
+ * Keep this file small and loaded after Metronic styles.css.
+ */
+
+@media (width >= 64rem) {
+  .lg\:mt-\(--header-height\) {
+    margin-top: var(--header-height);
+  }
+}

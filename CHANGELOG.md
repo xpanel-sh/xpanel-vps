@@ -1,0 +1,51 @@
+# Changelog
+
+Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y versionado semántico.
+
+## [Unreleased]
+
+### Changed
+
+- Las referencias al antiguo producto de MicroVMs `xpanel-core` ahora usan su identidad definitiva `xpanel-vm`; `xpanel-core` queda reservado para el futuro plano central del ecosistema.
+
+### Added
+
+- Límites por plan de RAM, swap, CPU y procesos mediante slices systemd/cgroups v2, con PHP-FPM independiente por instancia y sincronización al editar el plan.
+- Contrato de runtime para que los pools PHP y servicios Node.js creados por XPanel Host pertenezcan a la slice de su instancia VPS.
+
+- Soporte en las instancias Host para aplicaciones Node.js nativas, WebSockets y tenancy SaaS por rutas, wildcard o dominios personalizados.
+- Reserva por broker de puertos y dominios wildcard, más certificados HTTP-01/DNS-01 sin registrar secretos Cloudflare.
+- Aprovisionamiento de una instancia aislada de XPanel Host por cliente.
+- Registro central de instancias, configuración PHP-FPM/Nginx, almacenamiento y SQLite separados.
+- Instalación versionada del repositorio `xpanel-host` y suspensión desde la administración VPS.
+- Portal público, dashboard, planes e información de cliente adaptados desde `Plantilla/cliente` sin CSS paralelo.
+- Broker HMAC anti-replay para operaciones privilegiadas de sitios y bases de instancias Host.
+- Auditoría administrativa de solicitudes autorizadas, completadas, preparadas o rechazadas.
+- Activación inmediata del servicio al contratar, boletas con plazo configurable y confirmación manual de pago independiente.
+- Acceso temporal cifrado por IP y puerto para instancias cuyo dominio aún no resuelve.
+- Validación DNS, emisión Let’s Encrypt y reintentos SSL programados y manuales para paneles Host.
+- Guía completa de instalación, DNS, firewall, acceso temporal y diagnóstico en `GUIA.md`.
+
+### Añadido
+
+- portal público editable y administración de contenido;
+- mejoras de ikode adaptadas al aislamiento multi-tenant;
+- documentación para publicación en GitHub.
+
+## [0.1.0-alpha.1] - 2026-08-16
+
+### Añadido
+
+- instalador Ubuntu/Debian e integración con `xpanel-cli`;
+- Nginx, Apache opcional y PHP-FPM por sitio;
+- usuarios Unix y document roots aislados;
+- gestión nativa de paquetes, MariaDB, suspensión y SSL;
+- Docker como módulo opcional.
+
+### Cambiado
+
+- Docker dejó de ser el runtime principal;
+- archivos y bases de datos dejaron de depender del daemon legado.
+
+[Unreleased]: https://github.com/xpanel-sh/xpanel-vps/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/xpanel-sh/xpanel-vps/releases/tag/v0.1.0-alpha.1

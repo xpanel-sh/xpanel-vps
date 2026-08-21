@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() { echo "xpanel-instance-helper: $*" >&2; exit 1; }
+[[ "$(id -u)" == "0" ]] || fail "must run as root"
+
+validate_uuid() {
+    [[ "$1" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid instance UUID"
+}
+
+write_slice_limits() {
+    local uuid="$1" memory_high="$2" memory_max="$3" swap_max="$4" cpu_percent="$5" tasks_max="$6"
+    validate_uuid "$uuid"
+    [[ "$memory_high" =~ ^[0-9]+$ && "$memory_max" =~ ^[0-9]+$ && "$swap_max" =~ ^[0-9]+$ ]] || fail "invalid memory limits"
+    [[ "$cpu_percent" =~ ^[0-9]+$ && "$tasks_max" =~ ^[0-9]+$ ]] || fail "invalid process limits"
+    (( memory_high >= 64 && memory_max >= 128 && memory_high <= memory_max && memory_max <= 1048576 )) || fail "memory limits out of range"
+    (( swap_max <= 1048576 && cpu_percent >= 10 && cpu_percent <= 65535 && tasks_max >= 32 && tasks_max <= 1000000 )) || fail "resource limits out of range"
+
+    local dropin="/etc/systemd/system/xpanel-instance-$uuid.slice.d"
+    install -d -o root -g root -m 0755 "$dropin"
+    cat > "$dropin/limits.conf" <<EOF
+[Slice]
+CPUAccounting=yes
+CPUQuota=${cpu_percent}%
+MemoryAccounting=yes
+MemoryHigh=${memory_high}M
+MemoryMax=${memory_max}M
+MemorySwapMax=${swap_max}M
+TasksAccounting=yes
+TasksMax=${tasks_max}
+EOF
+    chmod 0644 "$dropin/limits.conf"
+    systemctl daemon-reload
+    systemctl start "xpanel-instance-$uuid.slice"
+    systemctl set-property --runtime "xpanel-instance-$uuid.slice" \
+        "CPUQuota=${cpu_percent}%" \
+        "MemoryHigh=${memory_high}M" \
+        "MemoryMax=${memory_max}M" \
+        "MemorySwapMax=${swap_max}M" \
+        "TasksMax=${tasks_max}"
+}
+
+[[ $# -ge 1 ]] || fail "missing action"
+ACTION="$1"
+shift
+
+if [[ "$ACTION" == "set-limits" ]]; then
+    [[ $# -eq 6 ]] || fail "set-limits expects 6 arguments"
+    write_slice_limits "$@"
+    echo "limits-applied"
+    exit 0
+fi
+
+if [[ "$ACTION" == "set-status" ]]; then
+    [[ $# -eq 2 ]] || fail "set-status expects 2 arguments"
+    UUID="$1"
+    STATUS="$2"
+    validate_uuid "$UUID"
+    [[ "$STATUS" == "active" || "$STATUS" == "suspended" ]] || fail "invalid status"
+    NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
+    [[ -f "$NGINX_TARGET" && ! -L "$NGINX_TARGET" ]] || fail "instance vhost does not exist"
+    if [[ "$STATUS" == "active" ]]; then
+        systemctl start "xpanel-instance-$UUID-fpm.service"
+        ln -sfn "$NGINX_TARGET" "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf"
+    else
+        unlink "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf" 2>/dev/null || true
+        systemctl stop "xpanel-instance-$UUID-fpm.service"
+    fi
+    nginx -t
+    systemctl reload nginx
+    echo "$STATUS"
+    exit 0
+fi
+
+if [[ "$ACTION" == "ssl-issue" ]]; then
+    [[ $# -eq 3 ]] || fail "ssl-issue expects 3 arguments"
+    UUID="$1"
+    PANEL_DOMAIN="$2"
+    ADMIN_EMAIL="$3"
+    validate_uuid "$UUID"
+    [[ "$PANEL_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid panel domain"
+    [[ "$ADMIN_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || fail "invalid admin email"
+    NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
+    TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
+    [[ -f "$NGINX_TARGET" && ! -L "$NGINX_TARGET" ]] || fail "instance vhost does not exist"
+    certbot certonly --non-interactive --agree-tos --no-eff-email --expand \
+        --email "$ADMIN_EMAIL" --webroot -w /var/lib/letsencrypt -d "$PANEL_DOMAIN"
+    cat > "$TLS_SNIPPET" <<EOF
+listen 443 ssl;
+listen [::]:443 ssl;
+ssl_certificate /etc/letsencrypt/live/$PANEL_DOMAIN/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/$PANEL_DOMAIN/privkey.pem;
+ssl_protocols TLSv1.2 TLSv1.3;
+EOF
+    chmod 0644 "$TLS_SNIPPET"
+    nginx -t
+    systemctl reload nginx
+    echo "active"
+    exit 0
+fi
+
+[[ "$ACTION" == "apply" ]] || fail "unsupported action"
+[[ $# -eq 13 ]] || fail "apply expects 13 arguments"
+
+UUID="$1"
+SYSTEM_USER="$2"
+PANEL_DOMAIN="$3"
+PHP_VERSION="$4"
+RELEASE_PATH="$5"
+STAGED_DIR="$6"
+OWNER_NAME="$7"
+OWNER_EMAIL="$8"
+MEMORY_HIGH_MB="$9"
+MEMORY_MAX_MB="${10}"
+SWAP_MAX_MB="${11}"
+CPU_PERCENT="${12}"
+TASKS_MAX="${13}"
+
+validate_uuid "$UUID"
+[[ "$SYSTEM_USER" =~ ^xhi[a-f0-9]{12}$ ]] || fail "invalid system user"
+[[ "$PANEL_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid panel domain"
+[[ "$PHP_VERSION" =~ ^8\.[2-4]$ ]] || fail "unsupported PHP version"
+PHP_BIN="/usr/bin/php$PHP_VERSION"
+[[ -x "$PHP_BIN" ]] || fail "PHP $PHP_VERSION CLI is not installed"
+[[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/(current|releases/[A-Za-z0-9._-]+)$ ]] || fail "invalid release path"
+[[ "$STAGED_DIR" == "/opt/xpanel-vps/storage/app/native/host-instances/$UUID" ]] || fail "invalid staged directory"
+[[ -f "$RELEASE_PATH/artisan" && -f "$RELEASE_PATH/public/index.php" ]] || fail "XPanel Host release is incomplete"
+for file in instance.env runtime.sh php-fpm.conf php-fpm-global.conf php-fpm.service nginx.conf; do
+    [[ -f "$STAGED_DIR/$file" && ! -L "$STAGED_DIR/$file" ]] || fail "missing staged $file"
+done
+
+INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+FPM_TARGET="/etc/php/$PHP_VERSION/fpm/pool.d/xpanel-instance-$UUID.conf"
+FPM_CONFIG_ROOT="/etc/xpanel-vps/instances/$UUID"
+FPM_POOL_ROOT="$FPM_CONFIG_ROOT/php-fpm-pools"
+FPM_GLOBAL_TARGET="$FPM_CONFIG_ROOT/php-fpm.conf"
+FPM_POOL_TARGET="$FPM_POOL_ROOT/panel.conf"
+FPM_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-fpm.service"
+NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
+TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
+
+IFS= read -r INITIAL_PASSWORD || true
+
+if ! id "$SYSTEM_USER" >/dev/null 2>&1; then
+    useradd --system --home-dir "$INSTANCE_ROOT" --shell /usr/sbin/nologin --user-group "$SYSTEM_USER"
+fi
+
+install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$INSTANCE_ROOT" "$INSTANCE_ROOT/database"
+install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" \
+    "$INSTANCE_ROOT/storage/app/private" \
+    "$INSTANCE_ROOT/storage/framework/cache" \
+    "$INSTANCE_ROOT/storage/framework/sessions" \
+    "$INSTANCE_ROOT/storage/framework/testing" \
+    "$INSTANCE_ROOT/storage/framework/views" \
+    "$INSTANCE_ROOT/storage/logs"
+install -m 0600 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$STAGED_DIR/instance.env" "$INSTANCE_ROOT/.env"
+install -m 0600 -o root -g root "$STAGED_DIR/runtime.sh" "$INSTANCE_ROOT/runtime.sh"
+touch "$INSTANCE_ROOT/database/database.sqlite"
+chown "$SYSTEM_USER:$SYSTEM_USER" "$INSTANCE_ROOT/database/database.sqlite"
+
+write_slice_limits "$UUID" "$MEMORY_HIGH_MB" "$MEMORY_MAX_MB" "$SWAP_MAX_MB" "$CPU_PERCENT" "$TASKS_MAX"
+install -d -o root -g root -m 0755 "$FPM_CONFIG_ROOT" "$FPM_POOL_ROOT"
+rm -f "$FPM_TARGET"
+install -m 0640 -o root -g root "$STAGED_DIR/php-fpm.conf" "$FPM_POOL_TARGET"
+install -m 0644 -o root -g root "$STAGED_DIR/php-fpm-global.conf" "$FPM_GLOBAL_TARGET"
+install -m 0644 -o root -g root "$STAGED_DIR/php-fpm.service" "$FPM_SERVICE_TARGET"
+install -m 0644 -o root -g root "$STAGED_DIR/nginx.conf" "$NGINX_TARGET"
+install -d -m 0755 /etc/nginx/snippets
+touch "$TLS_SNIPPET"
+chown root:root "$TLS_SNIPPET"
+chmod 0644 "$TLS_SNIPPET"
+ln -sfn "$NGINX_TARGET" "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf"
+
+# shellcheck disable=SC1090
+source "$INSTANCE_ROOT/runtime.sh"
+runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" migrate --force --no-interaction
+runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" optimize
+
+if [[ -n "$INITIAL_PASSWORD" ]]; then
+    printf '%s\n' "$INITIAL_PASSWORD" | runuser -u "$SYSTEM_USER" --preserve-environment -- \
+        "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:admin-bootstrap \
+        --name="$OWNER_NAME" --email="$OWNER_EMAIL" --password-stdin --no-interaction
+fi
+
+php-fpm"$PHP_VERSION" -t -y "$FPM_GLOBAL_TARGET"
+nginx -t
+systemctl daemon-reload
+systemctl enable --now "xpanel-instance-$UUID-fpm.service"
+systemctl reload "php$PHP_VERSION-fpm"
+systemctl reload nginx
+echo "active"

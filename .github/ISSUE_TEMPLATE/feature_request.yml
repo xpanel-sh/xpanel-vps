@@ -1,0 +1,18 @@
+name: Propuesta
+description: Sugiere una mejora concreta
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Que necesidad resolveria esta propuesta.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solucion propuesta
+    validations:
+      required: true

@@ -1,0 +1,7 @@
+@extends('layouts.admin')
+@section('content')
+<div class="flex grow rounded-b-xl bg-background border-x border-b border-input lg:mt-(--navbar-height) mx-5 lg:ms-(--sidebar-width) mb-5"><main class="grow p-6 lg:p-8">
+ <div class="flex flex-wrap items-end justify-between gap-4 mb-7"><div><h1 class="text-2xl font-semibold text-mono">Paginas publicas</h1><p class="text-sm text-muted-foreground mt-1">Edita el inicio, empresa y politicas visibles antes de contratar.</p></div><a href="{{ route('home') }}" target="_blank" class="kt-btn kt-btn-outline"><i class="ki-filled ki-eye"></i> Ver sitio</a></div>
+ <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">@foreach($pages as $slug => $label)<a href="{{ route('admin.pages.edit', $slug) }}" class="kt-card p-6 group transition hover:border-primary hover:shadow-lg"><div class="flex items-center justify-between"><span class="size-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><i class="ki-filled {{ $slug === 'home' ? 'ki-home' : 'ki-document' }} text-xl"></i></span><i class="ki-filled ki-right text-muted-foreground group-hover:text-primary"></i></div><h2 class="mt-5 text-lg font-semibold text-mono">{{ $label }}</h2><p class="mt-1 text-sm text-muted-foreground">{{ $slug === 'home' ? 'Portada, empresa, contacto y llamadas a la accion.' : 'Contenido legal e informativo de /pages/'.$slug.'.' }}</p></a>@endforeach</div>
+</main></div>
+@endsection

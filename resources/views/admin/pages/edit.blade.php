@@ -1,0 +1,15 @@
+@extends('layouts.admin')
+@section('content')
+<div class="flex grow rounded-b-xl bg-background border-x border-b border-input lg:mt-(--navbar-height) mx-5 lg:ms-(--sidebar-width) mb-5"><main class="grow p-6 lg:p-8"><div class="max-w-4xl">
+ <a href="{{ route('admin.pages.index') }}" class="text-sm text-primary"><i class="ki-filled ki-arrow-left"></i> Paginas</a><div class="flex flex-wrap justify-between items-end gap-4 mt-4 mb-7"><div><h1 class="text-2xl font-semibold text-mono">Editar: {{ $label }}</h1><p class="text-sm text-muted-foreground mt-1">Los cambios se publican inmediatamente.</p></div>@if($page !== 'home')<a target="_blank" href="{{ route('pages.show', $page) }}" class="kt-btn kt-btn-outline"><i class="ki-filled ki-eye"></i> Vista publica</a>@endif</div>
+ @if(session('status'))<div class="mb-5 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">{{ session('status') }}</div>@endif
+ <form method="POST" action="{{ route('admin.pages.update', $page) }}" class="kt-card p-6 grid gap-5">@csrf @method('PUT')
+ @if($page === 'home')
+  @php($fields = ['company_name'=>'Nombre de empresa','company_tagline'=>'Frase corta','hero_title'=>'Titulo principal','hero_description'=>'Descripcion principal','company_description'=>'Descripcion de empresa','support_email'=>'Correo de soporte','sales_email'=>'Correo de ventas','company_phone'=>'Telefono','company_address'=>'Direccion','currency_symbol'=>'Simbolo de moneda','cta_title'=>'Titulo CTA','cta_description'=>'Descripcion CTA'])
+  @foreach($fields as $field => $fieldLabel)<label class="grid gap-1.5"><span class="kt-form-label">{{ $fieldLabel }}</span>@if(in_array($field, ['hero_description','company_description','cta_description','company_address']))<textarea name="{{ $field }}" rows="{{ $field === 'company_description' ? 4 : 3 }}" class="kt-textarea @error($field) border-danger @enderror">{{ old($field, $content[$field]) }}</textarea>@else<input name="{{ $field }}" type="{{ str_contains($field, 'email') ? 'email' : 'text' }}" value="{{ old($field, $content[$field]) }}" class="kt-input @error($field) border-danger @enderror">@endif @error($field)<span class="text-xs text-danger">{{ $message }}</span>@enderror</label>@endforeach
+ @else
+  <label class="grid gap-1.5"><span class="kt-form-label">Titulo</span><input name="title" class="kt-input" value="{{ old('title', $content['title']) }}" required>@error('title')<span class="text-xs text-danger">{{ $message }}</span>@enderror</label><label class="grid gap-1.5"><span class="kt-form-label">Contenido</span><textarea name="body" rows="18" class="kt-textarea leading-6" required>{{ old('body', $content['body']) }}</textarea><span class="text-xs text-muted-foreground">Usa lineas separadas para crear parrafos. Se muestra como texto seguro.</span>@error('body')<span class="text-xs text-danger">{{ $message }}</span>@enderror</label>
+ @endif
+ <div class="flex justify-end pt-2"><button class="kt-btn kt-btn-primary"><i class="ki-filled ki-check"></i> Guardar pagina</button></div></form>
+</div></main></div>
+@endsection

@@ -1,0 +1,34 @@
+name: Reporte de error
+description: Informa un comportamiento reproducible de XPanel VPS
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: No incluyas secretos, archivos .env ni datos de clientes. Para vulnerabilidades usa el reporte privado de seguridad.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Entorno
+      options: [Ubuntu, Debian, Desarrollo local, Otro]
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripcion y pasos
+      description: Explica que esperabas, que ocurrió y como reproducirlo.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs sanitizados
+      render: shell

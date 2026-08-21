@@ -1,0 +1,4 @@
+SYSTEM="xpanel-vps"
+REPO="github.com/xpanel-sh/xpanel-vps"
+VERSION="0.1.0-alpha.1"
+XPANEL_FILE_LANGUAGE="es"
