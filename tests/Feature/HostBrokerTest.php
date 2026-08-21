@@ -34,11 +34,12 @@ class HostBrokerTest extends TestCase
     public function test_a_signed_instance_can_stage_an_authorized_site_operation(): void
     {
         [$instance, $secret] = $this->instanceWithSite();
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
         $arguments = [
             'example.test', 'nginx', 'php', '8.3',
-            '/var/www/xpanel-instances/'.$instance->uuid.'/example.test',
+            $siteRoot,
             'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8),
-            '/var/www/xpanel-instances/'.$instance->uuid.'/example.test/public',
+            $siteRoot.'/public',
             '-', '0', 'active',
         ];
         $payload = $this->payload($instance, 'apply', $arguments);
@@ -74,10 +75,11 @@ class HostBrokerTest extends TestCase
         $pdo = new PDO('sqlite:'.$instance->database_path);
         $pdo->exec("UPDATE sites SET type = 'node', node_version = '22', runtime_port = 32123, wildcard_domain = 1 WHERE domain = 'example.test'");
         $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
         $payload = $this->payload($instance, 'apply', [
             'example.test', 'nginx', 'node', '8.3',
-            '/var/www/xpanel-instances/'.$instance->uuid.'/example.test', $siteUser,
-            '/var/www/xpanel-instances/'.$instance->uuid.'/example.test/public', '22', '32123', 'active',
+            $siteRoot, $siteUser,
+            $siteRoot.'/public', '22', '32123', 'active',
         ]);
 
         $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
@@ -93,7 +95,7 @@ class HostBrokerTest extends TestCase
         (new PDO('sqlite:'.$instance->database_path))->exec("UPDATE sites SET wildcard_domain = 1 WHERE domain = 'example.test'");
         $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
         $payload = $this->payload($instance, 'ssl-wildcard-issue', [
-            'example.test', 'nginx', '/var/www/xpanel-instances/'.$instance->uuid.'/example.test/public',
+            'example.test', 'nginx', '/home/'.$instance->system_user.'/public_html/example.test/public',
             'admin@example.test', $siteUser,
         ]);
         $payload['input'] = base64_encode("cloudflare-secret-token-value\n");
@@ -119,7 +121,7 @@ class HostBrokerTest extends TestCase
         $pdo->exec('CREATE TABLE site_databases (id INTEGER PRIMARY KEY, name TEXT, username TEXT)');
         $siteUser = 'xps'.substr(str_replace('-', '', $uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
         $statement = $pdo->prepare('INSERT INTO sites (domain, web_server, type, php_version, document_root, system_user, public_path) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $statement->execute(['example.test', 'nginx', 'php', '8.3', '/var/www/xpanel-instances/'.$uuid.'/example.test', $siteUser, 'public']);
+        $statement->execute(['example.test', 'nginx', 'php', '8.3', '/home/xhi0123456789ab/public_html/example.test', $siteUser, 'public']);
 
         $instance = HostInstance::create([
             'tenant_id' => $tenant->id, 'uuid' => $uuid, 'panel_domain' => 'panel.broker.test',

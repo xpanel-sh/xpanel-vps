@@ -77,11 +77,11 @@ class HostBrokerActionPolicy
             throw new RuntimeException('Argumentos de sitio inválidos.');
         }
         [$domain, $engine, $type, $php, $documentRoot, $systemUser] = $arguments;
-        $expectedRoot = '/var/www/xpanel-instances/'.$instance->uuid.'/'.$domain;
+        $expectedRootPrefix = '/home/'.$instance->system_user.'/public_html/';
         $expectedUserPrefix = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6);
         if (! $this->domain($domain) || ! in_array($engine, ['nginx', 'apache', 'openlitespeed'], true)
             || ! in_array($type, ['php', 'static', 'node'], true) || ! preg_match('/^8\.[2-4]$/', $php)
-            || $documentRoot !== $expectedRoot || ! str_starts_with($systemUser, $expectedUserPrefix)
+            || ! str_starts_with($documentRoot, $expectedRootPrefix) || str_contains($documentRoot, '..') || ! str_starts_with($systemUser, $expectedUserPrefix)
             || ! preg_match('/^xps[a-z0-9]{15,29}$/', $systemUser)) {
             throw new RuntimeException('El sitio no pertenece al espacio de la instancia.');
         }

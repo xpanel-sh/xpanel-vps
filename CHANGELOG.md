@@ -6,6 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ### Changed
 
+- Cada instancia Host recibe una cuenta Unix y hogar `/home/<instancia>`; sus sitios se autorizan exclusivamente bajo `public_html`, mientras los releases compartidos permanecen en `/opt/xpanel-host`.
 - Las referencias al antiguo producto de MicroVMs `xpanel-core` ahora usan su identidad definitiva `xpanel-vm`; `xpanel-core` queda reservado para el futuro plano central del ecosistema.
 
 ### Added

@@ -47,7 +47,7 @@ if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restar
   [[ "$ENGINE" == "nginx" || "$ENGINE" == "apache" || "$ENGINE" == "openlitespeed" ]] || fail "invalid web engine"
   [[ "$TYPE" == "php" || "$TYPE" == "static" || "$TYPE" == "node" ]] || fail "invalid site type"
   [[ "$PHP_VERSION" =~ ^8\.[2-4]$ ]] || fail "invalid PHP version"
-  [[ "$DOCUMENT_ROOT" == "/var/www/xpanel-instances/$UUID/$DOMAIN" ]] || fail "site root escaped the instance"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/"* && "$DOCUMENT_ROOT" != *".."* ]] || fail "site root escaped the account home"
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "site user escaped the instance"
   if [[ "$ACTION" == "apply" ]]; then
     [[ "$7" == "$DOCUMENT_ROOT" || "$7" == "$DOCUMENT_ROOT/"* ]] || fail "web root escaped the site"
@@ -63,7 +63,7 @@ elif [[ "$ACTION" == "site-diagnose" ]]; then
   [[ $# -eq 8 ]] || fail "invalid diagnostic argument count"
   DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"; ENGINE="$4"; TYPE="$5"; PHP_VERSION="$6"; EXPECTED_IP="$7"; RUNTIME_PORT="$8"
   [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid diagnostic domain"
-  [[ "$DOCUMENT_ROOT" == "/var/www/xpanel-instances/$UUID/$DOMAIN" ]] || fail "diagnostic root escaped the instance"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/"* && "$DOCUMENT_ROOT" != *".."* ]] || fail "diagnostic root escaped the account home"
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "diagnostic user escaped the instance"
   [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ && "$TYPE" =~ ^(php|static|node)$ && "$PHP_VERSION" =~ ^8\.[2-4]$ ]] || fail "invalid diagnostic runtime"
   [[ "$EXPECTED_IP" == "-" || "$EXPECTED_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "invalid diagnostic IP"
@@ -73,7 +73,7 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   DOMAIN="$1"; ENGINE="$2"; WEB_ROOT="$3"; EMAIL="$4"; SITE_USER="$5"
   [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid certificate domain"
   [[ "$ENGINE" == "nginx" || "$ENGINE" == "apache" || "$ENGINE" == "openlitespeed" ]] || fail "invalid web engine"
-  [[ "$WEB_ROOT" == "/var/www/xpanel-instances/$UUID/$DOMAIN" || "$WEB_ROOT" == "/var/www/xpanel-instances/$UUID/$DOMAIN/"* ]] || fail "certificate root escaped the site"
+  [[ "$WEB_ROOT" == "/home/$PANEL_USER/public_html/"* && "$WEB_ROOT" != *".."* ]] || fail "certificate root escaped the account home"
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "certificate user escaped the instance"
   if [[ "$ACTION" == "ssl-delete" ]]; then
     [[ "$EMAIL" == "-" ]] || fail "invalid certificate deletion"

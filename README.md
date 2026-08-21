@@ -16,7 +16,7 @@ XPanel VPS no crea una máquina virtual por cliente. Las instancias comparten el
 - Nginx, Apache opcional y PHP-FPM 8.1–8.4;
 - Node.js 22 LTS nativo, procesos systemd por sitio y proxy WebSocket;
 - aplicaciones SaaS tenant por ruta, subdominio wildcard o dominio personalizado;
-- usuario Unix, pool PHP-FPM y document root aislados por sitio;
+- hogar Unix por cliente, más usuario, pool PHP-FPM y document root aislados por sitio;
 - gestor de archivos ikode con editor Monaco;
 - bases de datos y usuarios MariaDB;
 - certificados Let's Encrypt mediante Certbot;
@@ -30,11 +30,14 @@ XPanel VPS no crea una máquina virtual por cliente. Las instancias comparten el
 XPanel VPS funciona como plano de control y reutiliza el proyecto `xpanel-host` como panel de cada cliente. El código se instala por versiones en `/opt/xpanel-host/releases` y no se duplica por cuenta. Cada instancia conserva de forma independiente:
 
 - usuario Linux y proceso PHP-FPM;
+- hogar de alojamiento `/home/<usuario-instancia>` con sitios bajo `public_html`;
 - `.env`, `APP_KEY`, SQLite, sesiones, caché, logs y archivos privados;
 - dominio de acceso, versión de PHP, canal y versión de XPanel Host;
 - estado activo o suspendido.
 
 El estado vive en `/var/lib/xpanel-vps/instances/<uuid>`. Al crearla, la instancia queda fijada a la ruta inmutable de su release, aunque cambie el enlace global `current`. El usuario de la instancia no recibe `sudo`; las operaciones se firman con HMAC y pasan por el broker de XPanel VPS. El broker verifica la instancia, cliente, nonce, tiempo, SQLite, dominio, rutas y prefijos Unix antes de delegar al helper root.
+
+El código compartido de Host permanece en `/opt/xpanel-host/releases`; no es la carpeta del cliente. Cada broker sólo autoriza raíces web bajo `/home/<usuario-instancia>/public_html`, donde el administrador general de archivos ve la cuenta completa y cada administrador de dominio permanece confinado a su propio proyecto.
 
 El broker admite creación, eliminación y reinicio de sitios, runtimes Node.js, reserva global de puertos y dominios wildcard, certificados normales o wildcard y operaciones MariaDB. Los secretos DNS viajan por stdin y no se conservan en el historial. Correo permanece bloqueado hasta que VPS genere mapas agregados de Postfix/Dovecot para todas las instancias; un mapa por cliente no es seguro en un servicio global.
 
