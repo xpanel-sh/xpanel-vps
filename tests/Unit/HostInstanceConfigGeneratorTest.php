@@ -39,6 +39,8 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('XPANEL_MANAGEMENT_MODE="vps-instance"', $firstEnvironment);
         $this->assertStringContainsString('DB_DATABASE="'.$first->database_path.'"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SYSTEMD_SLICE="xpanel-instance-'.$first->uuid.'.slice"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="512"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_FPM_SERVICE="xpanel-instance-'.$first->uuid.'-fpm.service"', $firstEnvironment);
         $this->assertStringNotContainsString($second->uuid, $firstEnvironment);
         $this->assertNotSame($firstFiles['directory'], $secondFiles['directory']);

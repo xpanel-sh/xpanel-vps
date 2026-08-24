@@ -59,16 +59,18 @@ Una instancia Linux puede limitar recursos sin convertirse en MicroVM, aunque el
 
 | Recurso | Estado actual | Aplicación prevista |
 | --- | --- | --- |
-| Sitios, bases y correos | Aplicado por plan | Validación antes de crear recursos |
+| Sitios, bases y correos | Sitios aplicados por plan; bases y correos en ampliación | Validación antes de crear recursos |
 | RAM | Aplicado a panel, PHP y Node.js | `MemoryHigh`, `MemoryMax` y `MemorySwapMax` en la slice |
 | CPU | Aplicado a panel, PHP y Node.js | `CPUQuota` por instancia |
 | Procesos | Aplicado a panel, PHP y Node.js | `TasksMax` para evitar fork bombs |
-| Disco | El plan guarda `storage_mb`, todavía no es una cuota real | Project quotas de XFS/ext4 sobre datos y webs de la instancia |
+| Disco e inodos | El plan entrega ambos límites a Host y los muestra; todavía no son cuotas duras | Project quotas de XFS/ext4 sobre datos y webs de la instancia |
 | Transferencia | El plan guarda `bandwidth_gb`, todavía no corta tráfico | Contadores Nginx por dominio, ciclo mensual y suspensión o reducción al alcanzar el límite |
 | I/O de disco | Pendiente | `IOWeight` y, cuando el dispositivo lo permita, límites de lectura/escritura |
 | Docker | Pendiente por plan | Límites de CPU, memoria, procesos y almacenamiento adicionales por contenedor |
 
 Cada instancia ejecuta un master PHP-FPM independiente dentro de `xpanel-instance-<uuid>.slice`; los pools PHP de sus sitios y sus unidades Node.js se incorporan a la misma slice. Los próximos contratos del broker deben hacer lo mismo con cron, workers, terminales y contenedores antes de considerarlos cubiertos por estos límites.
+
+VPS entrega a Host el contrato completo del plan —CPU, RAM, disco, inodos, transferencia y máximo de sitios— mediante el entorno generado de la instancia. Host consulta en vivo la slice que le pertenece y refresca el dashboard sin recargar; no necesita XPanel Pod ni Docker para medir o funcionar. Un Host standalone conserva el mismo dashboard usando métricas locales de Linux, y XPanel Pod puede instalarse en el mismo servidor como producto separado.
 
 MariaDB, Nginx, Postfix y otros servicios continúan siendo compartidos. Se pueden aplicar límites lógicos —conexiones, bases, buzones, tamaño y frecuencia—, pero no ofrecen la misma frontera de CPU/RAM que una MicroVM. Si un cliente necesita kernel, memoria reservada o aislamiento fuerte frente al resto, debe desplegarse con XPanel VM.
 

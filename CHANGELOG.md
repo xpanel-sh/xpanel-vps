@@ -11,6 +11,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ### Added
 
+- Los planes incorporan límite de inodos y el entorno de cada Host recibe CPU, RAM, almacenamiento, inodos, transferencia y máximo de sitios para presentar capacidad y consumo con el alcance correcto.
 - Límites por plan de RAM, swap, CPU y procesos mediante slices systemd/cgroups v2, con PHP-FPM independiente por instancia y sincronización al editar el plan.
 - Contrato de runtime para que los pools PHP y servicios Node.js creados por XPanel Host pertenezcan a la slice de su instancia VPS.
 

@@ -15,6 +15,7 @@ class HostingPlan extends Model
         'max_sites',
         'max_databases',
         'storage_mb',
+        'inode_limit',
         'bandwidth_gb',
         'email_accounts',
         'memory_mb',
@@ -37,6 +38,7 @@ class HostingPlan extends Model
         'swap_mb' => 'integer',
         'cpu_percent' => 'integer',
         'tasks_max' => 'integer',
+        'inode_limit' => 'integer',
     ];
 
     public function tenants()

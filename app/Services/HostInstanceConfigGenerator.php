@@ -8,6 +8,8 @@ use InvalidArgumentException;
 
 class HostInstanceConfigGenerator
 {
+    public function __construct(private readonly HostInstanceResourceLimiter $limiter) {}
+
     /** @return array{directory:string,environment:string,runtime:string,fpm:string,fpm_global:string,fpm_service:string,nginx:string} */
     public function generate(HostInstance $instance): array
     {
@@ -47,6 +49,9 @@ class HostInstanceConfigGenerator
         }
 
         $cache = $instance->instance_root.'/storage/framework/cache';
+        $instance->loadMissing('tenant.plan');
+        $plan = $instance->tenant?->plan;
+        $limits = $this->limiter->limitsFor($instance);
 
         return [
             'APP_NAME' => 'XPanel Host',
@@ -82,6 +87,14 @@ class HostInstanceConfigGenerator
             'XPANEL_SITE_USER' => $instance->system_user,
             'XPANEL_SITE_GROUP' => $instance->system_user,
             'XPANEL_SYSTEMD_SLICE' => 'xpanel-instance-'.$instance->uuid.'.slice',
+            'XPANEL_ASSIGNED_CPU' => max(1, (int) ceil($limits['cpu_percent'] / 100)),
+            'XPANEL_ASSIGNED_CPU_PERCENT' => $limits['cpu_percent'],
+            'XPANEL_ASSIGNED_MEMORY_MIB' => $limits['memory_max_mb'],
+            'XPANEL_ASSIGNED_STORAGE_MIB' => max(0, (int) ($plan?->storage_mb ?? 0)),
+            'XPANEL_ASSIGNED_DISK_GIB' => max(0, (int) ceil(((int) ($plan?->storage_mb ?? 0)) / 1024)),
+            'XPANEL_ASSIGNED_INODES' => max(0, (int) ($plan?->inode_limit ?? 0)),
+            'XPANEL_ASSIGNED_BANDWIDTH_GB' => max(0, (int) ($plan?->bandwidth_gb ?? 0)),
+            'XPANEL_ASSIGNED_MAX_SITES' => max(0, (int) ($plan?->max_sites ?? 0)),
             'XPANEL_FPM_POOL_DIR' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm-pools',
             'XPANEL_FPM_CONFIG' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm.conf',
             'XPANEL_FPM_SERVICE' => 'xpanel-instance-'.$instance->uuid.'-fpm.service',

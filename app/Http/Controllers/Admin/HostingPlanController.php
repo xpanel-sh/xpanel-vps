@@ -74,6 +74,7 @@ class HostingPlanController extends Controller
             'max_sites' => ['required', 'integer', 'min:0', 'max:100000'],
             'max_databases' => ['required', 'integer', 'min:0', 'max:100000'],
             'storage_mb' => ['required', 'integer', 'min:0', 'max:100000000'],
+            'inode_limit' => ['required', 'integer', 'min:0', 'max:1000000000'],
             'bandwidth_gb' => ['required', 'integer', 'min:0', 'max:1000000'],
             'email_accounts' => ['required', 'integer', 'min:0', 'max:100000'],
             'memory_mb' => ['required', 'integer', 'min:128', 'max:1048576'],

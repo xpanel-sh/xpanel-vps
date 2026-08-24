@@ -65,6 +65,7 @@
                     ['max_sites', 'Sitios web', $plan->max_sites ?? 1],
                     ['max_databases', 'Bases de datos', $plan->max_databases ?? 1],
                     ['storage_mb', 'Almacenamiento MB', $plan->storage_mb ?? 1024],
+                    ['inode_limit', 'Archivos e inodos máximos', $plan->inode_limit ?? 100000],
                     ['bandwidth_gb', 'Transferencia GB', $plan->bandwidth_gb ?? 10],
                     ['email_accounts', 'Cuentas de correo', $plan->email_accounts ?? 0],
                     ['memory_mb', 'Memoria máxima MB', $plan->memory_mb ?? 512],
