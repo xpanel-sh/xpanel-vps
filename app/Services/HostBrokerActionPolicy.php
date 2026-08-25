@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\HostInstance;
 use App\Models\HostBrokerResource;
+use App\Models\HostInstance;
 use PDO;
 use RuntimeException;
 
@@ -21,11 +21,12 @@ class HostBrokerActionPolicy
         }
 
         match ($action) {
-            'apply' => $this->site($instance, $arguments, 10, $action),
+            'apply' => $this->site($instance, $arguments, 12, $action),
             'remove', 'site-restart' => $this->site($instance, $arguments, 6, $action),
             'ssl-issue', 'ssl-wildcard-issue', 'ssl-delete' => $this->certificate($instance, $arguments, $action),
             'site-diagnose' => $this->diagnostic($instance, $arguments),
             'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
+            'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
     }
@@ -86,12 +87,12 @@ class HostBrokerActionPolicy
             throw new RuntimeException('El sitio no pertenece al espacio de la instancia.');
         }
 
-        $site = $this->row($instance, 'SELECT id, domain, web_server, type, php_version, document_root, system_user, public_path, node_version, runtime_port, wildcard_domain, status FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'SELECT id, domain, web_server, type, php_version, php_profile_id, document_root, system_user, public_path, node_version, runtime_port, wildcard_domain, status FROM sites WHERE domain = :domain', ['domain' => $domain]);
         if (! $site || $site['web_server'] !== $engine || $site['type'] !== $type || $site['php_version'] !== $php
             || $site['document_root'] !== $documentRoot || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El sitio solicitado no coincide con el registro de la instancia.');
         }
-        if ($count === 10) {
+        if ($count === 12) {
             $public = trim((string) ($site['public_path'] ?? ''), '/');
             $webRoot = $public === '' ? $documentRoot : $documentRoot.'/'.$public;
             if ($arguments[6] !== $webRoot) {
@@ -105,15 +106,32 @@ class HostBrokerActionPolicy
                     || ! preg_match('/^[2-4][0-9]{4}$/', $expectedPort)))) {
                 throw new RuntimeException('El runtime solicitado no coincide con el sitio.');
             }
+            $profileKey = $arguments[10];
+            $extensions = $arguments[11];
+            if ($site['php_profile_id'] === null) {
+                if ($profileKey !== 'system' || $extensions !== '-') {
+                    throw new RuntimeException('El sitio no utiliza un perfil PHP aislado.');
+                }
+            } else {
+                $profile = $this->row($instance, 'SELECT id, php_version, extensions FROM php_profiles WHERE id = :id', ['id' => $site['php_profile_id']]);
+                $expectedKey = 'i'.substr(str_replace('-', '', $instance->uuid), 0, 12).'-p'.$site['php_profile_id'];
+                $selected = json_decode((string) ($profile['extensions'] ?? '[]'), true);
+                $selected = is_array($selected) ? array_values(array_unique(array_map('strval', $selected))) : [];
+                sort($selected);
+                $expectedExtensions = $selected === [] ? '-' : implode(',', $selected);
+                if (! $profile || $profile['php_version'] !== $php || $profileKey !== $expectedKey || $extensions !== $expectedExtensions) {
+                    throw new RuntimeException('El perfil PHP no coincide con el sitio de la instancia.');
+                }
+            }
             $this->assertDomainIsNotOwnedByAnotherInstance($instance, $domain);
         }
         $this->claimDomain($instance, $domain);
-        if ($count === 10) {
+        if ($count === 12) {
             foreach ($this->siteAliases($instance, (int) $site['id']) as $alias) {
                 $this->claimDomain($instance, $alias);
             }
         }
-        if ($count === 10 && $type === 'node') {
+        if ($count === 12 && $type === 'node') {
             $portClaim = HostBrokerResource::firstOrCreate(
                 ['type' => 'runtime-port', 'name' => (string) $site['runtime_port']],
                 ['host_instance_id' => $instance->id],
@@ -122,7 +140,7 @@ class HostBrokerActionPolicy
                 throw new RuntimeException('El puerto interno está reservado por otra instancia.');
             }
         }
-        if ($count === 10 && (bool) $site['wildcard_domain']) {
+        if ($count === 12 && (bool) $site['wildcard_domain']) {
             $wildcard = '*.'.$domain;
             $conflict = HostBrokerResource::query()
                 ->where('type', 'site-domain')
@@ -140,6 +158,20 @@ class HostBrokerActionPolicy
             if ($wildcardClaim->host_instance_id !== $instance->id) {
                 throw new RuntimeException('El dominio wildcard está reservado por otra instancia.');
             }
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function phpProfileRemove(HostInstance $instance, array $arguments): void
+    {
+        $prefix = 'i'.substr(str_replace('-', '', $instance->uuid), 0, 12).'-p';
+        if (count($arguments) !== 1 || ! str_starts_with($arguments[0], $prefix)) {
+            throw new RuntimeException('El perfil PHP solicitado no pertenece a la instancia.');
+        }
+        $id = substr($arguments[0], strlen($prefix));
+        if (! ctype_digit($id) || ! $this->row($instance, 'SELECT id FROM php_profiles WHERE id = :id', ['id' => $id])
+            || $this->row($instance, 'SELECT id FROM sites WHERE php_profile_id = :id LIMIT 1', ['id' => $id])) {
+            throw new RuntimeException('El perfil PHP no se puede retirar.');
         }
     }
 
@@ -221,6 +253,7 @@ class HostBrokerActionPolicy
             $pdo->exec('PRAGMA query_only = ON');
             $statement = $pdo->prepare("SELECT domain FROM domains WHERE site_id = :site_id AND type = 'alias'");
             $statement->execute(['site_id' => $siteId]);
+
             return array_column($statement->fetchAll(PDO::FETCH_ASSOC), 'domain');
         } catch (\PDOException) {
             return [];

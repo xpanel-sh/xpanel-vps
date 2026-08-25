@@ -98,6 +98,7 @@ class HostInstanceConfigGenerator
             'XPANEL_FPM_POOL_DIR' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm-pools',
             'XPANEL_FPM_CONFIG' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm.conf',
             'XPANEL_FPM_SERVICE' => 'xpanel-instance-'.$instance->uuid.'-fpm.service',
+            'XPANEL_PHP_PROFILE_ROOT' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-profiles',
         ];
     }
 

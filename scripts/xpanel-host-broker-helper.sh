@@ -26,7 +26,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|database-create|database-password|database-remove) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|database-create|database-password|database-remove|php-profile-remove) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -41,7 +41,7 @@ export XPANEL_SITE_GROUP="$PANEL_USER"
 
 INSTANCE_HEX="${UUID//-/}"
 if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restart" ]]; then
-  if [[ "$ACTION" == "apply" ]]; then [[ $# -eq 10 ]] || fail "invalid site argument count"; else [[ $# -eq 6 ]] || fail "invalid site argument count"; fi
+    if [[ "$ACTION" == "apply" ]]; then [[ $# -eq 12 ]] || fail "invalid site argument count"; else [[ $# -eq 6 ]] || fail "invalid site argument count"; fi
   DOMAIN="$1"; ENGINE="$2"; TYPE="$3"; PHP_VERSION="$4"; DOCUMENT_ROOT="$5"; SITE_USER="$6"
   [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid site domain"
   [[ "$ENGINE" == "nginx" || "$ENGINE" == "apache" || "$ENGINE" == "openlitespeed" ]] || fail "invalid web engine"
@@ -58,6 +58,8 @@ if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restar
       [[ "$8" == "-" && "$9" == "0" ]] || fail "unexpected application runtime"
     fi
     [[ "${10}" == "active" || "${10}" == "suspended" ]] || fail "invalid site status"
+    [[ "${11}" == "system" || "${11}" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile"
+    [[ "${12}" == "-" || "${12}" =~ ^(bcmath|curl|gd|imagick|intl|mbstring|mysql|opcache|pgsql|redis|soap|sqlite3|xml|zip)(,(bcmath|curl|gd|imagick|intl|mbstring|mysql|opcache|pgsql|redis|soap|sqlite3|xml|zip))*$ ]] || fail "invalid PHP extensions"
   fi
 elif [[ "$ACTION" == "site-diagnose" ]]; then
   [[ $# -eq 8 ]] || fail "invalid diagnostic argument count"
@@ -80,6 +82,8 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   else
     [[ "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || fail "invalid ACME email"
   fi
+elif [[ "$ACTION" == "php-profile-remove" ]]; then
+  [[ $# -eq 1 && "$1" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile removal"
 else
   [[ $# -eq 2 ]] || fail "invalid database argument count"
   DB_PREFIX="xp_${INSTANCE_HEX:0:6}_"

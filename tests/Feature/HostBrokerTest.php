@@ -40,7 +40,7 @@ class HostBrokerTest extends TestCase
             $siteRoot,
             'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8),
             $siteRoot.'/public',
-            '-', '0', 'active',
+            '-', '0', 'active', 'system', '-',
         ];
         $payload = $this->payload($instance, 'apply', $arguments);
 
@@ -79,7 +79,7 @@ class HostBrokerTest extends TestCase
         $payload = $this->payload($instance, 'apply', [
             'example.test', 'nginx', 'node', '8.3',
             $siteRoot, $siteUser,
-            $siteRoot.'/public', '22', '32123', 'active',
+            $siteRoot.'/public', '22', '32123', 'active', 'system', '-',
         ]);
 
         $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
@@ -87,6 +87,23 @@ class HostBrokerTest extends TestCase
 
         $this->assertDatabaseHas('host_broker_resources', ['type' => 'runtime-port', 'name' => '32123']);
         $this->assertDatabaseHas('host_broker_resources', ['type' => 'site-domain', 'name' => '*.example.test']);
+    }
+
+    public function test_php_profile_must_match_the_instance_database(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $pdo = new PDO('sqlite:'.$instance->database_path);
+        $pdo->exec("INSERT INTO php_profiles (id, php_version, extensions) VALUES (7, '8.3', '[\"curl\",\"mysql\"]')");
+        $pdo->exec("UPDATE sites SET php_profile_id = 7 WHERE domain = 'example.test'");
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $arguments = ['example.test', 'nginx', 'php', '8.3', $siteRoot, $siteUser, $siteRoot.'/public', '-', '0', 'active', 'i0123456789ab-p7', 'curl,mysql'];
+        $payload = $this->payload($instance, 'apply', $arguments);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])->assertOk();
+
+        $arguments[11] = 'curl';
+        $payload = $this->payload($instance, 'apply', $arguments);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])->assertStatus(422);
     }
 
     public function test_wildcard_certificate_action_is_authorized_without_persisting_its_secret(): void
@@ -117,7 +134,8 @@ class HostBrokerTest extends TestCase
         File::ensureDirectoryExists($instanceRoot.'/database');
         $database = $instanceRoot.'/database/database.sqlite';
         $pdo = new PDO('sqlite:'.$database);
-        $pdo->exec("CREATE TABLE sites (id INTEGER PRIMARY KEY, domain TEXT, web_server TEXT, type TEXT, php_version TEXT, document_root TEXT, system_user TEXT, public_path TEXT, node_version TEXT, runtime_port INTEGER, wildcard_domain INTEGER DEFAULT 0, status TEXT DEFAULT 'active')");
+        $pdo->exec('CREATE TABLE php_profiles (id INTEGER PRIMARY KEY, php_version TEXT, extensions TEXT)');
+        $pdo->exec("CREATE TABLE sites (id INTEGER PRIMARY KEY, domain TEXT, web_server TEXT, type TEXT, php_version TEXT, php_profile_id INTEGER, document_root TEXT, system_user TEXT, public_path TEXT, node_version TEXT, runtime_port INTEGER, wildcard_domain INTEGER DEFAULT 0, status TEXT DEFAULT 'active')");
         $pdo->exec('CREATE TABLE site_databases (id INTEGER PRIMARY KEY, name TEXT, username TEXT)');
         $siteUser = 'xps'.substr(str_replace('-', '', $uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
         $statement = $pdo->prepare('INSERT INTO sites (domain, web_server, type, php_version, document_root, system_user, public_path) VALUES (?, ?, ?, ?, ?, ?, ?)');
