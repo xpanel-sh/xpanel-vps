@@ -6,6 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ### Changed
 
+- El broker permite a cada instancia inspeccionar únicamente los certificados de dominios registrados en su propia SQLite, habilitando la recuperación segura del estado SSL sin acceso directo de Laravel a `/etc/letsencrypt`.
 - Cada instancia Host recibe una cuenta Unix y hogar `/home/<instancia>`; sus sitios se autorizan exclusivamente bajo `public_html`, mientras los releases compartidos permanecen en `/opt/xpanel-host`.
 - Las referencias al antiguo producto de MicroVMs `xpanel-core` ahora usan su identidad definitiva `xpanel-vm`; `xpanel-core` queda reservado para el futuro plano central del ecosistema.
 

@@ -26,7 +26,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|database-create|database-password|database-remove|php-profile-remove) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -70,6 +70,9 @@ elif [[ "$ACTION" == "site-diagnose" ]]; then
   [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ && "$TYPE" =~ ^(php|static|node)$ && "$PHP_VERSION" =~ ^8\.[2-4]$ ]] || fail "invalid diagnostic runtime"
   [[ "$EXPECTED_IP" == "-" || "$EXPECTED_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "invalid diagnostic IP"
   if [[ "$TYPE" == "node" ]]; then [[ "$RUNTIME_PORT" =~ ^[0-9]{5}$ ]]; else [[ "$RUNTIME_PORT" == "0" ]]; fi || fail "invalid diagnostic port"
+elif [[ "$ACTION" == "ssl-inspect" ]]; then
+  [[ $# -eq 1 ]] || fail "invalid certificate inspection argument count"
+  [[ "$1" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid certificate inspection domain"
 elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTION" == "ssl-delete" ]]; then
   [[ $# -eq 5 ]] || fail "invalid certificate argument count"
   DOMAIN="$1"; ENGINE="$2"; WEB_ROOT="$3"; EMAIL="$4"; SITE_USER="$5"

@@ -124,6 +124,19 @@ class HostBrokerTest extends TestCase
         $this->assertStringNotContainsString('cloudflare-secret', json_encode($operation->toArray()));
     }
 
+    public function test_certificate_inspection_is_scoped_to_a_site_in_the_instance(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $payload = $this->payload($instance, 'ssl-inspect', ['example.test']);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk();
+
+        $foreign = $this->payload($instance, 'ssl-inspect', ['foreign.example.test']);
+        $this->postJson(route('api.host-broker'), $foreign, ['X-XPanel-Signature' => $this->signature($foreign, $secret)])
+            ->assertStatus(422);
+    }
+
     private function instanceWithSite(): array
     {
         $uuid = '01234567-89ab-cdef-8123-456789abcdef';

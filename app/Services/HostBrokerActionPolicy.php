@@ -24,6 +24,7 @@ class HostBrokerActionPolicy
             'apply' => $this->site($instance, $arguments, 12, $action),
             'remove', 'site-restart' => $this->site($instance, $arguments, 6, $action),
             'ssl-issue', 'ssl-wildcard-issue', 'ssl-delete' => $this->certificate($instance, $arguments, $action),
+            'ssl-inspect' => $this->certificateInspection($instance, $arguments),
             'site-diagnose' => $this->diagnostic($instance, $arguments),
             'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
@@ -69,6 +70,19 @@ class HostBrokerActionPolicy
             throw new RuntimeException('La solicitud SSL excede los límites del sitio.');
         }
         $this->assertDomainIsNotOwnedByAnotherInstance($instance, $domain);
+    }
+
+    /** @param array<int, string> $arguments */
+    private function certificateInspection(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) !== 1 || ! $this->domain($arguments[0])) {
+            throw new RuntimeException('Argumentos de inspección SSL inválidos.');
+        }
+        $site = $this->row($instance, 'SELECT domain FROM sites WHERE domain = :domain', ['domain' => $arguments[0]]);
+        if (! $site) {
+            throw new RuntimeException('El certificado no pertenece a la instancia.');
+        }
+        $this->assertDomainIsNotOwnedByAnotherInstance($instance, $arguments[0]);
     }
 
     /** @param array<int, string> $arguments */
