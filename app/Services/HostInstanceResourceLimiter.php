@@ -11,8 +11,8 @@ class HostInstanceResourceLimiter
     /** @return array{memory_high_mb:int,memory_max_mb:int,swap_max_mb:int,cpu_percent:int,tasks_max:int} */
     public function limitsFor(HostInstance $instance): array
     {
-        $instance->loadMissing('tenant.plan');
-        $plan = $instance->tenant?->plan;
+        $instance->loadMissing(['hostingAccount.plan', 'tenant.plan']);
+        $plan = $instance->hostingAccount?->plan ?? $instance->tenant?->plan;
         $memory = (int) ($plan?->memory_mb ?: config('xpanel.host_instances.default_limits.memory_mb'));
 
         return [

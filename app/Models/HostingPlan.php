@@ -50,4 +50,9 @@ class HostingPlan extends Model
     {
         return $this->hasMany(PlanOrder::class);
     }
+
+    public function hostingAccounts()
+    {
+        return $this->hasMany(HostingAccount::class);
+    }
 }

@@ -27,9 +27,10 @@ class TenantLifecycleManager
             fn ($site) => $this->sites->reconfigure($site)
         );
 
-        if ($instance = $tenant->hostInstance) {
-            $this->hostInstances->setSuspended($instance, $suspended);
-        }
+        $tenant->hostInstances()->get()->each(
+            fn ($instance) => $this->hostInstances->setSuspended($instance, $suspended)
+        );
+        $tenant->hostingAccounts()->update(['status' => $status]);
 
         if ($suspended && config('xpanel.docker.enabled', false)) {
             DockerInstance::query()

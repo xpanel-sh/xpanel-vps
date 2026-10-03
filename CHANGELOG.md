@@ -6,12 +6,16 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ### Changed
 
+- El modelo comercial separa cliente, contratación y cuenta de hosting: un cliente puede mantener varias suscripciones activas y cada una recibe su propia instancia Host, plan, versión y límites.
+- Cloud utiliza una dirección técnica estable `h-<id>.<dominio-cloud>` por instancia; IP y puerto quedan únicamente como recuperación.
 - El broker permite a cada instancia inspeccionar únicamente los certificados de dominios registrados en su propia SQLite, habilitando la recuperación segura del estado SSL sin acceso directo de Laravel a `/etc/letsencrypt`.
 - Cada instancia Host recibe una cuenta Unix y hogar `/home/<instancia>`; sus sitios se autorizan exclusivamente bajo `public_html`, mientras los releases compartidos permanecen en `/opt/xpanel-host`.
 - Las referencias al antiguo producto de MicroVMs `xpanel-core` ahora usan su identidad definitiva `xpanel-vm`; `xpanel-core` queda reservado para el futuro plano central del ecosistema.
 
 ### Added
 
+- Acceso SSO HMAC de un solo uso desde Cloud hacia la instancia Host seleccionada, sin compartir cookies ni bases de datos entre aplicaciones.
+- Dominio personalizado opcional por cuenta de hosting, con validación DNS, alias Nginx, certificado SAN y reintentos automáticos independientes del SSL técnico.
 - El broker autoriza perfiles PHP por los registros reales de cada SQLite y confina sus masters PHP-FPM a la slice de la instancia; las extensiones disponibles siguen bajo control del administrador de VPS.
 - Los planes incorporan límite de inodos y el entorno de cada Host recibe CPU, RAM, almacenamiento, inodos, transferencia y máximo de sitios para presentar capacidad y consumo con el alcance correcto.
 - Límites por plan de RAM, swap, CPU y procesos mediante slices systemd/cgroups v2, con PHP-FPM independiente por instancia y sincronización al editar el plan.

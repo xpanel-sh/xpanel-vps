@@ -11,6 +11,7 @@ class HostInstanceCertificateProvisioner
 
     public function issue(HostInstance $instance): bool
     {
+        $instance->loadMissing(['tenant.user', 'hostingAccount']);
         $instance->update(['ssl_attempted_at' => now()]);
 
         if ($instance->status !== 'active') {
@@ -30,6 +31,16 @@ class HostInstanceCertificateProvisioner
             return false;
         }
 
+        $customDomain = $instance->hostingAccount?->custom_panel_domain;
+        $customReady = false;
+        if ($customDomain) {
+            $customReady = collect(gethostbynamel($customDomain) ?: [])->contains($serverIp);
+            $instance->hostingAccount->update([
+                'custom_domain_status' => $customReady ? 'issuing' : 'waiting_dns',
+                'custom_domain_last_error' => $customReady ? null : "Crea un registro A o CNAME para {$customDomain} apuntando a {$serverIp}.",
+            ]);
+        }
+
         if (! config('xpanel.native_hosting.apply_system_changes')) {
             $instance->update(['ssl_status' => 'staged', 'ssl_last_error' => null]);
 
@@ -38,15 +49,25 @@ class HostInstanceCertificateProvisioner
 
         try {
             $email = $instance->tenant->user?->email ?: 'admin@'.$instance->panel_domain;
-            $this->commands->run([
+            $arguments = [
                 'sudo', '-n', config('xpanel.host_instances.helper'), 'ssl-issue',
                 $instance->uuid, $instance->panel_domain, $email,
-            ], null, 300);
+            ];
+            if ($customReady) {
+                $arguments[] = $customDomain;
+            }
+            $this->commands->run($arguments, null, 300);
             $instance->update(['ssl_status' => 'active', 'ssl_last_error' => null]);
+            if ($customReady) {
+                $instance->hostingAccount->update(['custom_domain_status' => 'active', 'custom_domain_last_error' => null]);
+            }
 
             return true;
         } catch (Throwable $exception) {
             $instance->update(['ssl_status' => 'error', 'ssl_last_error' => $exception->getMessage()]);
+            if ($customReady) {
+                $instance->hostingAccount?->update(['custom_domain_status' => 'error', 'custom_domain_last_error' => $exception->getMessage()]);
+            }
             report($exception);
 
             return false;

@@ -49,8 +49,8 @@ class HostInstanceConfigGenerator
         }
 
         $cache = $instance->instance_root.'/storage/framework/cache';
-        $instance->loadMissing('tenant.plan');
-        $plan = $instance->tenant?->plan;
+        $instance->loadMissing(['hostingAccount.plan', 'tenant.plan']);
+        $plan = $instance->hostingAccount?->plan ?? $instance->tenant?->plan;
         $limits = $this->limiter->limitsFor($instance);
 
         return [
@@ -78,6 +78,7 @@ class HostInstanceConfigGenerator
             'XPANEL_BROKER_URL' => config('xpanel.host_instances.broker_url'),
             'XPANEL_BROKER_SECRET' => $instance->broker_secret,
             'XPANEL_PANEL_DOMAIN' => $instance->panel_domain,
+            'XPANEL_SSO_ENABLED' => 'true',
             // Host enables mutations, but ServerCommandRunner sends its helper calls
             // to the signed VPS broker; the tenant process itself never gets sudo.
             'XPANEL_APPLY_SYSTEM_CHANGES' => 'true',
@@ -142,6 +143,7 @@ class HostInstanceConfigGenerator
 
     private function nginxVhost(HostInstance $instance): string
     {
+        $instance->loadMissing('hostingAccount');
         $socket = '/run/php/php'.$instance->php_version.'-fpm-xpanel-instance-'.$instance->uuid.'.sock';
         $fallbackTls = '';
         if ($instance->access_port) {
@@ -150,7 +152,10 @@ class HostInstanceConfigGenerator
             $fallbackTls = "    listen {$instance->access_port} ssl;\n    listen [::]:{$instance->access_port} ssl;\n    ssl_certificate {$certificate};\n    ssl_certificate_key {$certificateKey};\n    ssl_protocols TLSv1.2 TLSv1.3;\n";
         }
 
-        return "server {\n    listen 80;\n    listen [::]:80;\n{$fallbackTls}    include /etc/nginx/snippets/xpanel-instance-{$instance->uuid}-tls.conf;\n    server_name {$instance->panel_domain};\n    root {$instance->release_path}/public;\n    index index.php;\n\n    location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }\n    location / { try_files \$uri \$uri/ /index.php?\$query_string; }\n    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:{$socket};\n        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n    }\n    location ~ /\\. { deny all; }\n}\n";
+        $serverNames = collect([$instance->panel_domain, $instance->hostingAccount?->custom_panel_domain])
+            ->filter()->implode(' ');
+
+        return "server {\n    listen 80;\n    listen [::]:80;\n{$fallbackTls}    include /etc/nginx/snippets/xpanel-instance-{$instance->uuid}-tls.conf;\n    server_name {$serverNames};\n    root {$instance->release_path}/public;\n    index index.php;\n\n    location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }\n    location / { try_files \$uri \$uri/ /index.php?\$query_string; }\n    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:{$socket};\n        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n    }\n    location ~ /\\. { deny all; }\n}\n";
     }
 
     private function fpmGlobal(HostInstance $instance): string

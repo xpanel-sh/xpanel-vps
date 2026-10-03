@@ -14,7 +14,7 @@ class HostingPlanController extends Controller
     public function index()
     {
         $plans = HostingPlan::query()
-            ->withCount('tenants')
+            ->withCount('hostingAccounts')
             ->latest()
             ->paginate(12);
 
@@ -50,9 +50,9 @@ class HostingPlanController extends Controller
 
         $plan->update($validated);
 
-        $plan->tenants()->with('hostInstance')->get()->each(function ($tenant) use ($limits): void {
-            if ($tenant->hostInstance) {
-                $limits->apply($tenant->hostInstance);
+        $plan->hostingAccounts()->with('hostInstance')->get()->each(function ($account) use ($limits): void {
+            if ($account->hostInstance) {
+                $limits->apply($account->hostInstance);
             }
         });
 

@@ -50,8 +50,8 @@
                             <dd class="mt-1 font-bold">{{ number_format($plan->storage_mb / 1024, 1) }} GB</dd>
                         </div>
                         <div class="rounded-xl bg-black p-3">
-                            <dt class="text-gray-500">Clientes</dt>
-                            <dd class="mt-1 font-bold">{{ $plan->tenants_count }}</dd>
+                            <dt class="text-gray-500">Hostings</dt>
+                            <dd class="mt-1 font-bold">{{ $plan->hosting_accounts_count }}</dd>
                         </div>
                         <div class="rounded-xl bg-black p-3">
                             <dt class="text-gray-500">RAM / CPU</dt>

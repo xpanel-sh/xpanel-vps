@@ -55,6 +55,16 @@ class Tenant extends Model
         return $this->hasOne(HostInstance::class);
     }
 
+    public function hostInstances()
+    {
+        return $this->hasMany(HostInstance::class);
+    }
+
+    public function hostingAccounts()
+    {
+        return $this->hasMany(HostingAccount::class);
+    }
+
     public function domains()
     {
         return $this->hasMany(Domain::class);

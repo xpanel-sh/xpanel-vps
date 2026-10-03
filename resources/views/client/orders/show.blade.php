@@ -25,7 +25,7 @@
             <div class="kt-card-content p-7.5">
                 <div class="text-sm text-secondary-foreground">Total</div><div class="text-3xl text-mono font-semibold mt-2">{{ $order->currency }} {{ number_format((float) $order->amount, 2) }}</div>
                 @if($order->payment_status === 'pending')<p class="text-sm text-secondary-foreground leading-6 mt-5">Tu hosting ya está habilitado. Por ahora no hay métodos de pago conectados; el administrador confirmará el pago sin modificar tu acceso.</p>@endif
-                <a class="kt-btn kt-btn-primary justify-center w-full mt-6" href="{{ route('client.host.show') }}">Ir a mi hosting</a>
+                <a class="kt-btn kt-btn-primary justify-center w-full mt-6" href="{{ $order->hostingAccount ? route('client.host.account', $order->hostingAccount) : route('client.host.show') }}">Ir a este hosting</a>
                 <a class="kt-btn kt-btn-outline justify-center w-full mt-2" href="mailto:{{ \App\Support\PublicPageRegistry::content('home')['sales_email'] }}?subject=Boleta {{ $order->number }}">Contactar sobre esta boleta</a>
             </div>
         </div>

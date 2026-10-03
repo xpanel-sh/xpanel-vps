@@ -10,7 +10,7 @@ class HostInstance extends Model
     use HasFactory;
 
     protected $fillable = [
-        'tenant_id', 'uuid', 'panel_domain', 'access_port', 'system_user', 'release_path',
+        'tenant_id', 'hosting_account_id', 'uuid', 'panel_domain', 'access_port', 'system_user', 'release_path',
         'instance_root', 'database_path', 'broker_secret', 'initial_password', 'php_version', 'version',
         'update_channel', 'status', 'ssl_status', 'last_error', 'ssl_last_error', 'ssl_attempted_at', 'provisioned_at',
     ];
@@ -35,8 +35,18 @@ class HostInstance extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    public function hostingAccount()
+    {
+        return $this->belongsTo(HostingAccount::class);
+    }
+
     public function panelUrl(): string
     {
+        $customDomain = $this->hostingAccount?->custom_panel_domain;
+        if ($customDomain && $this->hostingAccount?->custom_domain_status === 'active') {
+            return 'https://'.$customDomain;
+        }
+
         if ($this->ssl_status === 'active') {
             return 'https://'.$this->panel_domain;
         }

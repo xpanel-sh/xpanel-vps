@@ -56,13 +56,13 @@ class ClientTemplateViewsTest extends TestCase
 
         $this->get(route('client.account.show'))
             ->assertOk()
-            ->assertSee('Información personal')
+            ->assertSee('Información del cliente')
             ->assertSee('Cliente Plantilla')
             ->assertSee('mt-auto shrink-0', false);
 
         $this->get(route('client.plans.index'))
             ->assertOk()
             ->assertSee('Planes de hosting')
-            ->assertSee('Plan actual: Profesional');
+            ->assertSee('Contratar nuevo hosting');
     }
 }

@@ -26,24 +26,46 @@ class PlanOrderFlowTest extends TestCase
 
         $order = PlanOrder::sole();
         $response->assertRedirect(route('client.orders.show', $order));
-        $this->assertSame($newPlan->id, $tenant->fresh()->plan_id);
+        $this->assertSame($currentPlan->id, $tenant->fresh()->plan_id);
         $this->assertSame(37.50, (float) $order->amount);
         $this->assertSame(3, $order->billing_period_months);
         $this->assertSame('active', $order->status);
         $this->assertSame('pending', $order->payment_status);
         $this->assertTrue($order->payment_due_at->isSameDay(now()->addDays(10)));
-        $instance = $tenant->hostInstance()->firstOrFail();
+        $account = $tenant->hostingAccounts()->with('hostInstance')->sole();
+        $this->assertSame($newPlan->id, $account->hosting_plan_id);
+        $this->assertSame($order->id, $account->plan_order_id);
+        $this->assertSame($account->id, $order->fresh()->hosting_account_id);
+        $instance = $account->hostInstance;
         $this->assertSame('staged', $instance->status);
-        $this->assertSame('panel.client.test', $instance->panel_domain);
+        $this->assertStringStartsWith('h-', $instance->panel_domain);
+        $this->assertStringEndsWith('.'.config('xpanel.host_instances.cloud_domain'), $instance->panel_domain);
         $this->assertNotEmpty($instance->initial_password);
         $this->get(route('client.host.show'))
             ->assertOk()
-            ->assertSee('Estamos preparando tu hosting')
-            ->assertSee('panel.client.test');
+            ->assertSee($account->name)
+            ->assertSee($instance->panel_domain);
+        $this->get(route('client.host.account', $account))
+            ->assertOk()
+            ->assertSee('Estamos preparando tu hosting');
         $this->get(route('client.orders.show', $order))
             ->assertOk()
             ->assertSee($order->number)
             ->assertSee('Pendiente de integración');
+    }
+
+    public function test_client_can_contract_multiple_independent_hostings(): void
+    {
+        $plan = $this->plan(['name' => 'Growth', 'slug' => 'growth']);
+        [$user, $tenant] = $this->client(null);
+
+        $this->actingAs($user)->post(route('client.plans.contract', $plan))->assertRedirect();
+        $this->actingAs($user)->post(route('client.plans.contract', $plan))->assertRedirect();
+
+        $this->assertCount(2, $tenant->hostingAccounts()->get());
+        $this->assertCount(2, $tenant->hostInstances()->get());
+        $this->assertCount(2, $tenant->planOrders()->where('status', PlanOrder::STATUS_ACTIVE)->get());
+        $this->assertSame(2, $tenant->hostInstances()->distinct()->count('panel_domain'));
     }
 
     public function test_admin_marks_payment_without_changing_service_or_provisioning(): void

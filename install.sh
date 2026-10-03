@@ -254,7 +254,14 @@ EOF
   fi
   set_env_var APP_URL "$app_url"
   set_env_var SESSION_SECURE_COOKIE true
+  local cloud_domain="${XPANEL_CLOUD_DOMAIN:-$PANEL_DOMAIN}"
+  if [[ -z "$cloud_domain" ]]; then
+    cloud_domain="cloud.${server_ip:-127.0.0.1}.sslip.io"
+  fi
   set_env_var XPANEL_PANEL_DOMAIN "$PANEL_DOMAIN"
+  set_env_var XPANEL_CLOUD_DOMAIN "$cloud_domain"
+  set_env_var XPANEL_CONTROL_PLANE_URL "$app_url"
+  set_env_var XPANEL_BROKER_URL "$app_url/api/internal/host-broker"
   set_env_var XPANEL_PANEL_PORT "$PANEL_PORT"
   set_env_var XPANEL_SERVER_IP "${server_ip:-127.0.0.1}"
 }

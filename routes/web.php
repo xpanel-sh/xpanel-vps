@@ -34,14 +34,14 @@ Route::group(['middleware' => ['web']], function () {
             $planCount = \App\Models\HostingPlan::count();
             $activeNodeCount = \App\Models\ServerNode::where('is_active', true)->count();
             $recentSites = \App\Models\Site::with('tenant')->latest()->take(8)->get();
-            $planStats = \App\Models\HostingPlan::withCount('tenants')
-                ->orderByDesc('tenants_count')
+            $planStats = \App\Models\HostingPlan::withCount('hostingAccounts')
+                ->orderByDesc('hosting_accounts_count')
                 ->take(5)
                 ->get()
                 ->map(fn ($plan) => [
                     'name' => $plan->name,
-                    'tenants' => $plan->tenants_count,
-                    'monthly' => (float) $plan->monthly_price * $plan->tenants_count,
+                    'tenants' => $plan->hosting_accounts_count,
+                    'monthly' => (float) $plan->monthly_price * $plan->hosting_accounts_count,
                 ]);
             $runtime = [];
             $runtimeError = null;
@@ -170,13 +170,11 @@ Route::group(['middleware' => ['web']], function () {
                     'email' => 'No tenant assigned to this account.',
                 ]);
             }
-            $siteCount = \App\Models\Site::where('tenant_id', $tenant->id)->count();
-            $sites = \App\Models\Site::where('tenant_id', $tenant->id)->latest()->take(5)->get();
-            $databaseCount = \App\Models\ManagedDatabase::where('tenant_id', $tenant->id)->count();
-            $domainCount = \App\Models\Domain::where('tenant_id', $tenant->id)->count();
-            $emailCount = \App\Models\EmailAccount::where('tenant_id', $tenant->id)->count();
+            $hostingAccounts = $tenant->hostingAccounts()->with(['plan', 'hostInstance'])->latest()->get();
+            $activeHostingCount = $hostingAccounts->where('status', 'active')->count();
+            $pendingInvoiceCount = $tenant->planOrders()->where('payment_status', 'pending')->count();
 
-            return view('client.dashboard', compact('sites', 'tenant', 'siteCount', 'databaseCount', 'domainCount', 'emailCount'));
+            return view('client.dashboard', compact('tenant', 'hostingAccounts', 'activeHostingCount', 'pendingInvoiceCount'));
         })->name('client.dashboard');
 
         // Sitios Web
@@ -250,6 +248,9 @@ Route::group(['middleware' => ['web']], function () {
 
         Route::get('/account', [\App\Http\Controllers\Client\AccountController::class, 'show'])->name('client.account.show');
         Route::get('/hosting', [\App\Http\Controllers\Client\HostAccessController::class, 'show'])->name('client.host.show');
+        Route::get('/hosting/{hostingAccount}', [\App\Http\Controllers\Client\HostAccessController::class, 'account'])->name('client.host.account');
+        Route::post('/hosting/{hostingAccount}/access', [\App\Http\Controllers\Client\HostAccessController::class, 'access'])->name('client.host.access');
+        Route::put('/hosting/{hostingAccount}/domain', [\App\Http\Controllers\Client\HostAccessController::class, 'updateDomain'])->name('client.host.domain');
         Route::get('/plans', [\App\Http\Controllers\Client\PlanController::class, 'index'])->name('client.plans.index');
         Route::post('/plans/{plan}/contract', [\App\Http\Controllers\Client\PlanOrderController::class, 'store'])->name('client.plans.contract');
         Route::get('/orders', [\App\Http\Controllers\Client\PlanOrderController::class, 'index'])->name('client.orders.index');

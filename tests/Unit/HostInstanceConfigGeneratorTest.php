@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\HostInstance;
+use App\Models\HostingAccount;
 use App\Services\HostInstanceConfigGenerator;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -29,6 +30,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
     public function test_it_generates_an_isolated_runtime_for_each_host_instance(): void
     {
         $first = $this->makeInstance('01234567-89ab-cdef-0123-456789abcdef', 'panel.one.test');
+        $first->setRelation('hostingAccount', new HostingAccount(['custom_panel_domain' => 'panel.customer.test']));
         $second = $this->makeInstance('fedcba98-7654-3210-fedc-ba9876543210', 'panel.two.test');
 
         $generator = app(HostInstanceConfigGenerator::class);
@@ -46,6 +48,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertNotSame($firstFiles['directory'], $secondFiles['directory']);
         $this->assertStringContainsString('php8.3-fpm-xpanel-instance-'.$first->uuid.'.sock', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('listen 10000 ssl;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('server_name panel.one.test panel.customer.test;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('Slice=xpanel-instance-'.$first->uuid.'.slice', File::get($firstFiles['fpm_service']));
         $this->assertStringContainsString('/php-fpm-pools/*.conf', File::get($firstFiles['fpm_global']));
     }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\HostingPlan;
+use App\Models\HostingAccount;
 use App\Models\PlanOrder;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
@@ -16,7 +17,7 @@ class PlanOrderController extends Controller
     public function index(Request $request)
     {
         $tenant = $request->attributes->get('tenant');
-        $orders = $tenant->planOrders()->with('plan')->latest()->paginate(10);
+        $orders = $tenant->planOrders()->with(['plan', 'hostingAccount'])->latest()->paginate(10);
 
         return view('client.orders.index', compact('tenant', 'orders'));
     }
@@ -26,23 +27,8 @@ class PlanOrderController extends Controller
         abort_unless($plan->is_active, 404);
         $tenant = $request->attributes->get('tenant');
 
-        $existing = $tenant->planOrders()
-            ->where('hosting_plan_id', $plan->id)
-            ->where('status', PlanOrder::STATUS_ACTIVE)
-            ->where('payment_status', PlanOrder::PAYMENT_PENDING)
-            ->first();
-
-        if ($existing) {
-            return redirect()->route('client.orders.show', $existing)
-                ->with('info', 'Este plan ya está activo y su boleta sigue pendiente de pago.');
-        }
-
         $activatedAt = now();
-        $order = DB::transaction(function () use ($tenant, $plan, $activatedAt): PlanOrder {
-            $tenant->planOrders()->where('status', PlanOrder::STATUS_ACTIVE)->update([
-                'status' => PlanOrder::STATUS_CANCELLED,
-            ]);
-
+        [$order, $account] = DB::transaction(function () use ($tenant, $plan, $activatedAt): array {
             $order = PlanOrder::create([
                 'number' => 'XP-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
                 'tenant_id' => $tenant->id,
@@ -56,19 +42,27 @@ class PlanOrderController extends Controller
                 'activated_at' => $activatedAt,
                 'service_ends_at' => $activatedAt->copy()->addMonths($plan->billing_period_months),
             ]);
+            $account = HostingAccount::create([
+                'uuid' => (string) Str::uuid(),
+                'tenant_id' => $tenant->id,
+                'hosting_plan_id' => $plan->id,
+                'plan_order_id' => $order->id,
+                'name' => $plan->name.' #'.($tenant->hostingAccounts()->count() + 1),
+                'status' => 'active',
+            ]);
+            $order->update(['hosting_account_id' => $account->id]);
+            $tenant->update(['status' => 'active']);
 
-            $tenant->update(['plan_id' => $plan->id, 'status' => 'active']);
-
-            return $order;
+            return [$order->fresh(), $account];
         });
 
         $provisioningWarning = null;
-        if (config('xpanel.host_instances.enabled') && ! $tenant->hostInstance()->exists()) {
+        if (config('xpanel.host_instances.enabled')) {
             try {
                 $instance = $provisioner->create(
-                    $tenant->fresh(),
-                    'panel.'.strtolower($tenant->domain),
-                    Str::random(24),
+                    $account->fresh(['tenant']),
+                    null,
+                    Str::password(24),
                 );
                 if ($instance->status === 'active') {
                     $certificates->issue($instance->load('tenant.user'));
@@ -88,7 +82,7 @@ class PlanOrderController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
         abort_unless($order->tenant_id === $tenant->id, 404);
-        $order->load('plan');
+        $order->load(['plan', 'hostingAccount']);
 
         return view('client.orders.show', compact('tenant', 'order'));
     }

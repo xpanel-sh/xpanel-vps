@@ -72,7 +72,8 @@ class TenantController extends Controller
     public function show(Tenant $tenant)
     {
         $tenant->load([
-            'user', 'plan', 'hostInstance.brokerOperations' => fn ($query) => $query->limit(10),
+            'user', 'plan', 'hostingAccounts.plan',
+            'hostingAccounts.hostInstance.brokerOperations' => fn ($query) => $query->limit(10),
             'sites' => fn ($query) => $query->latest(),
         ]);
 

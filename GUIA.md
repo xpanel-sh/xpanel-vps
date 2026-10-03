@@ -1,6 +1,6 @@
 # Guía de instalación de XPanel VPS
 
-Esta guía instala XPanel VPS como plano de control y XPanel Host como panel aislado para cada cliente. Está orientada a un servidor limpio con Ubuntu o Debian.
+Esta guía instala XPanel VPS como plano de control Cloud y XPanel Host como panel aislado para cada cuenta de hosting contratada. Un mismo cliente puede tener varias cuentas. Está orientada a un servidor limpio con Ubuntu o Debian.
 
 ## 1. Requisitos
 
@@ -132,12 +132,12 @@ Normalmente la IP pública se detecta mediante un servicio externo y no necesita
 
 Cuando un cliente contrata un plan:
 
-1. el servicio y el plan se activan inmediatamente;
+1. se crea una nueva cuenta de hosting ligada al plan; no se reemplazan las contrataciones anteriores;
 2. la boleta permanece pendiente durante los días configurados en el plan;
 3. XPanel VPS reserva un puerto temporal único;
 4. crea usuario Linux, `.env`, SQLite y almacenamiento independientes;
 5. crea una slice cgroups v2 y un master PHP-FPM propio con los límites del plan;
-6. reutiliza la release instalada de XPanel Host, sin clonar Git por cliente;
+6. reutiliza la release instalada de XPanel Host, sin clonar Git por cuenta;
 7. crea el vhost Nginx para `panel.dominio-del-cliente.com`;
 8. intenta emitir SSL cuando el DNS ya apunta al servidor.
 
@@ -153,44 +153,57 @@ systemd-cgls xpanel-instance-UUID.slice
 
 El panel Host, los pools PHP de sus sitios y los servicios Node.js aparecen dentro de esa slice. Cron, workers, terminales y contenedores todavía no deben considerarse cubiertos por el límite.
 
-## 7. Dominio, subdominio y acceso temporal
+## 7. Cloud, direcciones incluidas y dominio personalizado
 
-Apuntar solamente el dominio raíz no hace que sus subdominios resuelvan. Si el panel asignado es:
-
-```text
-panel.cliente.com
-```
-
-el cliente debe crear uno de estos registros:
+Usa `cloud.example.com` para la tienda, la cuenta del cliente y la administración global. Antes de vender planes, crea:
 
 ```text
-panel.cliente.com  A      IP_PUBLICA_DEL_VPS
+cloud.example.com    A    IP_PUBLICA_DEL_VPS
+*.cloud.example.com  A    IP_PUBLICA_DEL_VPS
 ```
 
-o, si ya existe un nombre canónico administrado por el proveedor:
+Instala indicando el mismo dominio:
+
+```bash
+XPANEL_PANEL_DOMAIN=cloud.example.com \
+XPANEL_CLOUD_DOMAIN=cloud.example.com \
+sudo -E ./install.sh
+```
+
+Si todavía no indicas un dominio, el instalador genera provisionalmente un dominio técnico basado en la IP mediante `sslip.io`. Para producción y venta de planes debes reemplazarlo por tu dominio real y crear los dos registros DNS anteriores.
+
+Cada cuenta recibe automáticamente una dirección estable similar a:
 
 ```text
-panel.cliente.com  CNAME  host.example.com
+h-a82f10bc2391.cloud.example.com
 ```
 
-Mientras ese registro no exista, el cliente conserva acceso mediante una dirección similar a:
+El cliente entra primero en Cloud y **Administrar hosting** crea un token SSO de un solo uso; la dirección de Host no es temporal. Si desea una dirección propia puede registrar desde Cloud:
+
+```text
+panel.cliente.com  CNAME  h-a82f10bc2391.cloud.example.com
+```
+
+También puede utilizar un registro `A` hacia la IP pública. XPanel añade el alias al virtual host y amplía el certificado cuando el DNS es correcto.
+
+Si todavía no funciona ningún DNS, se conserva un acceso de recuperación:
 
 ```text
 https://IP_PUBLICA_DEL_VPS:10000
 ```
 
-El certificado de ese acceso es temporal y autofirmado; el navegador puede mostrar una advertencia. Sirve para configuración inicial, no como URL pública definitiva.
+El certificado de recuperación es autofirmado y el navegador puede mostrar una advertencia. No debe utilizarse como URL pública definitiva.
 
 No se recomienda usar `IP:puerto` después de activar el dominio y su SSL.
 
 ## 8. SSL automático y reintentos
 
-XPanel verifica que el registro `A` de la instancia coincida con `XPANEL_SERVER_IP` antes de solicitar Let’s Encrypt.
+XPanel verifica que la dirección técnica y cualquier dominio personalizado resuelvan hacia `XPANEL_SERVER_IP` antes de solicitar Let’s Encrypt.
 
 - Si todavía no coincide, muestra `Esperando DNS` y mantiene el acceso temporal.
 - El programador reintenta cada 15 minutos.
 - El administrador puede usar **Reintentar SSL** en el detalle del cliente.
-- Cuando Certbot finaliza, el acceso principal cambia a `https://panel.cliente.com`.
+- Cuando Certbot finaliza, el dominio personalizado pasa a ser el acceso preferido; la dirección incluida permanece activa.
 - Los errores quedan registrados en `ssl_last_error`; un fallo de SSL no elimina la instancia ni la boleta.
 
 Reintento manual desde terminal:

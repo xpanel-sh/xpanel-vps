@@ -15,10 +15,15 @@ class RetryHostInstanceSsl extends Command
     {
         HostInstance::query()
             ->where('status', 'active')
-            ->where('ssl_status', '!=', 'active')
+            ->where(function ($query): void {
+                $query->where('ssl_status', '!=', 'active')
+                    ->orWhereHas('hostingAccount', fn ($account) => $account
+                        ->whereNotNull('custom_panel_domain')
+                        ->where('custom_domain_status', '!=', 'active'));
+            })
             ->when($this->option('instance'), fn ($query, $uuid) => $query->where('uuid', $uuid))
             ->where(fn ($query) => $query->whereNull('ssl_attempted_at')->orWhere('ssl_attempted_at', '<=', now()->subMinutes(10)))
-            ->with('tenant.user')
+            ->with(['tenant.user', 'hostingAccount'])
             ->each(fn (HostInstance $instance) => $certificates->issue($instance));
 
         return self::SUCCESS;

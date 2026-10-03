@@ -96,13 +96,13 @@
                                                         <span class="text-sm font-normal text-mono">{{ $plan['name'] }}</span>
                                                     </div>
                                                     <div class="flex items-center text-sm font-medium text-foreground gap-6">
-                                                        <span class="lg:text-right">{{ $plan['tenants'] }} clientes</span>
+                                                        <span class="lg:text-right">{{ $plan['tenants'] }} hostings</span>
                                                         <span class="lg:text-right">${{ number_format($plan['monthly'], 2) }}</span>
                                                     </div>
                                                 </div>
                                             @empty
                                                 <div class="text-sm text-secondary-foreground">
-                                                    Aun no hay clientes asociados a planes.
+                                                    Aun no hay hostings asociados a planes.
                                                 </div>
                                             @endforelse
                                         </div>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\HostInstance;
+use App\Models\HostingAccount;
 use App\Models\Tenant;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
@@ -16,14 +17,35 @@ class HostInstanceProvisioner
         private HostInstanceResourceLimiter $limits,
     ) {}
 
-    public function create(Tenant $tenant, string $panelDomain, ?string $password = null): HostInstance
+    public function create(HostingAccount|Tenant $account, ?string $panelDomain = null, ?string $password = null): HostInstance
     {
+        if ($account instanceof Tenant) {
+            $tenant = $account;
+            $account = $tenant->hostingAccounts()->firstOrCreate(
+                ['name' => 'Hosting principal'],
+                [
+                    'uuid' => (string) Str::uuid(),
+                    'hosting_plan_id' => $tenant->plan_id,
+                    'status' => 'active',
+                ],
+            );
+        } else {
+            $account->loadMissing('tenant');
+            $tenant = $account->tenant;
+        }
+
+        if ($account->hostInstance()->exists()) {
+            throw new \LogicException('Esta cuenta de hosting ya tiene una instancia XPanel Host.');
+        }
+
         $uuid = (string) Str::uuid();
+        $panelDomain ??= $this->technicalPanelDomain($uuid);
         $root = rtrim(config('xpanel.host_instances.root'), '/').'/'.$uuid;
         $configuredRelease = config('xpanel.host_instances.release_path');
         $releasePath = realpath($configuredRelease) ?: $configuredRelease;
 
-        $instance = $tenant->hostInstance()->create([
+        $instance = $account->hostInstance()->create([
+            'tenant_id' => $tenant->id,
             'uuid' => $uuid,
             'panel_domain' => strtolower($panelDomain),
             'access_port' => $this->nextAccessPort(),
@@ -43,6 +65,16 @@ class HostInstanceProvisioner
         return $this->apply($instance, $password);
     }
 
+    private function technicalPanelDomain(string $uuid): string
+    {
+        $cloudDomain = strtolower(trim((string) config('xpanel.host_instances.cloud_domain'), '.'));
+        if (! filter_var($cloudDomain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+            throw new \RuntimeException('XPANEL_CLOUD_DOMAIN no contiene un dominio válido.');
+        }
+
+        return 'h-'.substr(str_replace('-', '', $uuid), 0, 12).'.'.$cloudDomain;
+    }
+
     public function apply(HostInstance $instance, ?string $password = null): HostInstance
     {
         try {
@@ -52,7 +84,10 @@ class HostInstanceProvisioner
             $files = $this->generator->generate($instance);
 
             if (! config('xpanel.native_hosting.apply_system_changes')) {
-                $instance->update(['status' => 'staged', 'last_error' => null]);
+                $instance->update([
+                    'status' => $instance->provisioned_at ? $instance->status : 'staged',
+                    'last_error' => null,
+                ]);
 
                 return $instance->fresh();
             }

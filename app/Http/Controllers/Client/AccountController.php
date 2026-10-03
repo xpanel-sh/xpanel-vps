@@ -3,10 +3,6 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
-use App\Models\Domain;
-use App\Models\EmailAccount;
-use App\Models\ManagedDatabase;
-use App\Models\Site;
 use Illuminate\Http\Request;
 
 class AccountController extends Controller
@@ -15,13 +11,13 @@ class AccountController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
 
+        $hostingAccounts = $tenant->hostingAccounts()->with(['plan', 'hostInstance'])->latest()->get();
         $usage = [
-            'sites' => Site::where('tenant_id', $tenant->id)->count(),
-            'databases' => ManagedDatabase::where('tenant_id', $tenant->id)->count(),
-            'domains' => Domain::where('tenant_id', $tenant->id)->count(),
-            'emails' => EmailAccount::where('tenant_id', $tenant->id)->count(),
+            'hostings' => $hostingAccounts->count(),
+            'active_hostings' => $hostingAccounts->where('status', 'active')->count(),
+            'pending_invoices' => $tenant->planOrders()->where('payment_status', 'pending')->count(),
         ];
 
-        return view('client.account.show', compact('tenant', 'usage'));
+        return view('client.account.show', compact('tenant', 'hostingAccounts', 'usage'));
     }
 }

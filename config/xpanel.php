@@ -27,6 +27,7 @@ return [
 
     'host_instances' => [
         'enabled' => filter_var(env('XPANEL_HOST_INSTANCES', true), FILTER_VALIDATE_BOOL),
+        'cloud_domain' => strtolower(trim(env('XPANEL_CLOUD_DOMAIN', parse_url(env('APP_URL', ''), PHP_URL_HOST) ?: 'cloud.doolpool.com'))),
         'root' => rtrim(env('XPANEL_INSTANCE_ROOT', '/var/lib/xpanel-vps/instances'), '/'),
         'release_path' => rtrim(env('XPANEL_HOST_RELEASE', '/opt/xpanel-host/current'), '/'),
         'version' => env('XPANEL_HOST_VERSION', 'dev'),
@@ -40,6 +41,7 @@ return [
         'fallback_port_end' => (int) env('XPANEL_HOST_PORT_END', 19999),
         'fallback_certificate' => env('XPANEL_FALLBACK_CERTIFICATE', '/etc/xpanel/tls/fallback.crt'),
         'fallback_certificate_key' => env('XPANEL_FALLBACK_CERTIFICATE_KEY', '/etc/xpanel/tls/fallback.key'),
+        'sso_ttl_seconds' => (int) env('XPANEL_HOST_SSO_TTL', 60),
         'default_limits' => [
             'memory_mb' => (int) env('XPANEL_INSTANCE_DEFAULT_MEMORY_MB', 512),
             'swap_mb' => (int) env('XPANEL_INSTANCE_DEFAULT_SWAP_MB', 0),

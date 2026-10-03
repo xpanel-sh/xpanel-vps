@@ -16,7 +16,7 @@ class PlanOrder extends Model
     public const PAYMENT_PAID = 'paid';
 
     protected $fillable = [
-        'number', 'tenant_id', 'hosting_plan_id', 'status', 'payment_status', 'amount', 'currency',
+        'number', 'tenant_id', 'hosting_account_id', 'hosting_plan_id', 'status', 'payment_status', 'amount', 'currency',
         'billing_period_months', 'payment_due_at', 'payment_method',
         'payment_reference', 'paid_at', 'marked_paid_by', 'activated_at', 'service_ends_at', 'activated_by',
     ];
@@ -37,6 +37,11 @@ class PlanOrder extends Model
     public function plan()
     {
         return $this->belongsTo(HostingPlan::class, 'hosting_plan_id');
+    }
+
+    public function hostingAccount()
+    {
+        return $this->belongsTo(HostingAccount::class);
     }
 
     public function activator()

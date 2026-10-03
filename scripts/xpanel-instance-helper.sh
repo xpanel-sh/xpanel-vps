@@ -73,18 +73,26 @@ if [[ "$ACTION" == "set-status" ]]; then
 fi
 
 if [[ "$ACTION" == "ssl-issue" ]]; then
-    [[ $# -eq 3 ]] || fail "ssl-issue expects 3 arguments"
+    [[ $# -eq 3 || $# -eq 4 ]] || fail "ssl-issue expects 3 or 4 arguments"
     UUID="$1"
     PANEL_DOMAIN="$2"
     ADMIN_EMAIL="$3"
+    CUSTOM_DOMAIN="${4:-}"
     validate_uuid "$UUID"
     [[ "$PANEL_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid panel domain"
     [[ "$ADMIN_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || fail "invalid admin email"
+    if [[ -n "$CUSTOM_DOMAIN" ]]; then
+        [[ "$CUSTOM_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid custom panel domain"
+    fi
     NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
     TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
     [[ -f "$NGINX_TARGET" && ! -L "$NGINX_TARGET" ]] || fail "instance vhost does not exist"
+    CERTBOT_DOMAINS=(-d "$PANEL_DOMAIN")
+    if [[ -n "$CUSTOM_DOMAIN" ]]; then
+        CERTBOT_DOMAINS+=(-d "$CUSTOM_DOMAIN")
+    fi
     certbot certonly --non-interactive --agree-tos --no-eff-email --expand \
-        --email "$ADMIN_EMAIL" --webroot -w /var/lib/letsencrypt -d "$PANEL_DOMAIN"
+        --cert-name "$PANEL_DOMAIN" --email "$ADMIN_EMAIL" --webroot -w /var/lib/letsencrypt "${CERTBOT_DOMAINS[@]}"
     cat > "$TLS_SNIPPET" <<EOF
 listen 443 ssl;
 listen [::]:443 ssl;

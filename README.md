@@ -1,6 +1,6 @@
 # XPanel VPS
 
-XPanel VPS es una plataforma de hosting multi-tenant todo en uno. Combina el portal comercial, la administración global tipo WHM y una instancia aislada de XPanel Host para cada cliente en una sola instalación.
+XPanel VPS es una plataforma de hosting multi-tenant todo en uno. Combina el portal comercial, la administración global tipo WHM y una instancia aislada de XPanel Host por cada cuenta de hosting contratada. Un cliente puede poseer varias cuentas y cada cuenta puede alojar varios sitios según su plan.
 
 Los sitios PHP, Node.js y estáticos se ejecutan directamente sobre Nginx, PHP-FPM y servicios systemd aislados. Docker permanece como módulo opcional para aplicaciones que realmente necesiten contenedores.
 
@@ -23,11 +23,11 @@ XPanel VPS no crea una máquina virtual por cliente. Las instancias comparten el
 - suspensión coordinada de clientes y sitios;
 - aplicaciones Docker opcionales;
 - integración con el CLI compartido `xpanel`.
-- una instancia aislada de XPanel Host por cliente, administrada por XPanel VPS.
+- varias cuentas de hosting por cliente, cada una con su propia instancia aislada de XPanel Host.
 
 ## Instancias XPanel Host
 
-XPanel VPS funciona como plano de control y reutiliza el proyecto `xpanel-host` como panel de cada cliente. El código se instala por versiones en `/opt/xpanel-host/releases` y no se duplica por cuenta. Cada instancia conserva de forma independiente:
+XPanel VPS funciona como plano de control y reutiliza el proyecto `xpanel-host` como panel de cada cuenta de hosting. El código se instala por versiones en `/opt/xpanel-host/releases` y no se duplica por cuenta. Cada instancia conserva de forma independiente:
 
 - usuario Linux y proceso PHP-FPM;
 - hogar de alojamiento `/home/<usuario-instancia>` con sitios bajo `public_html`;
@@ -36,6 +36,24 @@ XPanel VPS funciona como plano de control y reutiliza el proyecto `xpanel-host` 
 - estado activo o suspendido.
 
 El estado vive en `/var/lib/xpanel-vps/instances/<uuid>`. Al crearla, la instancia queda fijada a la ruta inmutable de su release, aunque cambie el enlace global `current`. El usuario de la instancia no recibe `sudo`; las operaciones se firman con HMAC y pasan por el broker de XPanel VPS. El broker verifica la instancia, cliente, nonce, tiempo, SQLite, dominio, rutas y prefijos Unix antes de delegar al helper root.
+
+## Cloud, cuentas y acceso
+
+La URL pública recomendada es `https://cloud.example.com`. Allí el cliente inicia sesión una sola vez, contrata planes, consulta boletas y ve todas sus cuentas de hosting. Cada contratación crea una entidad independiente:
+
+```text
+Cliente
+├── Hosting Starter → instancia Host A → varios sitios según el plan
+└── Hosting Pro     → instancia Host B → varios sitios según el plan
+```
+
+Cada instancia recibe una dirección técnica estable `h-<id>.cloud.example.com`; no es una URL temporal. **Administrar hosting** emite un token HMAC de un solo uso y corta duración, y XPanel Host abre la sesión del propietario sin pedir otra contraseña. La instancia puede estar fijada a una versión distinta de Host porque el SSO no depende de compartir sesiones ni bases de datos.
+
+El cliente también puede registrar `panel.sudominio.com`. VPS lo añade como alias del mismo virtual host, comprueba que su DNS apunte al servidor y amplía el certificado SAN. La dirección técnica continúa disponible como respaldo. El acceso por IP y puerto se reserva para recuperación cuando el DNS todavía no funciona.
+
+`XPANEL_CLOUD_DOMAIN` define el dominio base. En producción se recomienda crear un registro wildcard `*.cloud.example.com` hacia la IP del VPS para que las direcciones incluidas funcionen automáticamente.
+
+Si se instala inicialmente sin dominio, el instalador utiliza una dirección técnica provisional basada en la IP mediante `sslip.io`; antes de ofrecer el servicio debe configurarse un dominio propio y su registro wildcard.
 
 El código compartido de Host permanece en `/opt/xpanel-host/releases`; no es la carpeta del cliente. Cada broker sólo autoriza raíces web bajo `/home/<usuario-instancia>/public_html`, donde el administrador general de archivos ve la cuenta completa y cada administrador de dominio permanece confinado a su propio proyecto.
 
@@ -55,7 +73,7 @@ El tenancy de una web alojada pertenece a esa aplicación y a XPanel Host. XPane
 
 ## Límites de recursos por instancia
 
-Una instancia Linux puede limitar recursos sin convertirse en MicroVM, aunque el aislamiento es menos fuerte. El diseño previsto utiliza una unidad `xpanel-instance-<uuid>.slice` de systemd/cgroups v2 por cliente.
+Una instancia Linux puede limitar recursos sin convertirse en MicroVM, aunque el aislamiento es menos fuerte. El diseño utiliza una unidad `xpanel-instance-<uuid>.slice` de systemd/cgroups v2 por cuenta de hosting.
 
 | Recurso | Estado actual | Aplicación prevista |
 | --- | --- | --- |
@@ -97,7 +115,8 @@ No es necesario crear ni editar `.env`. El instalador no hace preguntas interact
 Configuración avanzada opcional:
 
 ```bash
-XPANEL_PANEL_DOMAIN=host.example.com \
+XPANEL_PANEL_DOMAIN=cloud.example.com \
+XPANEL_CLOUD_DOMAIN=cloud.example.com \
 XPANEL_INSTALL_APACHE=true \
 XPANEL_PHP_VERSIONS=8.2,8.3,8.4 \
 XPANEL_HOST_SOURCE=/ruta/al/repositorio/xpanel-host \
@@ -131,9 +150,9 @@ XPANEL_DOCKER_APPS=false
 
 ## Estado del desarrollo
 
-Completado: runtime web nativo PHP/Node.js/estático, hosting para aplicaciones SaaS tenant, wildcard DNS/SSL con Cloudflare, instalador, software, archivos multi-tenant, MariaDB, suspensión, SSL y aprovisionamiento aislado de XPanel Host por cliente.
+Completado: runtime web nativo PHP/Node.js/estático, hosting para aplicaciones SaaS tenant, wildcard DNS/SSL con Cloudflare, instalador, software, archivos multi-tenant, MariaDB, suspensión, SSL, varias cuentas de hosting por cliente, dominio técnico estable, dominio personalizado y SSO de Cloud hacia Host.
 
-La tienda habilita el plan y prepara la instancia Host al contratar, sin esperar el pago. La boleta conserva precio, duración y plazo configurado; el administrador confirma el pago como un estado financiero separado que no modifica el acceso. En desarrollo: incorporar cron, workers, terminales y Docker a la slice; cuotas de disco y medición mensual de transferencia; métodos de pago, cobro automático y renovaciones; ampliación del broker para correo agregado, cron, Git y backups; SSO desde VPS; actualizaciones/rollback por instancia y límites Docker.
+La tienda crea una nueva cuenta de hosting y prepara su instancia Host al contratar, sin esperar el pago. La boleta conserva precio, duración y plazo configurado; el administrador confirma el pago como un estado financiero separado que no modifica el acceso. En desarrollo: incorporar cron, workers, terminales y Docker a la slice; cuotas de disco y medición mensual de transferencia; métodos de pago, cobro automático y renovaciones; ampliación del broker para correo agregado, cron, Git y backups; actualizaciones/rollback por instancia y límites Docker.
 
 ## Seguridad y contribuciones
 
