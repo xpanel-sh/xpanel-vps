@@ -194,6 +194,5 @@ php-fpm"$PHP_VERSION" -t -y "$FPM_GLOBAL_TARGET"
 nginx -t
 systemctl daemon-reload
 systemctl enable --now "xpanel-instance-$UUID-fpm.service"
-systemctl reload "php$PHP_VERSION-fpm"
 systemctl reload nginx
 echo "active"

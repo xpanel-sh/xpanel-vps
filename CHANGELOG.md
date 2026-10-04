@@ -10,6 +10,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Corrected Composer, environment and built-asset permissions so the unprivileged web process can load VPS and every shared Host release without making application code writable.
 - Added secure administrator password rotation through `xpanel:admin-bootstrap --reset-password --password-stdin`.
 - Replaced the obsolete local daemon dependency on port 7070 with native Linux runtime metrics and broker operation history.
+- Prevented Host provisioning from reloading the control-plane PHP-FPM service, avoiding a successful creation ending in a 502 response.
+- Unified client, primary access and first Host creation so the customer receives one initial email and password; additional hostings now rely on central SSO.
 
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.

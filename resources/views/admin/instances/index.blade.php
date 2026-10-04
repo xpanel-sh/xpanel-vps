@@ -14,7 +14,7 @@
                 @forelse($instances as $instance)
                     <tr>
                         <td class="px-6 py-4 font-semibold">{{ $instance->tenant->name }}</td>
-                        <td class="px-6 py-4"><a class="text-primary hover:underline" href="{{ $instance->panelUrl() }}" target="_blank" rel="noopener">{{ $instance->panel_domain }}</a></td>
+                        <td class="px-6 py-4"><a class="text-primary hover:underline" href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener">{{ $instance->panel_domain }}</a></td>
                         <td class="px-6 py-4 text-gray-400">{{ $instance->version ?? '—' }} / {{ $instance->update_channel }}</td>
                         <td class="px-6 py-4 text-gray-400">{{ $instance->php_version }}</td>
                         <td class="px-6 py-4"><span class="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">{{ strtoupper($instance->status) }}</span></td>

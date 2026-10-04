@@ -38,6 +38,11 @@ class HostingAccountAccessTest extends TestCase
         $response->assertRedirectContains('https://'.$instance->panel_domain.'/auth/control-plane?token=');
         $token = explode('token=', $response->headers->get('Location'), 2)[1];
         $this->assertCount(2, explode('.', $token));
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin, 'admin')
+            ->get(route('admin.instances.access', $instance))
+            ->assertRedirectContains('https://'.$instance->panel_domain.'/auth/control-plane?token=');
     }
 
     public function test_client_cannot_access_another_clients_hosting(): void

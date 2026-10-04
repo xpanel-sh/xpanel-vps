@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\HostingAccount;
 use App\Models\HostingPlan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\HostInstanceProvisioner;
 use App\Services\TenantLifecycleManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TenantController extends Controller
 {
@@ -28,45 +31,67 @@ class TenantController extends Controller
         return view('admin.clients.create', compact('plans'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, HostInstanceProvisioner $provisioner)
     {
-        $request->validate([
+        $validated = $request->validate([
             'company_name' => 'required|string|max:255',
             'domain' => ['required', 'string', 'max:255', 'unique:tenants,domain', 'regex:/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
             'owner_name' => 'required|string|max:255',
             'owner_email' => 'required|email|unique:users,email',
-            'owner_password' => 'required|min:8',
-            'plan_id' => ['nullable', 'integer', 'exists:hosting_plans,id'],
+            'owner_password' => ['required', 'string', 'min:16', 'max:128'],
+            'plan_id' => ['required', 'integer', 'exists:hosting_plans,id'],
         ]);
 
-        DB::beginTransaction();
         try {
-            // 1. Crear el usuario para el cliente
-            $user = User::create([
-                'name' => $request->owner_name,
-                'email' => $request->owner_email,
-                'password' => Hash::make($request->owner_password),
-                'role' => 'client',
-            ]);
+            [$tenant, $account] = DB::transaction(function () use ($validated): array {
+                $user = User::create([
+                    'name' => $validated['owner_name'],
+                    'email' => strtolower($validated['owner_email']),
+                    'password' => Hash::make($validated['owner_password']),
+                    'role' => 'client',
+                ]);
+                $tenant = Tenant::create([
+                    'name' => $validated['company_name'],
+                    'domain' => strtolower($validated['domain']),
+                    'user_id' => $user->id,
+                    'plan_id' => $validated['plan_id'],
+                    'status' => 'active',
+                ]);
+                $account = HostingAccount::create([
+                    'uuid' => (string) Str::uuid(),
+                    'tenant_id' => $tenant->id,
+                    'hosting_plan_id' => $validated['plan_id'],
+                    'name' => 'Hosting principal',
+                    'status' => 'active',
+                ]);
 
-            // 2. Crear el Tenant
-            Tenant::create([
-                'name' => $request->company_name,
-                'domain' => strtolower($request->domain),
-                'user_id' => $user->id,
-                'plan_id' => $request->plan_id,
-                'status' => 'active',
-            ]);
-
-            DB::commit();
-
-            return redirect()->route('admin.clients.index')->with('success', 'Cliente y usuario creados correctamente.');
-        } catch (\Exception $e) {
-            DB::rollBack();
+                return [$tenant, $account];
+            });
+        } catch (\Throwable $e) {
             Log::warning('Tenant creation failed', ['domain' => $request->input('domain'), 'exception' => $e]);
 
             return back()->withErrors(['error' => 'Error al crear el cliente. Revisa los datos e intenta nuevamente.'])->withInput();
         }
+
+        try {
+            $instance = $provisioner->create($account, null, $validated['owner_password']);
+        } catch (\Throwable $e) {
+            Log::error('Initial hosting provisioning failed', [
+                'tenant_id' => $tenant->id,
+                'hosting_account_id' => $account->id,
+                'exception' => $e,
+            ]);
+
+            return redirect()->route('admin.clients.show', $tenant)->withErrors([
+                'hosting' => 'El cliente fue creado, pero el hosting no terminó de aprovisionarse. Puedes reintentarlo desde esta pantalla.',
+            ]);
+        }
+
+        return redirect()->route('admin.clients.show', $tenant)->with('success',
+            $instance->status === 'active'
+                ? 'Cliente, acceso principal y hosting creados con las mismas credenciales.'
+                : 'Cliente y hosting preparados. La instancia quedó pendiente de aplicación.'
+        );
     }
 
     public function show(Tenant $tenant)

@@ -7,6 +7,13 @@
                 <div class="kt-container-fluid">
                     <div class="grid gap-5 lg:gap-7.5">
 <section class="space-y-6">
+        @if($errors->any())
+            <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                @foreach($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
                 <a href="{{ route('admin.clients.index') }}" class="text-sm text-gray-400 hover:text-white">Volver a clientes</a>
@@ -52,12 +59,18 @@
             <div class="mt-6 grid gap-4 lg:grid-cols-2">
                 @forelse($tenant->hostingAccounts as $account)
                     @php($instance = $account->hostInstance)
-                    <div class="rounded-xl border border-white/10 p-5"><div class="flex items-center justify-between gap-3"><h3 class="font-bold">{{ $account->name }}</h3><span class="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">{{ strtoupper($account->status) }}</span></div><dl class="mt-4 grid gap-2 text-sm sm:grid-cols-2"><div><dt class="text-gray-500">Plan</dt><dd>{{ $account->plan?->name ?? 'Sin plan' }}</dd></div><div><dt class="text-gray-500">Dominio</dt><dd class="break-all">{{ $account->custom_panel_domain ?: ($instance?->panel_domain ?? 'Pendiente') }}</dd></div><div><dt class="text-gray-500">Versión</dt><dd>{{ $instance?->version ?? 'Pendiente' }}</dd></div><div><dt class="text-gray-500">PHP</dt><dd>{{ $instance?->php_version ?? '—' }}</dd></div></dl>@if($instance)<div class="mt-4 flex flex-wrap gap-2">@if($instance->status === 'active')<a href="{{ $instance->panelUrl() }}" target="_blank" rel="noopener" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-black">Abrir Host</a>@endif<form action="{{ route('admin.instances.apply', $instance) }}" method="POST">@csrf<button class="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold">Aplicar</button></form>@if($instance->ssl_status !== 'active')<form action="{{ route('admin.instances.retry-ssl', $instance) }}" method="POST">@csrf<button class="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold">Reintentar SSL</button></form>@endif</div>@endif</div>
+                    <div class="rounded-xl border border-white/10 p-5"><div class="flex items-center justify-between gap-3"><h3 class="font-bold">{{ $account->name }}</h3><span class="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">{{ strtoupper($account->status) }}</span></div><dl class="mt-4 grid gap-2 text-sm sm:grid-cols-2"><div><dt class="text-gray-500">Plan</dt><dd>{{ $account->plan?->name ?? 'Sin plan' }}</dd></div><div><dt class="text-gray-500">Dominio</dt><dd class="break-all">{{ $account->custom_panel_domain ?: ($instance?->panel_domain ?? 'Pendiente') }}</dd></div><div><dt class="text-gray-500">Versión</dt><dd>{{ $instance?->version ?? 'Pendiente' }}</dd></div><div><dt class="text-gray-500">PHP</dt><dd>{{ $instance?->php_version ?? '—' }}</dd></div></dl>@if($instance)<div class="mt-4 flex flex-wrap gap-2">@if($instance->status === 'active')<a href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-black">Abrir Host</a>@endif<form action="{{ route('admin.instances.apply', $instance) }}" method="POST">@csrf<button class="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold">Aplicar</button></form>@if($instance->ssl_status !== 'active')<form action="{{ route('admin.instances.retry-ssl', $instance) }}" method="POST">@csrf<button class="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold">Reintentar SSL</button></form>@endif</div>@endif</div>
                 @empty
                     <p class="text-sm text-gray-500">Este cliente todavía no tiene hostings contratados.</p>
                 @endforelse
             </div>
-            <form action="{{ route('admin.clients.instances.store', $tenant) }}" method="POST" class="mt-6 grid gap-3 border-t border-white/10 pt-6 md:grid-cols-3">@csrf<input name="name" placeholder="Nombre del hosting" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm"><input name="panel_domain" placeholder="Dominio técnico opcional" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm"><input name="owner_password" type="password" minlength="16" placeholder="Clave inicial (16+)" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm" {{ config('xpanel.native_hosting.apply_system_changes') ? 'required' : '' }}><button class="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground md:col-start-3">Crear cuenta de hosting</button></form>
+            <form action="{{ route('admin.clients.instances.store', $tenant) }}" method="POST" class="mt-6 grid gap-3 border-t border-white/10 pt-6 md:grid-cols-3">
+                @csrf
+                <input name="name" placeholder="Nombre del hosting" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm">
+                <input name="panel_domain" placeholder="Dominio técnico opcional" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm">
+                <div class="flex items-center text-xs text-gray-400">El cliente accederá desde su portal mediante inicio de sesión seguro.</div>
+                <button class="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground md:col-start-3">Crear hosting adicional</button>
+            </form>
         </div>
 
         <div class="rounded-2xl border border-white/10 bg-white/[0.03]">

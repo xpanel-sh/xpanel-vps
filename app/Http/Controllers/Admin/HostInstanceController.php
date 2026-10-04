@@ -8,7 +8,10 @@ use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
+use App\Services\HostSsoLink;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class HostInstanceController extends Controller
 {
@@ -27,26 +30,35 @@ class HostInstanceController extends Controller
                 'nullable', 'string', 'max:253', 'unique:host_instances,panel_domain',
                 'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/',
             ],
-            'owner_password' => config('xpanel.native_hosting.apply_system_changes')
-                ? ['required', 'string', 'min:16', 'max:128']
-                : ['nullable', 'string', 'min:16', 'max:128'],
             'plan_id' => ['nullable', 'integer', 'exists:hosting_plans,id'],
             'name' => ['nullable', 'string', 'max:120'],
         ]);
 
         $account = HostingAccount::create([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'tenant_id' => $tenant->id,
             'hosting_plan_id' => $validated['plan_id'] ?? $tenant->plan_id,
             'name' => $validated['name'] ?? 'Hosting '.($tenant->hostingAccounts()->count() + 1),
             'status' => 'active',
         ]);
 
-        $instance = $provisioner->create(
-            $account,
-            filled($validated['panel_domain'] ?? null) ? strtolower($validated['panel_domain']) : null,
-            $validated['owner_password'] ?? null,
-        );
+        try {
+            $instance = $provisioner->create(
+                $account,
+                filled($validated['panel_domain'] ?? null) ? strtolower($validated['panel_domain']) : null,
+                Str::password(24),
+            );
+        } catch (\Throwable $e) {
+            Log::error('Additional hosting provisioning failed', [
+                'tenant_id' => $tenant->id,
+                'hosting_account_id' => $account->id,
+                'exception' => $e,
+            ]);
+
+            return redirect()->route('admin.clients.show', $tenant)->withErrors([
+                'hosting' => 'La cuenta se creó, pero la instancia no terminó de aprovisionarse. Usa Aplicar para reintentarlo.',
+            ]);
+        }
 
         $message = $instance->status === 'active'
             ? 'Instancia instalada y activa. El dueño ya puede entrar a XPanel Host.'
@@ -73,5 +85,13 @@ class HostInstanceController extends Controller
             $issued ? 'success' : 'warning',
             $issued ? 'Certificado SSL emitido correctamente.' : ($instance->fresh()->ssl_last_error ?: 'SSL pendiente de DNS.'),
         );
+    }
+
+    public function access(HostInstance $instance, HostSsoLink $sso)
+    {
+        $instance->loadMissing('tenant.user');
+        abort_unless($instance->status === 'active' && $instance->tenant?->user, 409, 'La instancia todavía no está disponible.');
+
+        return redirect()->away($sso->for($instance, $instance->tenant->user));
     }
 }
