@@ -15,25 +15,22 @@ En el proveedor del VPS permite tráfico TCP para:
 
 - `80` y `443`: web, validación DNS/HTTP y SSL.
 - `22`: SSH.
+- `8443`: acceso inicial y recuperación del plano Cloud.
 - `10000-19999`: accesos temporales de las instancias antes de configurar sus dominios. El rango puede cambiarse con `XPANEL_HOST_PORT_START` y `XPANEL_HOST_PORT_END`.
 
 No expongas MariaDB, PHP-FPM ni los sockets internos a Internet. Las aplicaciones Node.js tampoco exponen su puerto directamente: XPanel reserva un puerto entre `20000-49999` sólo para loopback y Nginx publica el dominio por `80/443`.
 
 ## 2. Instalación automática recomendada
 
-No necesitas crear `.env`, una base de datos, contraseñas ni claves manualmente. Tampoco es obligatorio tener un dominio durante la primera instalación.
+No necesitas crear `.env`, una base de datos, contraseñas, claves, IP ni dominio manualmente. La instalación pública se ejecuta con un solo comando:
 
 ```bash
-sudo -i
-git clone https://github.com/TU_ORGANIZACION/xpanel-vps.git /opt/xpanel-vps
-cd /opt/xpanel-vps
-chmod +x install.sh
-./install.sh
+curl -fsSL https://get.xpanel.sh | sudo bash -s -- vps stable es
 ```
 
-El instalador detecta la IP pública, crea `.env`, genera `APP_KEY`, prepara MariaDB con credenciales aleatorias, instala la release oficial de XPanel Host, configura Nginx/PHP-FPM, instala XPanel CLI y muestra el usuario y contraseña iniciales.
+El bootstrap clona el repositorio oficial en `/opt/xpanel-vps`. El instalador detecta la IP pública, crea `.env`, genera `APP_KEY`, prepara MariaDB con credenciales aleatorias, instala la release oficial de XPanel Host, configura Nginx/PHP-FPM, firewall y XPanel CLI, y muestra el usuario y contraseña iniciales.
 
-Al terminar podrás entrar mediante la URL IP que aparece en pantalla. La primera conexión usa un certificado temporal autofirmado, por lo que el navegador puede pedir confirmación. Guarda las credenciales mostradas.
+Al terminar podrás entrar mediante `https://IP_PUBLICA:8443`. La primera conexión usa un certificado temporal autofirmado, por lo que el navegador puede pedir confirmación. Guarda las credenciales mostradas.
 
 ## 3. ¿La consola pregunta algo?
 
@@ -62,8 +59,8 @@ Al finalizar se imprime un resumen similar a este:
 
 ```text
 XPanel VPS instalado correctamente
-Panel: https://IP_DEL_VPS
-Admin: https://IP_DEL_VPS/admin/login
+Panel: https://IP_DEL_VPS:8443
+Admin: https://IP_DEL_VPS:8443/admin/login
 Correo: admin@xpanel.local
 Contraseña: CONTRASEÑA_GENERADA
 CLI global: xpanel
@@ -71,15 +68,16 @@ CLI global: xpanel
 
 La contraseña administrativa solamente se muestra durante la primera instalación. Debes guardarla antes de cerrar la consola. En ejecuciones posteriores el instalador conserva `.env`, la base de datos y el administrador existentes.
 
-## 4. Dominio opcional del panel principal
+## 4. Configurar el dominio después de instalar
 
-Si ya dispones de un dominio, crea un registro `A` antes de instalar:
+La instalación no solicita un dominio. Primero entra por IP y puerto. Cuando decidas la dirección definitiva, crea:
 
 ```text
-host.example.com  A  IP_PUBLICA_DEL_VPS
+cloud.example.com    A    IP_PUBLICA_DEL_VPS
+*.cloud.example.com  A    IP_PUBLICA_DEL_VPS
 ```
 
-Este paso es opcional. XPanel VPS puede instalarse usando solamente la IP. Si ya tienes un dominio, puedes apuntarlo antes de instalar para obtener una URL más clara y preparar HTTPS.
+Después abre **Administración → Settings → General**, escribe `cloud.example.com` y guarda. XPanel comprueba el DNS, configura Nginx, solicita el certificado SSL y conserva `https://IP_PUBLICA:8443` como acceso de recuperación. El wildcard permite crear las direcciones técnicas de las cuentas sin añadir un registro DNS por cliente.
 
 ## 5. Repositorios privados o configuración avanzada
 
@@ -162,15 +160,7 @@ cloud.example.com    A    IP_PUBLICA_DEL_VPS
 *.cloud.example.com  A    IP_PUBLICA_DEL_VPS
 ```
 
-Instala indicando el mismo dominio:
-
-```bash
-XPANEL_PANEL_DOMAIN=cloud.example.com \
-XPANEL_CLOUD_DOMAIN=cloud.example.com \
-sudo -E ./install.sh
-```
-
-Si todavía no indicas un dominio, el instalador genera provisionalmente un dominio técnico basado en la IP mediante `sslip.io`. Para producción y venta de planes debes reemplazarlo por tu dominio real y crear los dos registros DNS anteriores.
+No reinstales XPanel ni edites `.env`: registra el dominio desde **Administración → Settings → General**. Si todavía no lo haces, el instalador conserva una base técnica provisional mediante `sslip.io`, pero no debes vender planes hasta definir el dominio real y su wildcard.
 
 Cada cuenta recibe automáticamente una dirección estable similar a:
 

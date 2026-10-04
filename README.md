@@ -104,13 +104,10 @@ MariaDB, Nginx, Postfix y otros servicios continúan siendo compartidos. Se pued
 La guía completa de servidor, DNS, acceso temporal y SSL está en [GUIA.md](GUIA.md).
 
 ```bash
-git clone https://github.com/xpanel-sh/xpanel-vps.git /opt/xpanel-vps
-cd /opt/xpanel-vps
-chmod +x install.sh
-sudo ./install.sh
+curl -fsSL https://get.xpanel.sh | sudo bash -s -- vps stable es
 ```
 
-No es necesario crear ni editar `.env`. El instalador no hace preguntas interactivas: detecta la IP pública y configura automáticamente Laravel, credenciales de MariaDB, Nginx, PHP-FPM, Apache opcional, Certbot, helpers limitados mediante sudoers, la release de XPanel Host y `xpanel-cli`. Al terminar muestra la URL y las credenciales iniciales. `sudo` o un repositorio Git privado sí pueden solicitar autenticación externa.
+No es necesario crear ni editar `.env`. El instalador no hace preguntas interactivas: detecta la IP pública y configura automáticamente Laravel, credenciales de MariaDB, Nginx, PHP-FPM, Apache opcional, Certbot, firewall, helpers limitados mediante sudoers, la release de XPanel Host y `xpanel-cli`. Al terminar muestra `https://IP:8443` y las credenciales generadas. El dominio se configura después desde Administración y el acceso IP permanece para recuperación.
 
 Configuración avanzada opcional:
 

@@ -4,6 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
+- Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.
+
 ### Changed
 
 - El modelo comercial separa cliente, contratación y cuenta de hosting: un cliente puede mantener varias suscripciones activas y cada una recibe su propia instancia Host, plan, versión y límites.

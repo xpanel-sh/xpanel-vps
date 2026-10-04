@@ -8,7 +8,8 @@ REPO_CLI="${XPANEL_CLI_REPO:-github.com/xpanel-sh/xpanel-cli}"
 SAVED_PANEL_DOMAIN="$(grep -E '^XPANEL_PANEL_DOMAIN=' "$ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"' || true)"
 SAVED_PANEL_PORT="$(grep -E '^XPANEL_PANEL_PORT=' "$ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"' || true)"
 PANEL_DOMAIN="${XPANEL_PANEL_DOMAIN:-$SAVED_PANEL_DOMAIN}"
-PANEL_PORT="${XPANEL_PANEL_PORT:-${SAVED_PANEL_PORT:-80}}"
+PANEL_PORT="${XPANEL_PANEL_PORT:-${SAVED_PANEL_PORT:-8443}}"
+[[ "$PANEL_PORT" == "80" ]] && PANEL_PORT=8443
 INSTALL_APACHE="${XPANEL_INSTALL_APACHE:-true}"
 SKIP_PACKAGES="${XPANEL_SKIP_PACKAGES:-false}"
 
@@ -24,7 +25,7 @@ command -v apt-get >/dev/null 2>&1 || fail "apt-get es obligatorio."
 [[ -f /sys/fs/cgroup/cgroup.controllers ]] || fail "XPanel VPS requiere systemd con cgroups v2 para aislar los recursos de las instancias."
 [[ "$CLI_DIR" =~ ^/[^/]+/[^/]+ ]] || fail "XPANEL_CLI_DIR no es una ruta segura."
 [[ "$(basename "$CLI_DIR")" == "xpanel-cli" && "$CLI_DIR" != "$ROOT" ]] || fail "XPANEL_CLI_DIR no es válido."
-[[ "$PANEL_PORT" =~ ^[0-9]{2,5}$ ]] && (( PANEL_PORT == 80 || (PANEL_PORT >= 1024 && PANEL_PORT <= 65535) )) || fail "XPANEL_PANEL_PORT debe ser 80 o estar entre 1024 y 65535."
+[[ "$PANEL_PORT" =~ ^[0-9]{2,5}$ ]] && (( PANEL_PORT >= 1024 && PANEL_PORT <= 65535 )) || fail "XPANEL_PANEL_PORT debe estar entre 1024 y 65535."
 
 PANEL_DOMAIN="${PANEL_DOMAIN,,}"
 PANEL_DOMAIN="${PANEL_DOMAIN%.}"
@@ -87,7 +88,7 @@ install_packages() {
 
   apt-get update -y
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare \
+    ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw \
     nginx mariadb-server composer nodejs npm \
     php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd
 
@@ -108,6 +109,16 @@ install_packages() {
         "php${version}-xml" "php${version}-curl" "php${version}-zip" "php${version}-intl" "php${version}-gd"
     fi
   done
+}
+
+configure_firewall() {
+  command -v ufw >/dev/null 2>&1 || return
+  ufw allow 22/tcp >/dev/null
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw allow "$PANEL_PORT/tcp" >/dev/null
+  ufw allow "${XPANEL_HOST_PORT_START:-10000}:${XPANEL_HOST_PORT_END:-19999}/tcp" >/dev/null
+  ufw --force enable >/dev/null
 }
 
 ensure_node_runtime() {
@@ -203,31 +214,19 @@ SQL
 }
 
 configure_panel() {
-  local php_version panel_host listen app_url server_ip
+  local php_version app_url server_ip
   php_version="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
   server_ip="$(detect_server_ip)"
   set_env_var XPANEL_SERVER_IP "$server_ip"
   configure_fallback_tls
-  if [[ -n "$PANEL_DOMAIN" ]]; then
-    panel_host="$PANEL_DOMAIN"
-  else
-    panel_host="_"
-  fi
-  if [[ "$PANEL_PORT" == "80" ]]; then
-    listen="80"
-  else
-    listen="$PANEL_PORT"
-  fi
-
   cat > /etc/nginx/sites-available/xpanel-vps-panel.conf <<EOF
 server {
-    listen $listen;
-    listen 443 ssl;
-    listen [::]:443 ssl;
+    listen $PANEL_PORT ssl;
+    listen [::]:$PANEL_PORT ssl;
     ssl_certificate /etc/xpanel/tls/fallback.crt;
     ssl_certificate_key /etc/xpanel/tls/fallback.key;
     ssl_protocols TLSv1.2 TLSv1.3;
-    server_name $panel_host;
+    server_name _;
     root $ROOT/public;
     index index.php index.html;
 
@@ -241,6 +240,46 @@ server {
     location ~ /\. { deny all; }
 }
 EOF
+  if [[ -n "$PANEL_DOMAIN" ]]; then
+    local panel_certificate panel_certificate_key
+    if [[ -s "/etc/letsencrypt/live/$PANEL_DOMAIN/fullchain.pem" && -s "/etc/letsencrypt/live/$PANEL_DOMAIN/privkey.pem" ]]; then
+      panel_certificate="/etc/letsencrypt/live/$PANEL_DOMAIN/fullchain.pem"
+      panel_certificate_key="/etc/letsencrypt/live/$PANEL_DOMAIN/privkey.pem"
+    else
+      panel_certificate="/etc/xpanel/tls/fallback.crt"
+      panel_certificate_key="/etc/xpanel/tls/fallback.key"
+    fi
+    cat >> /etc/nginx/sites-available/xpanel-vps-panel.conf <<EOF
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $PANEL_DOMAIN;
+    root $ROOT/public;
+    location ^~ /.well-known/acme-challenge/ { try_files \$uri =404; }
+    location / { return 301 https://\$host\$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $PANEL_DOMAIN;
+    ssl_certificate $panel_certificate;
+    ssl_certificate_key $panel_certificate_key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    root $ROOT/public;
+    index index.php index.html;
+    location / { try_files \$uri \$uri/ /index.php?\$query_string; }
+    location ~ \.php\$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php${php_version}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_read_timeout 300s;
+    }
+    location ~ /\. { deny all; }
+}
+EOF
+  fi
   ln -sfn /etc/nginx/sites-available/xpanel-vps-panel.conf /etc/nginx/sites-enabled/xpanel-vps-panel.conf
   rm -f /etc/nginx/sites-enabled/default
   nginx -t
@@ -250,7 +289,7 @@ EOF
   if [[ -n "$PANEL_DOMAIN" ]]; then
     app_url="https://$PANEL_DOMAIN"
   else
-    app_url="https://${server_ip:-127.0.0.1}"
+    app_url="https://${server_ip:-127.0.0.1}:$PANEL_PORT"
   fi
   set_env_var APP_URL "$app_url"
   set_env_var SESSION_SECURE_COOKIE true
@@ -295,20 +334,24 @@ configure_helper() {
   local package_helper="$ROOT/scripts/xpanel-package-helper.sh"
   local instance_helper="$ROOT/scripts/xpanel-instance-helper.sh"
   local broker_helper="$ROOT/scripts/xpanel-host-broker-helper.sh"
+  local control_plane_helper="$ROOT/scripts/xpanel-control-plane-helper.sh"
   local sudoers_file="/etc/sudoers.d/xpanel-vps-site"
   chmod 0750 "$helper"
   chmod 0750 "$package_helper"
   chmod 0750 "$instance_helper"
   chmod 0750 "$broker_helper"
+  chmod 0750 "$control_plane_helper"
   chown root:www-data "$helper"
   chown root:www-data "$package_helper"
   chown root:www-data "$instance_helper"
   chown root:www-data "$broker_helper"
+  chown root:www-data "$control_plane_helper"
   {
     printf 'www-data ALL=(root) NOPASSWD: %s *\n' "$helper"
     printf 'www-data ALL=(root) NOPASSWD: %s install *\n' "$package_helper"
     printf 'www-data ALL=(root) NOPASSWD: %s *\n' "$instance_helper"
     printf 'www-data ALL=(root) NOPASSWD: %s execute *\n' "$broker_helper"
+    printf 'www-data ALL=(root) NOPASSWD: %s set-domain *\n' "$control_plane_helper"
   } > "$sudoers_file"
   chmod 0440 "$sudoers_file"
   visudo -cf "$sudoers_file" >/dev/null
@@ -319,6 +362,7 @@ configure_helper() {
   set_env_var XPANEL_PACKAGE_HELPER "$package_helper"
   set_env_var XPANEL_INSTANCE_HELPER "$instance_helper"
   set_env_var XPANEL_BROKER_HELPER "$broker_helper"
+  set_env_var XPANEL_CONTROL_PLANE_HELPER "$control_plane_helper"
   set_env_var XPANEL_APPLY_SYSTEM_CHANGES true
   set_env_var XPANEL_NATIVE_HOSTING true
 }
@@ -384,6 +428,7 @@ install_cli() {
 echo "Instalando XPanel VPS de forma nativa..."
 write_marker
 install_packages
+configure_firewall
 ensure_node_runtime
 command -v php >/dev/null 2>&1 || fail "PHP no está disponible."
 command -v composer >/dev/null 2>&1 || fail "Composer no está disponible."

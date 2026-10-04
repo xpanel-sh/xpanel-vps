@@ -8,6 +8,8 @@ return [
     ],
     'home_enabled' => (bool) env('XPANEL_HOME_ENABLED', false),
     'server_ip' => env('XPANEL_SERVER_IP', ''),
+    'panel_port' => (int) env('XPANEL_PANEL_PORT', 8443),
+    'control_plane_helper' => env('XPANEL_CONTROL_PLANE_HELPER', base_path('scripts/xpanel-control-plane-helper.sh')),
 
     'native_hosting' => [
         'enabled' => filter_var(env('XPANEL_NATIVE_HOSTING', true), FILTER_VALIDATE_BOOL),
