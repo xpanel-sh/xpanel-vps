@@ -7,6 +7,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Fixed fresh MariaDB installations by preserving a normal tenant index before removing the former one-instance unique constraint.
 - Installer repositories now ignore executable-bit changes applied to privileged helpers, keeping future `xpanel update` operations clean.
 - Fixed strict-mode early exits when package, firewall or CLI steps are intentionally skipped during recovery and updates.
+- Corrected Composer, environment and built-asset permissions so the unprivileged web process can load VPS and every shared Host release without making application code writable.
 
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.

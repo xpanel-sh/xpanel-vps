@@ -150,6 +150,16 @@ ensure_node_runtime() {
   rm -rf -- "$tempdir"
 }
 
+configure_application_permissions() {
+  chown root:www-data "$ROOT/.env"
+  chmod 0640 "$ROOT/.env"
+  for path in "$ROOT/vendor" "$ROOT/public/build"; do
+    [[ -e "$path" ]] || continue
+    chown -R root:www-data "$path"
+    chmod -R g+rX,go-w "$path"
+  done
+}
+
 detect_php_versions() {
   local version installed=()
   for version in 8.1 8.2 8.3 8.4; do
@@ -401,7 +411,7 @@ install_host_release() {
   npm --prefix "$target" install --ignore-scripts --no-audit --no-fund
   npm --prefix "$target" run build
   chown -R root:root "$target"
-  chmod -R o-w "$target"
+  chmod -R a+rX,go-w "$target"
   ln -sfn "$target" "$host_base/current"
   set_env_var XPANEL_HOST_INSTANCES true
   set_env_var XPANEL_HOST_RELEASE "$target"
@@ -446,6 +456,7 @@ node_token="$(env_value XPANEL_NODE_TOKEN)"
 composer --working-dir="$ROOT" install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 npm --prefix "$ROOT" install --ignore-scripts --no-audit --no-fund
 npm --prefix "$ROOT" run build
+configure_application_permissions
 
 detect_php_versions
 configure_apache
