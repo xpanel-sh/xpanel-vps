@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\HostInstance;
 use App\Models\SystemSetting;
+use App\Services\HostInstanceDomainMigrator;
 use App\Services\ServerCommandRunner;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -21,7 +21,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact('appName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl'));
     }
 
-    public function update(Request $request, ServerCommandRunner $commands)
+    public function update(Request $request, ServerCommandRunner $commands, HostInstanceDomainMigrator $instances)
     {
         $data = $request->validate([
             'app_name' => 'required|string|max:80',
@@ -33,10 +33,7 @@ class SettingsController extends Controller
         if ($currentDomain !== '' && $panelDomain === '') {
             return back()->withErrors(['panel_domain' => 'Configura otro dominio antes de retirar el dominio activo.'])->withInput();
         }
-        if ($panelDomain !== '' && $panelDomain !== $currentDomain && HostInstance::query()->exists()) {
-            return back()->withErrors(['panel_domain' => 'No se puede cambiar el dominio base mientras existan cuentas de hosting.'])->withInput();
-        }
-
+        $migration = ['migrated' => 0, 'failed' => 0];
         if ($panelDomain !== '' && $panelDomain !== $currentDomain) {
             try {
                 if (config('xpanel.native_hosting.apply_system_changes')) {
@@ -59,12 +56,15 @@ class SettingsController extends Controller
 
             SystemSetting::set('panel_domain', $panelDomain);
             SystemSetting::set('panel_domain_status', config('xpanel.native_hosting.apply_system_changes') ? 'active' : 'staged');
+            $migration = $instances->migrateTechnicalDomains($panelDomain);
         }
 
         SystemSetting::set('app_name', trim($data['app_name']));
 
         return back()->with('status', $panelDomain !== '' && $panelDomain !== $currentDomain
-            ? 'Dominio configurado. El acceso por IP y puerto permanece disponible para recuperación.'
+            ? 'Dominio configurado y '.$migration['migrated'].' instancia(s) técnica(s) actualizada(s).'
+                .($migration['failed'] ? ' '.$migration['failed'].' requieren revisión.' : '')
+                .' El acceso por IP y puerto permanece disponible para recuperación.'
             : 'Configuración guardada.');
     }
 }

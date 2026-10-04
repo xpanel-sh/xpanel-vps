@@ -10,7 +10,7 @@ class HostingAccount extends Model
     use HasFactory;
 
     protected $fillable = [
-        'uuid', 'tenant_id', 'hosting_plan_id', 'plan_order_id', 'name', 'status',
+        'uuid', 'tenant_id', 'hosting_plan_id', 'plan_order_id', 'name', 'admin_name', 'admin_email', 'status',
         'custom_panel_domain', 'custom_domain_status', 'custom_domain_last_error',
     ];
 

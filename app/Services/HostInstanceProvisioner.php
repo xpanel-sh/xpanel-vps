@@ -92,12 +92,15 @@ class HostInstanceProvisioner
                 return $instance->fresh();
             }
 
+            $instance->loadMissing(['tenant.user', 'hostingAccount']);
             $owner = $instance->tenant->user;
+            $ownerName = $instance->hostingAccount?->admin_name ?: ($owner?->name ?? 'Administrador');
+            $ownerEmail = $instance->hostingAccount?->admin_email ?: ($owner?->email ?? 'admin@'.$instance->panel_domain);
             $this->commands->run([
                 'sudo', config('xpanel.host_instances.helper'), 'apply', $instance->uuid,
                 $instance->system_user, $instance->panel_domain, $instance->php_version,
-                $instance->release_path, $files['directory'], $owner?->name ?? 'Administrador',
-                $owner?->email ?? 'admin@'.$instance->panel_domain,
+                $instance->release_path, $files['directory'], $ownerName,
+                $ownerEmail,
                 ...$this->limits->helperArguments($instance),
             ], ($password ?? '')."\n", 600);
 

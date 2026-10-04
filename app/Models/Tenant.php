@@ -9,7 +9,9 @@ class Tenant extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'domain', 'code', 'user_id', 'plan_id', 'status'];
+    protected $fillable = ['name', 'domain', 'code', 'user_id', 'access_ready', 'plan_id', 'status'];
+
+    protected $casts = ['access_ready' => 'boolean'];
 
     protected static function booted(): void
     {

@@ -34,7 +34,10 @@
 
             <div class="kt-card">
                 <div class="kt-card-header">
-                    <h3 class="kt-card-title">Cliente</h3>
+                    <div>
+                        <h3 class="kt-card-title">Cliente</h3>
+                        <p class="kt-form-description mt-1">Aquí solo registras al cliente comercial. Cada hosting tendrá después su propio plan y administrador.</p>
+                    </div>
                 </div>
                 <div class="kt-card-content grid gap-5">
                     <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
@@ -42,52 +45,12 @@
                         <input class="kt-input" type="text" name="company_name" value="{{ old('company_name') }}" placeholder="Mi Cliente S.L." required>
                     </div>
                     <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Dominio del panel</label>
+                        <label class="kt-form-label max-w-56">Dominio de referencia</label>
                         <input class="kt-input" type="text" name="domain" value="{{ old('domain') }}" placeholder="cliente.com" required>
-                    </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Plan</label>
-                        <select name="plan_id" class="kt-select" required>
-                            <option value="">Selecciona el plan inicial</option>
-                            @foreach($plans as $plan)
-                                <option value="{{ $plan->id }}" @selected(old('plan_id') == $plan->id)>
-                                    {{ $plan->name }} - {{ $plan->max_sites }} sitios / {{ $plan->max_databases }} DB / {{ number_format($plan->storage_mb / 1024, 1) }} GB
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="kt-card">
-                <div class="kt-card-header">
-                    <div>
-                        <h3 class="kt-card-title">Acceso principal y primer hosting</h3>
-                        <p class="kt-form-description mt-1">Estas mismas credenciales servirán para el portal del cliente y su primera instancia XPanel Host.</p>
-                    </div>
-                </div>
-                <div class="kt-card-content grid gap-5">
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Nombre</label>
-                        <input class="kt-input" type="text" name="owner_name" value="{{ old('owner_name') }}" placeholder="Juan Perez" required>
-                    </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Email</label>
-                        <input class="kt-input" type="email" name="owner_email" value="{{ old('owner_email') }}" placeholder="email@cliente.com" required>
-                    </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Contraseña inicial</label>
-                        <div class="grow grid gap-1.5">
-                            <div class="kt-input">
-                                <input class="grow" type="text" name="owner_password" id="pass" value="{{ old('owner_password', Str::password(20)) }}" minlength="16" maxlength="128" required>
-                                <button type="button" class="kt-btn kt-btn-sm kt-btn-outline -me-2" onclick="document.getElementById('pass').value = crypto.randomUUID().replaceAll('-', '').slice(0, 20) + 'Aa1!'">Generar</button>
-                            </div>
-                            <p class="kt-form-description">Mínimo 16 caracteres. Solo tendrás que entregarle esta contraseña al cliente.</p>
-                        </div>
                     </div>
                     <div class="flex justify-end gap-2.5">
                         <a href="{{ route('admin.clients.index') }}" class="kt-btn kt-btn-outline">Cancelar</a>
-                        <button type="submit" class="kt-btn kt-btn-primary">Crear cliente y hosting</button>
+                        <button type="submit" class="kt-btn kt-btn-primary">Crear cliente</button>
                     </div>
                 </div>
             </div>

@@ -18,7 +18,7 @@
             <div>
                 <a href="{{ route('admin.clients.index') }}" class="text-sm text-gray-400 hover:text-white">Volver a clientes</a>
                 <h1 class="mt-3 text-3xl font-black">{{ $tenant->name }}</h1>
-                <p class="mt-2 text-gray-400">{{ $tenant->domain }} · {{ $tenant->user?->email }}</p>
+                <p class="mt-2 text-gray-400">{{ $tenant->domain }} · {{ $tenant->access_ready ? $tenant->user?->email : 'Acceso pendiente del primer hosting' }}</p>
             </div>
             <form action="{{ route('admin.clients.toggle-status', $tenant) }}" method="POST">
                 @csrf
@@ -50,7 +50,7 @@
             </div>
             <div class="rounded-2xl border border-white/10 bg-black p-5">
                 <div class="text-xs uppercase tracking-widest text-gray-500">Dueño</div>
-                <div class="mt-2 truncate text-lg font-black">{{ $tenant->user?->name ?? 'Sin usuario' }}</div>
+                <div class="mt-2 truncate text-lg font-black">{{ $tenant->access_ready ? $tenant->user?->name : 'Pendiente' }}</div>
             </div>
         </div>
 
@@ -64,12 +64,27 @@
                     <p class="text-sm text-gray-500">Este cliente todavía no tiene hostings contratados.</p>
                 @endforelse
             </div>
-            <form action="{{ route('admin.clients.instances.store', $tenant) }}" method="POST" class="mt-6 grid gap-3 border-t border-white/10 pt-6 md:grid-cols-3">
+            <form action="{{ route('admin.clients.instances.store', $tenant) }}" method="POST" class="mt-6 grid gap-3 border-t border-white/10 pt-6 md:grid-cols-2 xl:grid-cols-3">
                 @csrf
-                <input name="name" placeholder="Nombre del hosting" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm">
+                <div class="md:col-span-2 xl:col-span-3">
+                    <h3 class="font-bold">Crear hosting</h3>
+                    <p class="mt-1 text-xs text-gray-400">Cada hosting tendrá su propia cuenta administradora. El primer administrador también habilita el acceso general del cliente.</p>
+                </div>
+                <input name="name" value="{{ old('name') }}" placeholder="Nombre del hosting" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm">
+                <select name="plan_id" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm" required>
+                    <option value="">Selecciona un plan</option>
+                    @foreach($plans as $plan)
+                        <option value="{{ $plan->id }}" @selected(old('plan_id') == $plan->id)>{{ $plan->name }} · {{ number_format($plan->storage_mb / 1024, 1) }} GB</option>
+                    @endforeach
+                </select>
                 <input name="panel_domain" placeholder="Dominio técnico opcional" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm">
-                <div class="flex items-center text-xs text-gray-400">El cliente accederá desde su portal mediante inicio de sesión seguro.</div>
-                <button class="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground md:col-start-3">Crear hosting adicional</button>
+                <input name="admin_name" value="{{ old('admin_name', $tenant->access_ready ? $tenant->user?->name : '') }}" placeholder="Nombre del administrador" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm" required>
+                <input name="admin_email" type="email" value="{{ old('admin_email', $tenant->access_ready ? $tenant->user?->email : '') }}" placeholder="Correo del administrador" class="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm" required>
+                <div class="flex rounded-xl border border-white/10 bg-black px-4 py-1 text-sm">
+                    <input id="host_admin_password" name="admin_password" type="text" value="{{ old('admin_password', Str::password(20)) }}" minlength="16" maxlength="128" class="min-w-0 grow bg-transparent py-2 outline-none" required>
+                    <button type="button" class="text-xs font-bold text-primary" onclick="document.getElementById('host_admin_password').value = crypto.randomUUID().replaceAll('-', '').slice(0, 20) + 'Aa1!'">Generar</button>
+                </div>
+                <button class="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground md:col-start-2 xl:col-start-3">Crear hosting</button>
             </form>
         </div>
 

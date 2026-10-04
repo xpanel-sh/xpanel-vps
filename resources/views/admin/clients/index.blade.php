@@ -37,8 +37,8 @@
                     <thead class="text-xs uppercase tracking-widest text-gray-500 border-b border-white/10">
                         <tr>
                             <th class="px-6 py-4">Empresa / Dominio</th>
-                            <th class="px-6 py-4">Usuario Principal</th>
-                            <th class="px-6 py-4">Plan</th>
+                            <th class="px-6 py-4">Acceso general</th>
+                            <th class="px-6 py-4">Hostings</th>
                             <th class="px-6 py-4">Sitios</th>
                             <th class="px-6 py-4">Estado</th>
                             <th class="px-6 py-4 text-right">Acciones</th>
@@ -47,17 +47,17 @@
                     <tbody class="divide-y divide-white/10">
                         @forelse($tenants as $tenant)
                             <tr class="hover:bg-white/[0.02] transition"
-                                x-show="!search || '{{ strtolower($tenant->name . ' ' . $tenant->domain . ' ' . $tenant->user?->email) }}'.includes(search.toLowerCase())">
+                                x-show="!search || '{{ strtolower($tenant->name . ' ' . $tenant->domain . ' ' . ($tenant->access_ready ? $tenant->user?->email : '')) }}'.includes(search.toLowerCase())">
                                 <td class="px-6 py-4">
                                     <div class="font-bold text-white">{{ $tenant->name }}</div>
                                     <div class="text-sm text-gray-500 font-mono">{{ $tenant->domain }}</div>
                                 </td>
                                 <td class="px-6 py-4 text-sm">
-                                    <div class="text-gray-300">{{ $tenant->user?->name ?? 'Sin asignar' }}</div>
-                                    <div class="text-xs text-gray-500">{{ $tenant->user?->email }}</div>
+                                    <div class="text-gray-300">{{ $tenant->access_ready ? $tenant->user?->name : 'Pendiente del primer hosting' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $tenant->access_ready ? $tenant->user?->email : '' }}</div>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-400">
-                                    {{ $tenant->plan?->name ?? 'Sin plan' }}
+                                    {{ $tenant->hosting_accounts_count }}
                                 </td>
                                 <td class="px-6 py-4">
                                     <span class="px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-xs font-bold">

@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\HostingAccount;
 use App\Models\HostingPlan;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Services\HostInstanceProvisioner;
 use App\Services\TenantLifecycleManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,53 +17,39 @@ class TenantController extends Controller
 {
     public function index()
     {
-        $tenants = Tenant::with(['sites', 'plan', 'user'])->latest()->paginate(10);
+        $tenants = Tenant::with(['sites', 'user'])->withCount('hostingAccounts')->latest()->paginate(10);
 
         return view('admin.clients.index', compact('tenants'));
     }
 
     public function create()
     {
-        $plans = HostingPlan::query()->where('is_active', true)->orderBy('monthly_price')->get();
-
-        return view('admin.clients.create', compact('plans'));
+        return view('admin.clients.create');
     }
 
-    public function store(Request $request, HostInstanceProvisioner $provisioner)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
             'domain' => ['required', 'string', 'max:255', 'unique:tenants,domain', 'regex:/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
-            'owner_name' => 'required|string|max:255',
-            'owner_email' => 'required|email|unique:users,email',
-            'owner_password' => ['required', 'string', 'min:16', 'max:128'],
-            'plan_id' => ['required', 'integer', 'exists:hosting_plans,id'],
         ]);
 
         try {
-            [$tenant, $account] = DB::transaction(function () use ($validated): array {
-                $user = User::create([
-                    'name' => $validated['owner_name'],
-                    'email' => strtolower($validated['owner_email']),
-                    'password' => Hash::make($validated['owner_password']),
+            $tenant = DB::transaction(function () use ($validated): Tenant {
+                $placeholder = User::create([
+                    'name' => 'Acceso pendiente',
+                    'email' => 'pending-'.Str::lower((string) Str::uuid()).'@xpanel.invalid',
+                    'password' => Hash::make(Str::password(40)),
                     'role' => 'client',
                 ]);
-                $tenant = Tenant::create([
+
+                return Tenant::create([
                     'name' => $validated['company_name'],
                     'domain' => strtolower($validated['domain']),
-                    'user_id' => $user->id,
-                    'plan_id' => $validated['plan_id'],
+                    'user_id' => $placeholder->id,
+                    'access_ready' => false,
                     'status' => 'active',
                 ]);
-                $account = HostingAccount::create([
-                    'uuid' => (string) Str::uuid(),
-                    'tenant_id' => $tenant->id,
-                    'hosting_plan_id' => $validated['plan_id'],
-                    'name' => 'Hosting principal',
-                    'status' => 'active',
-                ]);
-
-                return [$tenant, $account];
             });
         } catch (\Throwable $e) {
             Log::warning('Tenant creation failed', ['domain' => $request->input('domain'), 'exception' => $e]);
@@ -73,25 +57,8 @@ class TenantController extends Controller
             return back()->withErrors(['error' => 'Error al crear el cliente. Revisa los datos e intenta nuevamente.'])->withInput();
         }
 
-        try {
-            $instance = $provisioner->create($account, null, $validated['owner_password']);
-        } catch (\Throwable $e) {
-            Log::error('Initial hosting provisioning failed', [
-                'tenant_id' => $tenant->id,
-                'hosting_account_id' => $account->id,
-                'exception' => $e,
-            ]);
-
-            return redirect()->route('admin.clients.show', $tenant)->withErrors([
-                'hosting' => 'El cliente fue creado, pero el hosting no terminó de aprovisionarse. Puedes reintentarlo desde esta pantalla.',
-            ]);
-        }
-
-        return redirect()->route('admin.clients.show', $tenant)->with('success',
-            $instance->status === 'active'
-                ? 'Cliente, acceso principal y hosting creados con las mismas credenciales.'
-                : 'Cliente y hosting preparados. La instancia quedó pendiente de aplicación.'
-        );
+        return redirect()->route('admin.clients.show', $tenant)
+            ->with('success', 'Cliente creado. Ahora añade su primer hosting y define el administrador de esa instancia.');
     }
 
     public function show(Tenant $tenant)
@@ -102,15 +69,16 @@ class TenantController extends Controller
             'sites' => fn ($query) => $query->latest(),
         ]);
 
-        return view('admin.clients.show', compact('tenant'));
+        $plans = HostingPlan::query()->where('is_active', true)->orderBy('monthly_price')->get();
+
+        return view('admin.clients.show', compact('tenant', 'plans'));
     }
 
     public function edit(Tenant $tenant)
     {
         $tenant->load(['user', 'plan']);
-        $plans = HostingPlan::query()->where('is_active', true)->orderBy('monthly_price')->get();
 
-        return view('admin.clients.edit', compact('tenant', 'plans'));
+        return view('admin.clients.edit', compact('tenant'));
     }
 
     public function update(Request $request, Tenant $tenant)
@@ -119,9 +87,8 @@ class TenantController extends Controller
             'company_name' => ['required', 'string', 'max:255'],
             'domain' => ['required', 'string', 'max:255', 'unique:tenants,domain,'.$tenant->id, 'regex:/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
             'status' => ['required', 'in:active,suspended'],
-            'plan_id' => ['nullable', 'integer', 'exists:hosting_plans,id'],
-            'owner_name' => ['required', 'string', 'max:255'],
-            'owner_email' => ['required', 'email', 'unique:users,email,'.$tenant->user_id],
+            'owner_name' => [$tenant->access_ready ? 'required' : 'nullable', 'string', 'max:255'],
+            'owner_email' => [$tenant->access_ready ? 'required' : 'nullable', 'email', 'unique:users,email,'.$tenant->user_id],
             'owner_password' => ['nullable', 'string', 'min:8'],
         ]);
 
@@ -131,19 +98,18 @@ class TenantController extends Controller
             $tenant->update([
                 'name' => $validated['company_name'],
                 'domain' => strtolower($validated['domain']),
-                'plan_id' => $validated['plan_id'] ?? null,
             ]);
 
-            $userData = [
-                'name' => $validated['owner_name'],
-                'email' => $validated['owner_email'],
-            ];
-
-            if (! empty($validated['owner_password'])) {
-                $userData['password'] = Hash::make($validated['owner_password']);
+            if ($tenant->access_ready && $tenant->user) {
+                $userData = [
+                    'name' => $validated['owner_name'],
+                    'email' => $validated['owner_email'],
+                ];
+                if (! empty($validated['owner_password'])) {
+                    $userData['password'] = Hash::make($validated['owner_password']);
+                }
+                $tenant->user->update($userData);
             }
-
-            $tenant->user?->update($userData);
 
             DB::commit();
             if ($oldStatus !== $validated['status']) {

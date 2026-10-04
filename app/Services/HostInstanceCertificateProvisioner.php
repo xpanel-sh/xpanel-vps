@@ -48,7 +48,8 @@ class HostInstanceCertificateProvisioner
         }
 
         try {
-            $email = $instance->tenant->user?->email ?: 'admin@'.$instance->panel_domain;
+            $email = $instance->hostingAccount?->admin_email
+                ?: ($instance->tenant->user?->email ?: 'admin@'.$instance->panel_domain);
             $arguments = [
                 'sudo', '-n', config('xpanel.host_instances.helper'), 'ssl-issue',
                 $instance->uuid, $instance->panel_domain, $email,

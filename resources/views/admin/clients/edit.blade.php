@@ -41,22 +41,12 @@
                             <option value="suspended" @selected(old('status', $tenant->status) === 'suspended')>Suspendido</option>
                         </select>
                     </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Plan</label>
-                        <select name="plan_id" class="kt-select">
-                            <option value="">Sin plan</option>
-                            @foreach($plans as $plan)
-                                <option value="{{ $plan->id }}" @selected(old('plan_id', $tenant->plan_id) == $plan->id)>
-                                    {{ $plan->name }} - {{ $plan->max_sites }} sitios / {{ $plan->max_databases }} DB
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
                 </div>
             </div>
 
+            @if($tenant->access_ready)
             <div class="kt-card">
-                <div class="kt-card-header"><h3 class="kt-card-title">Usuario principal</h3></div>
+                <div class="kt-card-header"><h3 class="kt-card-title">Acceso general del cliente</h3></div>
                 <div class="kt-card-content grid gap-5">
                     <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
                         <label class="kt-form-label max-w-56">Nombre</label>
@@ -76,6 +66,9 @@
                     </div>
                 </div>
             </div>
+            @else
+                <div class="kt-card"><div class="kt-card-content flex items-center justify-between gap-3 p-5"><span class="text-sm text-secondary-foreground">El acceso general se creará junto con el administrador del primer hosting.</span><button class="kt-btn kt-btn-primary">Guardar cambios</button></div></div>
+            @endif
         </form>
     </section>
                     </div>

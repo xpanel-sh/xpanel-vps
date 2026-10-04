@@ -74,6 +74,7 @@
                         @enderror
                         <p class="text-xs text-muted-foreground">
                             Crea registros A para el dominio y <strong>*.dominio</strong> hacia {{ config('xpanel.server_ip') }}. XPanel validará ambos y configurará Nginx, SSL y las futuras direcciones de hosting.
+                            Si ya existen instancias, sus direcciones técnicas se migrarán automáticamente conservando el acceso por IP y puerto.
                         </p>
                     </div>
 

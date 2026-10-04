@@ -33,49 +33,72 @@ class AdminClientProvisioningFlowTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_admin_creates_client_and_first_host_with_one_password(): void
+    public function test_admin_registers_a_commercial_client_without_creating_a_host_user(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
+            'company_name' => 'Cliente Uno',
+            'domain' => 'cliente.example.com',
+        ]);
+
+        $tenant = Tenant::sole();
+        $response->assertRedirect(route('admin.clients.show', $tenant));
+        $this->assertNotNull($tenant->user_id);
+        $this->assertFalse($tenant->access_ready);
+        $this->assertStringEndsWith('@xpanel.invalid', $tenant->user->email);
+        $this->assertDatabaseCount('hosting_accounts', 0);
+        $this->assertDatabaseCount('host_instances', 0);
+
+        $this->actingAs($admin, 'admin')->put(route('admin.clients.update', $tenant), [
+            'company_name' => 'Cliente Uno Editado',
+            'domain' => 'cliente-editado.example.com',
+            'status' => 'active',
+        ])->assertRedirect(route('admin.clients.show', $tenant));
+        $this->assertSame('Cliente Uno Editado', $tenant->fresh()->name);
+    }
+
+    public function test_each_host_receives_its_own_admin_and_the_first_enables_client_access(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
+            'company_name' => 'Cliente', 'domain' => 'cliente.example.com',
+        ]);
+        $tenant = Tenant::sole();
         $plan = HostingPlan::create([
             'name' => 'Growth', 'slug' => 'growth', 'max_sites' => 5,
             'max_databases' => 5, 'storage_mb' => 10240, 'bandwidth_gb' => 100,
             'email_accounts' => 10, 'monthly_price' => 9.99, 'is_active' => true,
         ]);
-        $password = 'One-Secure-Password-2026';
+        $password = 'First-Host-Password-2026';
 
-        $response = $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
-            'company_name' => 'Cliente Uno',
-            'domain' => 'cliente.example.com',
+        $this->actingAs($admin, 'admin')->post(route('admin.clients.instances.store', $tenant), [
+            'name' => 'Hosting principal',
             'plan_id' => $plan->id,
-            'owner_name' => 'Cliente Principal',
-            'owner_email' => 'cliente@example.com',
-            'owner_password' => $password,
-        ]);
+            'admin_name' => 'Admin Principal',
+            'admin_email' => 'principal@example.com',
+            'admin_password' => $password,
+        ])->assertRedirect(route('admin.clients.show', $tenant));
 
-        $tenant = Tenant::with(['user', 'hostingAccounts.hostInstance'])->sole();
-        $response->assertRedirect(route('admin.clients.show', $tenant));
+        $tenant->refresh()->load('user');
+        $first = $tenant->hostingAccounts()->with('hostInstance')->sole();
         $this->assertTrue(Hash::check($password, $tenant->user->password));
-        $this->assertSame($plan->id, $tenant->hostingAccounts->sole()->hosting_plan_id);
-        $this->assertSame($password, $tenant->hostingAccounts->sole()->hostInstance->initial_password);
-        $this->assertSame('staged', $tenant->hostingAccounts->sole()->hostInstance->status);
-    }
+        $this->assertSame('Admin Principal', $first->admin_name);
+        $this->assertSame('principal@example.com', $first->admin_email);
+        $this->assertSame($password, $first->hostInstance->initial_password);
 
-    public function test_additional_hosting_does_not_request_another_owner_password(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $owner = User::factory()->create(['role' => 'client']);
-        $tenant = Tenant::create([
-            'name' => 'Cliente', 'domain' => 'cliente.example.com',
-            'user_id' => $owner->id, 'status' => 'active',
-        ]);
+        $this->actingAs($admin, 'admin')->post(route('admin.clients.instances.store', $tenant), [
+            'name' => 'Tienda',
+            'plan_id' => $plan->id,
+            'admin_name' => 'Admin Tienda',
+            'admin_email' => 'tienda@example.com',
+            'admin_password' => 'Second-Host-Password-2026',
+        ])->assertRedirect(route('admin.clients.show', $tenant));
 
-        $this->actingAs($admin, 'admin')
-            ->post(route('admin.clients.instances.store', $tenant), ['name' => 'Segundo hosting'])
-            ->assertRedirect(route('admin.clients.show', $tenant));
-
-        $instance = $tenant->hostInstances()->sole();
-        $this->assertSame('staged', $instance->status);
-        $this->assertIsString($instance->initial_password);
-        $this->assertGreaterThanOrEqual(16, strlen($instance->initial_password));
+        $second = $tenant->hostingAccounts()->where('name', 'Tienda')->with('hostInstance')->sole();
+        $this->assertSame('Admin Tienda', $second->admin_name);
+        $this->assertSame('tienda@example.com', $second->admin_email);
+        $this->assertSame('Second-Host-Password-2026', $second->hostInstance->initial_password);
+        $this->assertSame('principal@example.com', $tenant->fresh()->user->email);
     }
 }
