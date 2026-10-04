@@ -84,7 +84,7 @@ EOF
 }
 
 install_packages() {
-  [[ "$SKIP_PACKAGES" != "true" ]] || return
+  [[ "$SKIP_PACKAGES" != "true" ]] || return 0
 
   apt-get update -y
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -112,7 +112,7 @@ install_packages() {
 }
 
 configure_firewall() {
-  command -v ufw >/dev/null 2>&1 || return
+  command -v ufw >/dev/null 2>&1 || return 0
   ufw allow 22/tcp >/dev/null
   ufw allow 80/tcp >/dev/null
   ufw allow 443/tcp >/dev/null
@@ -410,7 +410,7 @@ install_host_release() {
 }
 
 install_cli() {
-  [[ "${XPANEL_INSTALL_CLI:-yes}" != "no" ]] || return
+  [[ "${XPANEL_INSTALL_CLI:-yes}" != "no" ]] || return 0
   local adjacent=""
   [[ -d "$ROOT/../xpanel-cli" ]] && adjacent="$(realpath "$ROOT/../xpanel-cli")"
   if [[ -n "$adjacent" && "$adjacent" != "$CLI_DIR" && ! -e "$CLI_DIR" ]]; then
