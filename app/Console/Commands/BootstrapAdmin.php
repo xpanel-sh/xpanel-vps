@@ -13,6 +13,7 @@ class BootstrapAdmin extends Command
         {--name=Administrador}
         {--email=admin@xpanel.local}
         {--password-stdin : Lee la contraseña inicial desde la entrada estándar}
+        {--reset-password : Cambia por stdin la contraseña del administrador existente}
         {--status-only : Solo informa si falta el administrador}';
 
     protected $description = 'Crea el primer administrador de XPanel VPS sin exponer la contraseña en los argumentos';
@@ -21,6 +22,35 @@ class BootstrapAdmin extends Command
     {
         if ($this->option('status-only')) {
             $this->line(User::query()->where('role', 'admin')->exists() ? 'configured' : 'missing');
+
+            return self::SUCCESS;
+        }
+
+        if ($this->option('reset-password')) {
+            $admin = User::query()->where('role', 'admin')->oldest('id')->first();
+            if (! $admin) {
+                $this->error('Todavía no existe un administrador de XPanel VPS.');
+
+                return self::FAILURE;
+            }
+            if (! $this->option('password-stdin')) {
+                $this->error('Usa --password-stdin para no exponer la contraseña en el historial.');
+
+                return self::FAILURE;
+            }
+
+            $password = rtrim((string) stream_get_contents(STDIN), "\r\n");
+            $validator = Validator::make(['password' => $password], [
+                'password' => ['required', 'string', 'min:16', 'max:128'],
+            ]);
+            if ($validator->fails()) {
+                $this->error($validator->errors()->first());
+
+                return self::FAILURE;
+            }
+
+            $admin->update(['password' => Hash::make($password)]);
+            $this->line('updated');
 
             return self::SUCCESS;
         }

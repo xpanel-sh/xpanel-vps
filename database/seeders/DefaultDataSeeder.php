@@ -75,18 +75,13 @@ class DefaultDataSeeder extends Seeder
 
         ServerNode::where('auth_token', implode('_', ['secret', 'token']))->delete();
 
-        $nodeToken = trim((string) env('XPANEL_NODE_TOKEN', env('XPANEL_DAEMON_TOKEN', '')));
-        if ($nodeToken !== '') {
-            ServerNode::updateOrCreate(
-                ['name' => 'Local Node'],
-                [
-                    'ip_address' => '127.0.0.1',
-                    'port' => 7070,
-                    'auth_token' => $nodeToken,
-                    'is_active' => true,
-                ]
-            );
-        }
+        // Native installations read the local Linux runtime directly. Older
+        // releases created this row even though no daemon listened on 7070.
+        ServerNode::query()
+            ->where('name', 'Local Node')
+            ->where('ip_address', '127.0.0.1')
+            ->where('port', 7070)
+            ->delete();
 
         if (filter_var(env('XPANEL_SEED_DEMO_USERS', false), FILTER_VALIDATE_BOOL)) {
             $adminPassword = (string) env('XPANEL_DEMO_ADMIN_PASSWORD', '');

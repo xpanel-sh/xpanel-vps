@@ -31,7 +31,7 @@
                                             <div class="flex flex-col gap-3 text-center">
                                                 <div class="flex justify-center">
                                                     <span class="kt-badge kt-badge-sm {{ $statusOnline ? 'kt-badge-success' : 'kt-badge-destructive' }} kt-badge-outline">
-                                                        {{ $statusOnline ? 'Daemon conectado' : 'Daemon sin respuesta' }}
+                                                        {{ $statusOnline ? 'Servidor operativo' : 'Métricas no disponibles' }}
                                                     </span>
                                                 </div>
                                                 <h2 class="text-xl font-semibold text-mono">
@@ -40,20 +40,20 @@
                                                 <p class="text-sm font-medium text-secondary-foreground">
                                                     Gestiona clientes, sitios, planes y servidores conectados desde el panel global.
                                                     <br />
-                                                    El monitoreo del servidor se actualiza en tiempo real cuando el daemon responde.
+                                                    El monitoreo consulta directamente Linux y se actualiza sin depender de un daemon externo.
                                                 </p>
                                             </div>
                                             <div class="flex justify-center gap-2">
                                                 <a class="kt-btn kt-btn-mono" href="{{ route('admin.clients.create') }}">
                                                     Crear cliente
                                                 </a>
-                                                <a class="kt-btn kt-btn-outline" href="{{ route('admin.servers.index') }}">
-                                                    Ver servidores
+                                                <a class="kt-btn kt-btn-outline" href="{{ route('admin.instances.index') }}">
+                                                    Ver instancias
                                                 </a>
                                             </div>
                                             @if($runtimeError)
                                                 <div class="mx-auto max-w-xl rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-sm text-destructive">
-                                                    Runtime no disponible: {{ $runtimeError }}
+                                                    Métricas no disponibles: {{ $runtimeError }}
                                                 </div>
                                             @endif
                                         </div>
@@ -128,14 +128,14 @@
                             </div>
                             <div class="kt-card">
                                 <div class="kt-card-content p-5">
-                                    <div class="text-sm text-secondary-foreground">Servidores</div>
-                                    <div class="mt-2 text-3xl font-semibold text-mono">{{ $activeNodeCount }}/{{ $nodeCount }}</div>
-                                    <div class="mt-1 text-xs text-secondary-foreground">Activos / totales</div>
+                                    <div class="text-sm text-secondary-foreground">Hostings</div>
+                                    <div class="mt-2 text-3xl font-semibold text-mono">{{ $hostingCount }}</div>
+                                    <div class="mt-1 text-xs text-secondary-foreground">Cuentas contratadas</div>
                                 </div>
                             </div>
                             <div class="kt-card">
                                 <div class="kt-card-content p-5">
-                                    <div class="text-sm text-secondary-foreground">Operaciones daemon</div>
+                                    <div class="text-sm text-secondary-foreground">Operaciones broker</div>
                                     <div class="mt-2 text-3xl font-semibold text-mono" data-resource-value="operations">{{ $resources['operations'] ?? 0 }}</div>
                                     <div class="mt-1 text-xs text-secondary-foreground">Eventos registrados</div>
                                 </div>
@@ -178,8 +178,8 @@
 
                                     <div class="grid gap-3">
                                         <div class="flex items-center justify-between">
-                                            <span class="text-sm text-secondary-foreground">Daemon</span>
-                                            <span class="kt-badge kt-badge-outline {{ $statusOnline ? 'kt-badge-success' : 'kt-badge-destructive' }}" id="daemon-status">
+                                            <span class="text-sm text-secondary-foreground">Runtime nativo</span>
+                                            <span class="kt-badge kt-badge-outline {{ $statusOnline ? 'kt-badge-success' : 'kt-badge-destructive' }}" id="runtime-status">
                                                 {{ $statusOnline ? 'Online' : 'Offline' }}
                                             </span>
                                         </div>
@@ -264,13 +264,13 @@
                                         <i class="ki-filled ki-dollar"></i>
                                         Crear plan
                                     </a>
-                                    <a class="kt-btn kt-btn-outline justify-start" href="{{ route('admin.servers.create') }}">
-                                        <i class="ki-filled ki-setting-3"></i>
-                                        Agregar servidor
-                                    </a>
                                     <a class="kt-btn kt-btn-outline justify-start" href="{{ route('admin.daemon.operations') }}">
+                                        <i class="ki-filled ki-setting-3"></i>
+                                        Ver instancias
+                                    </a>
+                                    <a class="kt-btn kt-btn-outline justify-start" href="{{ route('admin.instances.index') }}">
                                         <i class="ki-filled ki-pulse"></i>
-                                        Operaciones daemon
+                                        Operaciones broker
                                     </a>
                                 </div>
                             </div>
@@ -386,7 +386,7 @@
         }
 
         const markStatus = (online) => {
-            const status = document.getElementById('daemon-status');
+            const status = document.getElementById('runtime-status');
             if (!status) return;
             status.textContent = online ? 'Online' : 'Offline';
             status.classList.toggle('kt-badge-success', online);
@@ -397,7 +397,7 @@
             try {
                 const response = await fetch(runtimeUrl, { headers: { Accept: 'application/json' } });
                 const payload = await response.json();
-                if (!response.ok || !payload.ok) throw new Error(payload.message || 'Daemon unavailable');
+                if (!response.ok || !payload.ok) throw new Error(payload.message || 'Runtime unavailable');
 
                 const runtime = payload.runtime || {};
                 const metrics = metricFromRuntime(runtime);
@@ -420,7 +420,7 @@
             } catch (error) {
                 markStatus(false);
                 const updated = document.getElementById('runtime-updated');
-                if (updated) updated.textContent = 'Daemon sin respuesta';
+                if (updated) updated.textContent = 'Métricas no disponibles';
             }
         };
 

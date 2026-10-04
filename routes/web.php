@@ -27,12 +27,11 @@ Route::group(['middleware' => ['web']], function () {
     // ============================================================
     Route::middleware(['auth:admin'])->group(function () {
 
-        Route::get('/admin/dashboard', function (\App\Services\DaemonClient $daemon) {
+        Route::get('/admin/dashboard', function (\App\Services\NativeRuntimeMetrics $metrics) {
             $clientCount = \App\Models\Tenant::count();
             $siteCount = \App\Models\Site::count();
-            $nodeCount = \App\Models\ServerNode::count();
+            $hostingCount = \App\Models\HostingAccount::count();
             $planCount = \App\Models\HostingPlan::count();
-            $activeNodeCount = \App\Models\ServerNode::where('is_active', true)->count();
             $recentSites = \App\Models\Site::with('tenant')->latest()->take(8)->get();
             $planStats = \App\Models\HostingPlan::withCount('hostingAccounts')
                 ->orderByDesc('hosting_accounts_count')
@@ -47,7 +46,7 @@ Route::group(['middleware' => ['web']], function () {
             $runtimeError = null;
 
             try {
-                $runtime = $daemon->runtimeStatus();
+                $runtime = $metrics->snapshot();
             } catch (\Throwable $e) {
                 $runtimeError = $e->getMessage();
             }
@@ -55,9 +54,8 @@ Route::group(['middleware' => ['web']], function () {
             return view('admin.dashboard', compact(
                 'clientCount',
                 'siteCount',
-                'nodeCount',
+                'hostingCount',
                 'planCount',
-                'activeNodeCount',
                 'recentSites',
                 'planStats',
                 'runtime',
@@ -65,11 +63,11 @@ Route::group(['middleware' => ['web']], function () {
             ));
         })->name('admin.dashboard');
 
-        Route::get('/admin/dashboard/runtime', function (\App\Services\DaemonClient $daemon) {
+        Route::get('/admin/dashboard/runtime', function (\App\Services\NativeRuntimeMetrics $metrics) {
             try {
                 return response()->json([
                     'ok' => true,
-                    'runtime' => $daemon->runtimeStatus(),
+                    'runtime' => $metrics->snapshot(),
                 ]);
             } catch (\Throwable $e) {
                 return response()->json([

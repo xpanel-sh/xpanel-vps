@@ -8,6 +8,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Installer repositories now ignore executable-bit changes applied to privileged helpers, keeping future `xpanel update` operations clean.
 - Fixed strict-mode early exits when package, firewall or CLI steps are intentionally skipped during recovery and updates.
 - Corrected Composer, environment and built-asset permissions so the unprivileged web process can load VPS and every shared Host release without making application code writable.
+- Added secure administrator password rotation through `xpanel:admin-bootstrap --reset-password --password-stdin`.
+- Replaced the obsolete local daemon dependency on port 7070 with native Linux runtime metrics and broker operation history.
 
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.

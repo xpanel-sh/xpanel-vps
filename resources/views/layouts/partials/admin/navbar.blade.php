@@ -81,7 +81,7 @@
                     ],
                 ],
                 [
-                    'label' => 'Daemon',
+                    'label' => 'Operaciones',
                     'match' => ['admin.daemon.*'],
                     'children' => [
                         ['label' => 'Operaciones', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*']],
@@ -144,7 +144,7 @@
         ],
         'daemon' => [
             'match' => ['admin.daemon.*'],
-            'title' => 'Daemon',
+            'title' => 'Operaciones',
             'items' => [
                 ['label' => 'Operaciones', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*']],
                 ['label' => 'Servidores', 'route' => 'admin.servers.index', 'match' => ['admin.servers.*']],

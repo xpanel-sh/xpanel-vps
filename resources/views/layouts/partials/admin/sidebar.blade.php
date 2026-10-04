@@ -14,7 +14,7 @@
             ? [['label' => 'Docker Apps', 'route' => 'admin.docker.index', 'match' => ['admin.docker.*'], 'icon' => 'ki-cube-3']]
             : []),
         ['label' => 'Backups / HA', 'disabled' => true, 'match' => [], 'icon' => 'ki-shield-tick'],
-        ['label' => 'Daemon', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*'], 'icon' => 'ki-pulse'],
+        ['label' => 'Operaciones', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*'], 'icon' => 'ki-pulse'],
         ['label' => 'Settings', 'route' => 'admin.settings.index', 'match' => ['admin.settings.*'], 'icon' => 'ki-setting-2'],
     ];
 
