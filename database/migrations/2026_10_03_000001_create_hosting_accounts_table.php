@@ -65,16 +65,19 @@ return new class extends Migration
         });
 
         Schema::table('host_instances', function (Blueprint $table): void {
+            // MariaDB may use the original unique index to enforce the
+            // tenant foreign key. Give that constraint a normal index before
+            // removing the one-account-per-tenant restriction.
+            $table->index('tenant_id', 'host_instances_tenant_id_index');
             $table->dropUnique('host_instances_tenant_id_unique');
-            $table->index('tenant_id');
         });
     }
 
     public function down(): void
     {
         Schema::table('host_instances', function (Blueprint $table): void {
-            $table->dropIndex(['tenant_id']);
-            $table->unique('tenant_id');
+            $table->unique('tenant_id', 'host_instances_tenant_id_unique');
+            $table->dropIndex('host_instances_tenant_id_index');
             $table->dropConstrainedForeignId('hosting_account_id');
         });
         Schema::table('plan_orders', function (Blueprint $table): void {

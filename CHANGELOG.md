@@ -4,6 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Fixed fresh MariaDB installations by preserving a normal tenant index before removing the former one-instance unique constraint.
+- Installer repositories now ignore executable-bit changes applied to privileged helpers, keeping future `xpanel update` operations clean.
+
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.
 

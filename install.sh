@@ -426,6 +426,9 @@ install_cli() {
 }
 
 echo "Instalando XPanel VPS de forma nativa..."
+if [[ -d "$ROOT/.git" ]]; then
+  git -C "$ROOT" config core.fileMode false
+fi
 write_marker
 install_packages
 configure_firewall
