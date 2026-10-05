@@ -30,6 +30,7 @@ class HostBrokerActionPolicy
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
             'engine-status' => $this->engineStatus($arguments),
+            'access-remove' => $this->accessRemoval($instance, $arguments),
             'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
@@ -66,6 +67,30 @@ class HostBrokerActionPolicy
                 || str_contains($path, '..') || str_contains($path, '\\') || str_contains($path, "\0")) {
                 throw new RuntimeException('La ruta de permisos sale del sitio.');
             }
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function accessRemoval(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) !== 2) {
+            throw new RuntimeException('Argumentos de acceso inválidos.');
+        }
+        [$siteUser, $documentRoot] = $arguments;
+        $expectedUserPrefix = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6);
+        $expectedRootPrefix = '/home/'.$instance->system_user.'/public_html/';
+        if (! preg_match('/^'.preg_quote($expectedUserPrefix, '/').'[a-z0-9]{9,20}$/', $siteUser)
+            || ! str_starts_with($documentRoot, $expectedRootPrefix)
+            || str_contains($documentRoot, '..') || str_contains($documentRoot, chr(92))) {
+            throw new RuntimeException('El acceso solicitado no pertenece al hosting.');
+        }
+        $domain = substr($documentRoot, strlen($expectedRootPrefix));
+        if (! $this->domain($domain)) {
+            throw new RuntimeException('El acceso solicitado no pertenece a un sitio válido.');
+        }
+        $site = $this->row($instance, 'SELECT document_root, system_user FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        if (! $site || $site['document_root'] !== $documentRoot || $site['system_user'] !== $siteUser) {
+            throw new RuntimeException('El sitio no pertenece a la instancia.');
         }
     }
 

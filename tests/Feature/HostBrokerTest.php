@@ -222,6 +222,23 @@ class HostBrokerTest extends TestCase
         }
     }
 
+    public function test_access_removal_is_limited_to_the_instances_registered_site(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $root = '/home/'.$instance->system_user.'/public_html/example.test';
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        foreach ([
+            [[$siteUser, $root], 200],
+            [[$siteUser, '/home/'.$instance->system_user.'/public_html/other.test'], 422],
+            [[$siteUser, $root.'/../other.test'], 422],
+            [['xpsforeign123456789', $root], 422],
+        ] as [$arguments, $status]) {
+            $payload = $this->payload($instance, 'access-remove', $arguments);
+            $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+                ->assertStatus($status);
+        }
+    }
+
     private function instanceWithSite(): array
     {
         $uuid = '01234567-89ab-cdef-8123-456789abcdef';

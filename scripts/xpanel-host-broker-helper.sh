@@ -26,7 +26,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -87,6 +87,14 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   fi
 elif [[ "$ACTION" == "php-profile-remove" ]]; then
   [[ $# -eq 1 && "$1" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile removal"
+elif [[ "$ACTION" == "access-remove" ]]; then
+  [[ $# -eq 2 ]] || fail "invalid access removal argument count"
+  SITE_USER="$1"; DOCUMENT_ROOT="$2"
+  [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "access user escaped the instance"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/"* && "$DOCUMENT_ROOT" != *".."* && "$DOCUMENT_ROOT" != *'\'* ]] || fail "access root escaped the account home"
+  DOMAIN="${DOCUMENT_ROOT##*/}"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid access site root"
+  [[ ! -L "$DOCUMENT_ROOT" ]] || fail "access site root is a symlink"
 elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$ACTION" == "ownership-sync-tree" ]]; then
   if [[ "$ACTION" == "ownership-fix" ]]; then [[ $# -eq 3 ]] || fail "invalid ownership argument count"; else [[ $# -eq 4 ]] || fail "invalid ownership argument count"; fi
   DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"

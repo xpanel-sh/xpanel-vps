@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- The Host broker now authorizes site access-identity removal only when the Unix user and document root match that instance's registered site, allowing managed Host deletion to complete without exposing other accounts.
 - Managed Host instance provisioning now creates or repairs only its account home and `public_html` ownership before running the tenant panel. Reapplying an existing instance repairs root-owned account directories left by an earlier site creation without recursively changing customer files.
 - The signed Host broker now permits site-scoped ownership repair and targeted subtree synchronization after iKode file operations; it verifies the site's SQLite identity and canonical path before invoking the privileged helper. This does not enable the managed terminal.
 - Added brokered web-engine discovery, an isolated Apache service and loopback port per Host account, and a compact software administration view. OpenLiteSpeed stays unavailable to managed instances until its backend can be isolated.
