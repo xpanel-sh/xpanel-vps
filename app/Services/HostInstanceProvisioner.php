@@ -75,8 +75,12 @@ class HostInstanceProvisioner
         return 'h-'.substr(str_replace('-', '', $uuid), 0, 12).'.'.$cloudDomain;
     }
 
-    public function apply(HostInstance $instance, ?string $password = null): HostInstance
+    public function apply(HostInstance $instance, ?string $password = null, string $restartMode = 'immediate'): HostInstance
     {
+        if (! in_array($restartMode, ['immediate', 'deferred', 'skip'], true)) {
+            throw new \InvalidArgumentException('El modo de reinicio de la instancia no es válido.');
+        }
+
         try {
             if (blank($instance->broker_secret)) {
                 $instance->forceFill(['broker_secret' => bin2hex(random_bytes(32))])->save();
@@ -102,6 +106,7 @@ class HostInstanceProvisioner
                 $instance->release_path, $files['directory'], $ownerName,
                 $ownerEmail,
                 ...$this->limits->helperArguments($instance),
+                $restartMode,
             ], ($password ?? '')."\n", 600);
 
             $instance->update([

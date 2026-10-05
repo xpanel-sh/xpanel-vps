@@ -11,6 +11,8 @@ class HostInstanceHelperTest extends TestCase
         $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
 
         $this->assertStringContainsString('systemctl restart "xpanel-instance-$UUID-fpm.service"', $helper);
+        $this->assertStringContainsString('RESTART_MODE="${14}"', $helper);
+        $this->assertStringContainsString('--on-active=5s', $helper);
         $this->assertStringNotContainsString('systemctl reload "php$PHP_VERSION-fpm"', $helper);
     }
 }

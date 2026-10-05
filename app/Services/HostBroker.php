@@ -43,19 +43,8 @@ class HostBroker
                     return 'url=https://'.$domain;
                 }
 
-                $operation->update(['status' => 'staged', 'output' => 'url=https://'.$domain]);
-                app()->terminating(function () use ($instance, $operation): void {
-                    try {
-                        app(HostInstancePanelDomainManager::class)->apply($instance->fresh());
-                        $operation->update(['status' => 'completed']);
-                    } catch (Throwable $exception) {
-                        $operation->update([
-                            'status' => 'failed',
-                            'error' => mb_substr($exception->getMessage(), 0, 65535),
-                        ]);
-                        report($exception);
-                    }
-                });
+                app(HostInstancePanelDomainManager::class)->apply($instance->fresh());
+                $operation->update(['status' => 'completed', 'output' => 'url=https://'.$domain]);
 
                 return 'url=https://'.$domain;
             }

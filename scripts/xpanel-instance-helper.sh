@@ -108,7 +108,7 @@ EOF
 fi
 
 [[ "$ACTION" == "apply" ]] || fail "unsupported action"
-[[ $# -eq 13 ]] || fail "apply expects 13 arguments"
+[[ $# -eq 14 ]] || fail "apply expects 14 arguments"
 
 UUID="$1"
 SYSTEM_USER="$2"
@@ -123,6 +123,7 @@ MEMORY_MAX_MB="${10}"
 SWAP_MAX_MB="${11}"
 CPU_PERCENT="${12}"
 TASKS_MAX="${13}"
+RESTART_MODE="${14}"
 
 validate_uuid "$UUID"
 [[ "$SYSTEM_USER" =~ ^xhi[a-f0-9]{12}$ ]] || fail "invalid system user"
@@ -131,6 +132,7 @@ validate_uuid "$UUID"
 PHP_BIN="/usr/bin/php$PHP_VERSION"
 [[ -x "$PHP_BIN" ]] || fail "PHP $PHP_VERSION CLI is not installed"
 [[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/(current|releases/[A-Za-z0-9._-]+)$ ]] || fail "invalid release path"
+[[ "$RESTART_MODE" == "immediate" || "$RESTART_MODE" == "deferred" || "$RESTART_MODE" == "skip" ]] || fail "invalid restart mode"
 [[ "$STAGED_DIR" == "/opt/xpanel-vps/storage/app/native/host-instances/$UUID" ]] || fail "invalid staged directory"
 [[ -f "$RELEASE_PATH/artisan" && -f "$RELEASE_PATH/public/index.php" ]] || fail "XPanel Host release is incomplete"
 for file in instance.env runtime.sh php-fpm.conf php-fpm-global.conf php-fpm.service nginx.conf; do
@@ -194,6 +196,10 @@ php-fpm"$PHP_VERSION" -t -y "$FPM_GLOBAL_TARGET"
 nginx -t
 systemctl daemon-reload
 systemctl enable "xpanel-instance-$UUID-fpm.service"
-systemctl restart "xpanel-instance-$UUID-fpm.service"
+if [[ "$RESTART_MODE" == "immediate" ]]; then
+    systemctl restart "xpanel-instance-$UUID-fpm.service"
+elif [[ "$RESTART_MODE" == "deferred" ]]; then
+    systemd-run --quiet --collect --on-active=5s /bin/systemctl restart "xpanel-instance-$UUID-fpm.service"
+fi
 systemctl reload nginx
 echo "active"
