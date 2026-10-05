@@ -7,9 +7,11 @@ use App\Models\HostInstance;
 use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\NativePackageManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use PDO;
+use Mockery;
 use Tests\TestCase;
 
 class HostBrokerTest extends TestCase
@@ -151,6 +153,56 @@ class HostBrokerTest extends TestCase
         $this->assertSame('waiting_dns', $instance->hostingAccount->fresh()->custom_domain_status);
     }
 
+    public function test_engine_status_exposes_only_enabled_supported_engines_without_granting_installation(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $packages = Mockery::mock(NativePackageManager::class);
+        $packages->shouldReceive('catalog')->twice()->andReturn([
+            ['slug' => 'nginx', 'installed' => true, 'service_active' => true, 'enabled_for_clients' => true, 'version' => '1.24'],
+            ['slug' => 'apache', 'installed' => true, 'service_active' => true, 'enabled_for_clients' => false, 'version' => '2.4'],
+        ]);
+        $this->app->instance(NativePackageManager::class, $packages);
+
+        $nginx = $this->payload($instance, 'engine-status', ['nginx']);
+        $this->postJson(route('api.host-broker'), $nginx, ['X-XPanel-Signature' => $this->signature($nginx, $secret)])
+            ->assertOk()->assertJson(['output' => "installed=true\nversion=1.24"]);
+
+        $apache = $this->payload($instance, 'engine-status', ['apache']);
+        $this->postJson(route('api.host-broker'), $apache, ['X-XPanel-Signature' => $this->signature($apache, $secret)])
+            ->assertOk()->assertJson(['output' => "installed=false\nversion="]);
+
+        $install = $this->payload($instance, 'engine-install', ['apache']);
+        $this->postJson(route('api.host-broker'), $install, ['X-XPanel-Signature' => $this->signature($install, $secret)])
+            ->assertStatus(422);
+    }
+
+    public function test_unapproved_backend_cannot_be_applied_even_if_instance_database_requests_it(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        (new PDO('sqlite:'.$instance->database_path))->exec("UPDATE sites SET web_server = 'openlitespeed' WHERE domain = 'example.test'");
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $payload = $this->payload($instance, 'apply', [
+            'example.test', 'openlitespeed', 'php', '8.3', $siteRoot, $siteUser,
+            $siteRoot.'/public', '-', '0', 'active', 'system', '-',
+        ]);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertStatus(422);
+
+        $restart = $this->payload($instance, 'site-restart', array_slice($payload['arguments'], 0, 6));
+        $this->postJson(route('api.host-broker'), $restart, ['X-XPanel-Signature' => $this->signature($restart, $secret)])
+            ->assertStatus(422);
+    }
+
+    public function test_installed_apache_cannot_be_withdrawn_while_a_managed_site_uses_it(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        (new PDO('sqlite:'.$instance->database_path))->exec("UPDATE sites SET web_server = 'apache' WHERE domain = 'example.test'");
+
+        $this->assertTrue(app(NativePackageManager::class)->isWebServerInUse('apache'));
+    }
+
     private function instanceWithSite(): array
     {
         $uuid = '01234567-89ab-cdef-8123-456789abcdef';
@@ -177,6 +229,7 @@ class HostBrokerTest extends TestCase
         $instance = HostInstance::create([
             'tenant_id' => $tenant->id, 'hosting_account_id' => $account->id,
             'uuid' => $uuid, 'panel_domain' => 'panel.broker.test',
+            'access_port' => 10000,
             'system_user' => 'xhi0123456789ab', 'release_path' => '/opt/xpanel-host/releases/test',
             'instance_root' => $instanceRoot, 'database_path' => $database, 'broker_secret' => $secret,
             'php_version' => '8.3', 'status' => 'active',

@@ -91,8 +91,8 @@ License: https://xpanel.com/license
                 <div class="flex items-center lg:gap-3.5">
                     <!-- Action -->
                     <a class="kt-btn kt-btn-primary mr-1 sm:me-0"
-                        href="/metronic/tailwind/demo3/account/home/get-started">
-                        Get Started
+                        href="{{ route('admin.clients.create') }}">
+                        <i class="ki-filled ki-plus"></i> Nuevo cliente
                     </a>
                     <!-- End of Action -->
                     <div class="flex items-center gap-1.5">

@@ -5,15 +5,13 @@
     <div class="flex flex-col grow kt-scrollable-y lg:[scrollbar-width:auto] pt-7 lg:[&_.kt-container-fluid]:pe-4" id="scrollable_content">
         <main class="grow" role="content">
             <div class="kt-container-fluid">
-                <div class="grid gap-5 lg:gap-7.5">
+                <div class="mx-auto grid w-full max-w-7xl gap-5 lg:gap-7.5">
 
                     <div class="flex items-center justify-between flex-wrap gap-3">
                         <div>
-                            <h1 class="font-medium text-lg text-mono">Paquetes de software</h1>
-                            <p class="text-sm text-secondary-foreground mt-0.5">
-                                Motores web y versiones de PHP instalables en el servidor. Los sitios de los clientes
-                                se sirven con estos paquetes de forma nativa (sin Docker por sitio).
-                            </p>
+                            <div class="text-sm text-secondary-foreground">Servidor / Software</div>
+                            <h1 class="mt-1 text-2xl font-semibold text-mono">Software del servidor</h1>
+                            <p class="mt-1 text-sm text-secondary-foreground">Instala los paquetes una vez y decide cuáles pueden usar los hostings.</p>
                         </div>
                     </div>
 
@@ -37,11 +35,26 @@
                         };
                     @endphp
 
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div class="kt-card"><div class="kt-card-content flex items-center gap-3 p-4">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><i class="ki-filled ki-global text-xl"></i></span>
+                            <div><div class="text-sm font-semibold text-mono">Entrada pública</div><p class="text-xs text-secondary-foreground">Nginx · puertos 80 y 443</p></div>
+                        </div></div>
+                        <div class="kt-card"><div class="kt-card-content flex items-center gap-3 p-4">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><i class="ki-filled ki-code text-xl"></i></span>
+                            <div><div class="text-sm font-semibold text-mono">Procesos del hosting</div><p class="text-xs text-secondary-foreground">PHP-FPM y aplicaciones separados</p></div>
+                        </div></div>
+                        <div class="kt-card"><div class="kt-card-content flex items-center gap-3 p-4">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><i class="ki-filled ki-setting-2 text-xl"></i></span>
+                            <div><div class="text-sm font-semibold text-mono">Apache opcional</div><p class="text-xs text-secondary-foreground">Servicio interno por hosting</p></div>
+                        </div></div>
+                    </div>
+
                     <div class="kt-card">
                         <div class="kt-card-header">
-                            <h3 class="kt-card-title">Servidores web</h3>
+                            <div><h2 class="kt-card-title">Motores web</h2><p class="text-xs text-secondary-foreground">Apache se instala aquí; cada hosting habilitado usa su propio servicio interno.</p></div>
                         </div>
-                        <div class="kt-card-content grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div class="kt-card-content grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                             @foreach($webservers as $pkg)
                                 @include('admin.software-packages._card', $renderCard($pkg))
                             @endforeach
@@ -50,9 +63,9 @@
 
                     <div class="kt-card">
                         <div class="kt-card-header">
-                            <h3 class="kt-card-title">Versiones de PHP</h3>
+                            <div><h2 class="kt-card-title">Versiones de PHP</h2><p class="text-xs text-secondary-foreground">Los procesos PHP-FPM se ejecutan dentro del hosting correspondiente.</p></div>
                         </div>
-                        <div class="kt-card-content grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div class="kt-card-content grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                             @foreach($phpVersions as $pkg)
                                 @include('admin.software-packages._card', $renderCard($pkg))
                             @endforeach

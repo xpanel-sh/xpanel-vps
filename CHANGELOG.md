@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Added brokered web-engine discovery, an isolated Apache service and loopback port per Host account, and a compact software administration view. OpenLiteSpeed stays unavailable to managed instances until its backend can be isolated.
 - Custom panel certificates validate and include only the customer's selected domain; an invalid legacy panel domain no longer blocks activation. Changing the address resets its previous SSL state.
 
 - Panel-domain requests now return success only after Nginx and SSL finish; managed Host FPM restarts are deferred until the initiating response is safe, preventing false confirmations, 404 responses and stale IP URLs.

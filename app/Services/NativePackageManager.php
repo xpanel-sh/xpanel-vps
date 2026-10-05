@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\ServerNode;
 use App\Models\SoftwarePackage;
+use App\Models\HostInstance;
+use App\Models\Site;
+use PDO;
 use RuntimeException;
 
 class NativePackageManager
@@ -26,12 +29,13 @@ class NativePackageManager
             $installed = $this->installed($package);
             $toggle = $toggles->get($package['slug']);
 
-            return $package + [
+            return array_replace($package, [
+                'version' => $package['version'] ?? ($installed ? $this->detectedVersion($package['slug']) : null),
                 'installed' => $installed,
                 'service_active' => $installed && $this->active($package),
                 'installable' => $this->installable($package),
                 'enabled_for_clients' => $toggle?->enabled_for_clients ?? ($package['default'] && $installed),
-            ];
+            ]);
         }, $packages);
     }
 
@@ -77,6 +81,32 @@ class NativePackageManager
         ], timeout: 900);
     }
 
+    public function isWebServerInUse(string $slug): bool
+    {
+        if (Site::query()->where('web_server', $slug)->exists()) {
+            return true;
+        }
+
+        foreach (HostInstance::query()->whereIn('status', ['active', 'suspended'])->get() as $instance) {
+            if (! is_file($instance->database_path) || is_link($instance->database_path)) {
+                throw new RuntimeException('No se puede comprobar el uso del motor en todas las instancias.');
+            }
+            try {
+                $sqlite = new PDO('sqlite:'.$instance->database_path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $sqlite->exec('PRAGMA query_only = ON');
+                $statement = $sqlite->prepare('SELECT 1 FROM sites WHERE web_server = :slug LIMIT 1');
+                $statement->execute(['slug' => $slug]);
+                if ($statement->fetchColumn()) {
+                    return true;
+                }
+            } catch (\Throwable $exception) {
+                throw new RuntimeException('No se puede comprobar el uso del motor en todas las instancias.', 0, $exception);
+            }
+        }
+
+        return false;
+    }
+
     private function installed(array $package): bool
     {
         if (PHP_OS_FAMILY !== 'Linux') {
@@ -108,6 +138,20 @@ class NativePackageManager
         };
 
         return $this->commandSucceeds(['systemctl', 'is-active', '--quiet', $service]);
+    }
+
+    private function detectedVersion(string $slug): ?string
+    {
+        if (PHP_OS_FAMILY !== 'Linux') {
+            return null;
+        }
+
+        $name = $slug === 'apache' ? 'apache2' : 'nginx';
+        try {
+            return trim(app(ServerCommandRunner::class)->run(['dpkg-query', '-W', '-f=${Version}', $name], timeout: 10)) ?: null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function installable(array $package): bool

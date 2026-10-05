@@ -29,8 +29,17 @@ class HostBrokerActionPolicy
             'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
+            'engine-status' => $this->engineStatus($arguments),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
+    }
+
+    /** @param array<int, string> $arguments */
+    private function engineStatus(array $arguments): void
+    {
+        if (count($arguments) !== 1 || ! in_array($arguments[0], ['nginx', 'apache', 'openlitespeed'], true)) {
+            throw new RuntimeException('Motor web solicitado no válido.');
+        }
     }
 
     /** @param array<int, string> $arguments */
@@ -74,6 +83,9 @@ class HostBrokerActionPolicy
         if (! $this->domain($domain) || ! in_array($engine, ['nginx', 'apache', 'openlitespeed'], true)) {
             throw new RuntimeException('El certificado solicitado no pertenece a un sitio válido.');
         }
+        if ($engine === 'openlitespeed') {
+            throw new RuntimeException('OpenLiteSpeed no está aislado para este hosting.');
+        }
         $site = $this->row($instance, 'SELECT domain, web_server, document_root, public_path, system_user, wildcard_domain FROM sites WHERE domain = :domain', ['domain' => $domain]);
         if (! $site || $site['web_server'] !== $engine || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El certificado no coincide con el registro de la instancia.');
@@ -116,9 +128,22 @@ class HostBrokerActionPolicy
             || ! preg_match('/^xps[a-z0-9]{15,29}$/', $systemUser)) {
             throw new RuntimeException('El sitio no pertenece al espacio de la instancia.');
         }
+        if ($engine === 'openlitespeed') {
+            throw new RuntimeException('OpenLiteSpeed no está aislado para este hosting.');
+        }
+
+        if ($action === 'apply' && $engine !== 'nginx') {
+            if ($engine !== 'apache' || $instance->access_port < 10000 || $instance->access_port > 19999) {
+                throw new RuntimeException('El motor web no está aislado para este hosting.');
+            }
+            $apache = collect(app(NativePackageManager::class)->catalog())->firstWhere('slug', 'apache');
+            if (! $apache || ! $apache['installed'] || ! $apache['enabled_for_clients']) {
+                throw new RuntimeException('Apache no está habilitado para este hosting.');
+            }
+        }
 
         $site = $this->row($instance, 'SELECT id, domain, web_server, type, php_version, php_profile_id, document_root, system_user, public_path, node_version, runtime_port, wildcard_domain, status FROM sites WHERE domain = :domain', ['domain' => $domain]);
-        if (! $site || $site['web_server'] !== $engine || $site['type'] !== $type || $site['php_version'] !== $php
+        if (! $site || ($action !== 'remove' && ($site['web_server'] !== $engine || $site['type'] !== $type || $site['php_version'] !== $php))
             || $site['document_root'] !== $documentRoot || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El sitio solicitado no coincide con el registro de la instancia.');
         }

@@ -49,7 +49,7 @@ class SoftwarePackageController extends Controller
         ]);
         $definition = $catalog->firstWhere('slug', $validated['slug']);
 
-        if (! $definition || ! $definition['installed'] || ! $definition['service_active']) {
+        if (! $definition || ! $definition['installed'] || ($definition['slug'] !== 'apache' && ! $definition['service_active'])) {
             return back()->withErrors(['slug' => 'El paquete debe estar instalado y activo antes de ofrecerlo.']);
         }
 
@@ -65,6 +65,15 @@ class SoftwarePackageController extends Controller
         $currentlyEnabled = $package->exists
             ? $package->enabled_for_clients
             : (bool) $definition['enabled_for_clients'];
+        if ($currentlyEnabled && $definition['category'] === 'webserver' && $definition['slug'] !== 'nginx') {
+            try {
+                if ($packages->isWebServerInUse($definition['slug'])) {
+                    return back()->withErrors(['slug' => 'Hay sitios que utilizan este motor. Cámbialos antes de retirarlo de los hostings.']);
+                }
+            } catch (\Throwable $exception) {
+                return back()->withErrors(['slug' => $exception->getMessage()]);
+            }
+        }
         $package->category = $definition['category'];
         $package->enabled_for_clients = ! $currentlyEnabled;
         $package->save();

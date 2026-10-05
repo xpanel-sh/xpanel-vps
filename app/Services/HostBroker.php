@@ -34,6 +34,18 @@ class HostBroker
         try {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
             $operation->update(['status' => 'authorized']);
+            if ($payload['action'] === 'engine-status') {
+                $engine = $payload['arguments'][0];
+                $package = collect(app(NativePackageManager::class)->catalog())->firstWhere('slug', $engine);
+                // Only Nginx and the isolated Apache backend are supported by managed Host.
+                $hasPort = $engine !== 'apache' || ($instance->access_port >= 10000 && $instance->access_port <= 19999);
+                $available = $engine !== 'openlitespeed' && $hasPort && $package && $package['installed']
+                    && ($engine === 'apache' || $package['service_active']) && $package['enabled_for_clients'];
+                $output = 'installed='.($available ? 'true' : 'false')."\nversion=".($available ? ($package['version'] ?? '') : '');
+                $operation->update(['status' => 'completed', 'output' => $output]);
+
+                return $output;
+            }
             if ($payload['action'] === 'panel-domain-set') {
                 $domain = $payload['arguments'][0];
                 app(HostInstancePanelDomainManager::class)->stage($instance, $domain);

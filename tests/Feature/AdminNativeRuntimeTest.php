@@ -37,4 +37,14 @@ class AdminNativeRuntimeTest extends TestCase
             ->assertSee('Historial del broker')
             ->assertDontSee('No se pudo consultar el agente');
     }
+
+    public function test_software_and_instance_pages_render_with_the_current_admin_layout(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'admin')->get(route('admin.software-packages.index'))
+            ->assertOk()->assertSee('Software del servidor')->assertSee('Nuevo cliente');
+        $this->actingAs($admin, 'admin')->get(route('admin.instances.index'))
+            ->assertOk()->assertSee('Instancias XPanel Host')->assertSee('Aún no hay hostings');
+    }
 }

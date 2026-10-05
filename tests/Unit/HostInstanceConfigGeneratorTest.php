@@ -51,6 +51,10 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="512"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_FPM_SERVICE="xpanel-instance-'.$first->uuid.'-fpm.service"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_APACHE_BACKEND_PORT="50000"', $firstEnvironment);
+        $this->assertStringContainsString('Listen 127.0.0.1:50000', File::get($firstFiles['apache']));
+        $this->assertStringContainsString('User '.$first->system_user, File::get($firstFiles['apache']));
+        $this->assertStringContainsString('Slice=xpanel-instance-'.$first->uuid.'.slice', File::get($firstFiles['apache_service']));
         $this->assertStringNotContainsString($second->uuid, $firstEnvironment);
         $this->assertNotSame($firstFiles['directory'], $secondFiles['directory']);
         $this->assertStringContainsString('php8.3-fpm-xpanel-instance-'.$first->uuid.'.sock', File::get($firstFiles['nginx']));

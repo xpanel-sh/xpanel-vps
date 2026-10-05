@@ -135,7 +135,7 @@ PHP_BIN="/usr/bin/php$PHP_VERSION"
 [[ "$RESTART_MODE" == "immediate" || "$RESTART_MODE" == "deferred" || "$RESTART_MODE" == "skip" ]] || fail "invalid restart mode"
 [[ "$STAGED_DIR" == "/opt/xpanel-vps/storage/app/native/host-instances/$UUID" ]] || fail "invalid staged directory"
 [[ -f "$RELEASE_PATH/artisan" && -f "$RELEASE_PATH/public/index.php" ]] || fail "XPanel Host release is incomplete"
-for file in instance.env runtime.sh php-fpm.conf php-fpm-global.conf php-fpm.service nginx.conf; do
+for file in instance.env runtime.sh php-fpm.conf php-fpm-global.conf php-fpm.service nginx.conf apache.conf apache.service; do
     [[ -f "$STAGED_DIR/$file" && ! -L "$STAGED_DIR/$file" ]] || fail "missing staged $file"
 done
 
@@ -146,6 +146,8 @@ FPM_POOL_ROOT="$FPM_CONFIG_ROOT/php-fpm-pools"
 FPM_GLOBAL_TARGET="$FPM_CONFIG_ROOT/php-fpm.conf"
 FPM_POOL_TARGET="$FPM_POOL_ROOT/panel.conf"
 FPM_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-fpm.service"
+APACHE_CONFIG_TARGET="$FPM_CONFIG_ROOT/apache.conf"
+APACHE_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-apache.service"
 NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
 TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
 
@@ -174,6 +176,9 @@ rm -f "$FPM_TARGET"
 install -m 0640 -o root -g root "$STAGED_DIR/php-fpm.conf" "$FPM_POOL_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/php-fpm-global.conf" "$FPM_GLOBAL_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/php-fpm.service" "$FPM_SERVICE_TARGET"
+install -d -m 0755 -o root -g root "$FPM_CONFIG_ROOT/apache" "$FPM_CONFIG_ROOT/apache/sites"
+install -m 0644 -o root -g root "$STAGED_DIR/apache.conf" "$APACHE_CONFIG_TARGET"
+install -m 0644 -o root -g root "$STAGED_DIR/apache.service" "$APACHE_SERVICE_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/nginx.conf" "$NGINX_TARGET"
 install -d -m 0755 /etc/nginx/snippets
 touch "$TLS_SNIPPET"

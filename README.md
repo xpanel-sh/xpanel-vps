@@ -86,11 +86,11 @@ Una instancia Linux puede limitar recursos sin convertirse en MicroVM, aunque el
 | I/O de disco | Pendiente | `IOWeight` y, cuando el dispositivo lo permita, límites de lectura/escritura |
 | Docker | Pendiente por plan | Límites de CPU, memoria, procesos y almacenamiento adicionales por contenedor |
 
-Cada instancia ejecuta un master PHP-FPM independiente dentro de `xpanel-instance-<uuid>.slice`; los pools PHP de sus sitios y sus unidades Node.js se incorporan a la misma slice. Los próximos contratos del broker deben hacer lo mismo con cron, workers, terminales y contenedores antes de considerarlos cubiertos por estos límites.
+Cada instancia ejecuta un master PHP-FPM independiente dentro de `xpanel-instance-<uuid>.slice`; los pools PHP de sus sitios y sus unidades Node.js se incorporan a la misma slice. Si el administrador habilita Apache, Host inicia además un servicio Apache exclusivo de esa instancia en `127.0.0.1:<puerto de recuperación + 40000>` dentro de la misma slice. El paquete se instala una vez, pero sus procesos, configuración y virtual hosts son independientes por hosting. Los próximos contratos del broker deben hacer lo mismo con cron, workers, terminales y contenedores antes de considerarlos cubiertos por estos límites.
 
 VPS entrega a Host el contrato completo del plan —CPU, RAM, disco, inodos, transferencia y máximo de sitios— mediante el entorno generado de la instancia. Host consulta en vivo la slice que le pertenece y refresca el dashboard sin recargar; no necesita XPanel Pod ni Docker para medir o funcionar. Un Host standalone conserva el mismo dashboard usando métricas locales de Linux, y XPanel Pod puede instalarse en el mismo servidor como producto separado.
 
-MariaDB, Nginx, Postfix y otros servicios continúan siendo compartidos. Se pueden aplicar límites lógicos —conexiones, bases, buzones, tamaño y frecuencia—, pero no ofrecen la misma frontera de CPU/RAM que una MicroVM. Si un cliente necesita kernel, memoria reservada o aislamiento fuerte frente al resto, debe desplegarse con XPanel VM.
+MariaDB, el Nginx frontal, Postfix y otros servicios continúan siendo compartidos. OpenLiteSpeed no se ofrece a las instancias administradas mientras no tenga un backend aislado; Host independiente conserva su instalación local. Se pueden aplicar límites lógicos —conexiones, bases, buzones, tamaño y frecuencia—, pero no ofrecen la misma frontera de CPU/RAM que una MicroVM. Si un cliente necesita kernel, memoria reservada o aislamiento fuerte frente al resto, debe desplegarse con XPanel VM.
 
 ## Requisitos
 

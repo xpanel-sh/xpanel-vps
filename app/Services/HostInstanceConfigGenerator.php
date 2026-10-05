@@ -10,7 +10,7 @@ class HostInstanceConfigGenerator
 {
     public function __construct(private readonly HostInstanceResourceLimiter $limiter) {}
 
-    /** @return array{directory:string,environment:string,runtime:string,fpm:string,fpm_global:string,fpm_service:string,nginx:string} */
+    /** @return array{directory:string,environment:string,runtime:string,fpm:string,fpm_global:string,fpm_service:string,nginx:string,apache:string,apache_service:string} */
     public function generate(HostInstance $instance): array
     {
         $this->assertSafe($instance);
@@ -29,6 +29,8 @@ class HostInstanceConfigGenerator
         File::put($directory.DIRECTORY_SEPARATOR.'php-fpm-global.conf', $this->fpmGlobal($instance));
         File::put($directory.DIRECTORY_SEPARATOR.'php-fpm.service', $this->fpmService($instance));
         File::put($directory.DIRECTORY_SEPARATOR.'nginx.conf', $this->nginxVhost($instance));
+        File::put($directory.DIRECTORY_SEPARATOR.'apache.conf', $this->apacheConfig($instance));
+        File::put($directory.DIRECTORY_SEPARATOR.'apache.service', $this->apacheService($instance));
 
         return [
             'directory' => $directory,
@@ -38,6 +40,8 @@ class HostInstanceConfigGenerator
             'fpm_global' => $directory.DIRECTORY_SEPARATOR.'php-fpm-global.conf',
             'fpm_service' => $directory.DIRECTORY_SEPARATOR.'php-fpm.service',
             'nginx' => $directory.DIRECTORY_SEPARATOR.'nginx.conf',
+            'apache' => $directory.DIRECTORY_SEPARATOR.'apache.conf',
+            'apache_service' => $directory.DIRECTORY_SEPARATOR.'apache.service',
         ];
     }
 
@@ -104,6 +108,10 @@ class HostInstanceConfigGenerator
             'XPANEL_FPM_POOL_DIR' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm-pools',
             'XPANEL_FPM_CONFIG' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm.conf',
             'XPANEL_FPM_SERVICE' => 'xpanel-instance-'.$instance->uuid.'-fpm.service',
+            'XPANEL_APACHE_BACKEND_PORT' => $instance->access_port >= 10000 && $instance->access_port <= 19999
+                ? $instance->access_port + 40000 : 0,
+            'XPANEL_APACHE_CONFIG' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/apache.conf',
+            'XPANEL_APACHE_SERVICE' => 'xpanel-instance-'.$instance->uuid.'-apache.service',
             'XPANEL_PHP_PROFILE_ROOT' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-profiles',
         ];
     }
@@ -177,5 +185,28 @@ class HostInstanceConfigGenerator
         $config = '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-fpm.conf';
 
         return "[Unit]\nDescription=XPanel Host PHP-FPM {$instance->uuid}\nAfter=network.target\nBefore=nginx.service\n\n[Service]\nType=simple\nSlice={$unit}.slice\nExecStart=/usr/sbin/php-fpm{$instance->php_version} --nodaemonize --fpm-config {$config}\nExecReload=/bin/kill -USR2 \$MAINPID\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=full\nReadWritePaths={$instance->instance_root} -/var/www/xpanel-instances/{$instance->uuid} /run/php\n\n[Install]\nWantedBy=multi-user.target\n";
+    }
+
+    private function apacheConfig(HostInstance $instance): string
+    {
+        if (! $instance->access_port || $instance->access_port < 10000 || $instance->access_port > 19999) {
+            // Existing instances with a custom recovery-port range still run
+            // Nginx; Apache is withheld until an isolated port is assigned.
+            return "# Apache no disponible: puerto interno sin asignar.\n";
+        }
+
+        $port = $instance->access_port + 40000;
+        $uuid = $instance->uuid;
+        $root = '/etc/xpanel-vps/instances/'.$uuid;
+
+        return "ServerRoot /etc/apache2\nDefaultRuntimeDir /run/apache2\nPidFile /run/apache2/xpanel-instance-{$uuid}.pid\nListen 127.0.0.1:{$port}\nServerName 127.0.0.1\nUser {$instance->system_user}\nGroup {$instance->system_user}\nErrorLog /var/log/apache2/xpanel-instance-{$uuid}-error.log\nLogLevel warn\nLogFormat \"%h %l %u %t \\\"%r\\\" %>s %O \\\"%{Referer}i\\\" \\\"%{User-Agent}i\\\"\" combined\nIncludeOptional /etc/apache2/mods-enabled/*.load\nIncludeOptional /etc/apache2/mods-enabled/*.conf\nTypesConfig /etc/mime.types\nIncludeOptional /etc/apache2/conf-enabled/*.conf\nIncludeOptional {$root}/apache/sites/*.conf\n";
+    }
+
+    private function apacheService(HostInstance $instance): string
+    {
+        $uuid = $instance->uuid;
+        $config = '/etc/xpanel-vps/instances/'.$uuid.'/apache.conf';
+
+        return "[Unit]\nDescription=XPanel Host Apache {$uuid}\nAfter=network.target\nConditionPathExists=/usr/sbin/apache2\n\n[Service]\nType=simple\nSlice=xpanel-instance-{$uuid}.slice\nEnvironment=APACHE_RUN_DIR=/run/apache2\nEnvironment=APACHE_LOCK_DIR=/var/lock/apache2\nEnvironment=APACHE_LOG_DIR=/var/log/apache2\nEnvironment=APACHE_RUN_USER={$instance->system_user}\nEnvironment=APACHE_RUN_GROUP={$instance->system_user}\nExecStart=/usr/sbin/apache2 -f {$config} -DFOREGROUND\nExecReload=/bin/kill -USR1 \$MAINPID\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=full\n\n[Install]\nWantedBy=multi-user.target\n";
     }
 }

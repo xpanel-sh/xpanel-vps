@@ -39,8 +39,12 @@ if [[ "$SLUG" == "apache" ]]; then
   elif ! grep -Eq '^[[:space:]]*Listen[[:space:]]+127\.0\.0\.1:8082[[:space:]]*$' /etc/apache2/ports.conf; then
     printf '\nListen 127.0.0.1:8082\n' >> /etc/apache2/ports.conf
   fi
+  sed -i -E 's|^[[:space:]]*Listen[[:space:]]+443[[:space:]]*$|# XPanel Nginx owns port 443|' /etc/apache2/ports.conf
   apache2ctl configtest
 fi
 
 systemctl enable --now "$service"
+if [[ "$SLUG" == "apache" ]]; then
+  systemctl restart apache2
+fi
 printf 'installed=%s\n' "$SLUG"
