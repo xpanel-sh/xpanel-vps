@@ -46,6 +46,17 @@ class HostInstanceProvisioningTest extends TestCase
         );
     }
 
+    public function test_instance_helper_owns_laravel_storage_parents_before_creating_child_directories(): void
+    {
+        $helper = File::get(base_path('scripts/xpanel-instance-helper.sh'));
+        $parents = 'for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/framework"';
+        $children = '"$INSTANCE_ROOT/storage/app/private"';
+
+        $this->assertStringContainsString($parents, $helper);
+        $this->assertStringContainsString('install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$storage_path"', $helper);
+        $this->assertLessThan(strpos($helper, $children), strpos($helper, $parents));
+    }
+
     public function test_it_creates_a_staged_isolated_host_instance_for_a_tenant(): void
     {
         $user = User::factory()->create(['role' => 'client']);

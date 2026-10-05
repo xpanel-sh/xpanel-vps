@@ -22,6 +22,10 @@ class HostInstanceUpdater
 
         $target = str_replace('\\', '/', $target);
         if (rtrim($instance->release_path, '/') === $target) {
+            // A new VPS helper may need to repair an existing instance even
+            // when the Host release itself has not changed.
+            $this->provisioner->apply($instance->fresh());
+
             return false;
         }
 

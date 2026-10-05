@@ -132,7 +132,7 @@ class HostInstanceController extends Controller
 
         return back()->with('success', $updated
             ? 'XPanel Host se actualizó correctamente para esta cuenta.'
-            : 'Esta cuenta ya utiliza la versión actual de XPanel Host.');
+            : 'Esta cuenta ya usa la versión actual de Host; se reaplicó su configuración y se repararon sus directorios.');
     }
 
     public function access(HostInstance $instance, HostSsoLink $sso)

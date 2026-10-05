@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Instance apply now repairs the ownership of Laravel's `storage`, `storage/app`, and `storage/framework` parent directories. Earlier root-owned parents blocked PHP from staging vhosts or the OpenLiteSpeed registry with `mkdir(): Permission denied`; only those directory entries are changed, never site contents.
+- Updating an instance reapplies its configuration even when it is already on the current Host release, so VPS-side helper repairs reach existing accounts.
 - The Host broker now authorizes site access-identity removal only when the Unix user and document root match that instance's registered site, allowing managed Host deletion to complete without exposing other accounts.
 - Managed Host instance provisioning now creates or repairs only its account home and `public_html` ownership before running the tenant panel. Reapplying an existing instance repairs root-owned account directories left by an earlier site creation without recursively changing customer files.
 - The signed Host broker now permits site-scoped ownership repair and targeted subtree synchronization after iKode file operations; it verifies the site's SQLite identity and canonical path before invoking the privileged helper. This does not enable the managed terminal.
