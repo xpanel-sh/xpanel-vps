@@ -13,6 +13,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - Prevented Host provisioning from reloading the control-plane PHP-FPM service, avoiding a successful creation ending in a 502 response.
 - Separated commercial clients from hosting administrators: every Host account now defines its own administrator, while the first one also enables the client's central access.
 - Allowed changing the Cloud base domain with existing hostings and automatically migrated generated instance domains, Nginx configuration and pending SSL state.
+- Reworked the administrator client detail with compact native cards, clearer hosting actions and a responsive three-column provisioning form.
+- Host access SSO now authenticates with the administrator assigned to the selected hosting instead of always using the client's first account.
 
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.

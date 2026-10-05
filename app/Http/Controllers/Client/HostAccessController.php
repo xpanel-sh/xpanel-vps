@@ -34,7 +34,7 @@ class HostAccessController extends Controller
         $instance = $hostingAccount->hostInstance;
         abort_unless($hostingAccount->status === 'active' && $instance?->status === 'active', 409, 'El hosting todavía no está disponible.');
 
-        return redirect()->away($sso->for($instance, $request->user()));
+        return redirect()->away($sso->for($instance));
     }
 
     public function updateDomain(

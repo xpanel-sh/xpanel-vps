@@ -28,7 +28,8 @@ class HostingAccountAccessTest extends TestCase
         $tenant = Tenant::create(['name' => 'Cliente', 'domain' => 'client.test', 'user_id' => $user->id, 'status' => 'active']);
         $account = HostingAccount::create([
             'uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'hosting_plan_id' => $plan->id,
-            'name' => 'Hosting principal', 'status' => 'active',
+            'name' => 'Hosting principal', 'admin_name' => 'Administrador Hosting',
+            'admin_email' => 'hosting-owner@example.com', 'status' => 'active',
         ]);
         $instance = app(HostInstanceProvisioner::class)->create($account);
         $instance->update(['status' => 'active', 'ssl_status' => 'active']);
@@ -38,6 +39,10 @@ class HostingAccountAccessTest extends TestCase
         $response->assertRedirectContains('https://'.$instance->panel_domain.'/auth/control-plane?token=');
         $token = explode('token=', $response->headers->get('Location'), 2)[1];
         $this->assertCount(2, explode('.', $token));
+        [$payload] = explode('.', $token);
+        $decoded = json_decode(base64_decode(strtr($payload, '-_', '+/')), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame('hosting-owner@example.com', $decoded['email']);
+        $this->assertSame('Administrador Hosting', $decoded['name']);
 
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin, 'admin')

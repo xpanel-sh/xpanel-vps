@@ -3,19 +3,28 @@
 namespace App\Services;
 
 use App\Models\HostInstance;
-use App\Models\User;
 
 class HostSsoLink
 {
-    public function for(HostInstance $instance, User $user): string
+    public function for(HostInstance $instance): string
     {
+        $instance->loadMissing(['hostingAccount', 'tenant.user']);
+        $account = $instance->hostingAccount;
+        $fallbackUser = $instance->tenant?->user;
+        $email = $account?->admin_email ?: $fallbackUser?->email;
+        $name = $account?->admin_name ?: $fallbackUser?->name;
+
+        if (blank($email)) {
+            throw new \RuntimeException('La instancia no tiene un administrador configurado para el acceso SSO.');
+        }
+
         $ttl = max(15, min(300, (int) config('xpanel.host_instances.sso_ttl_seconds', 60)));
         $payload = $this->encode(json_encode([
             'iss' => rtrim((string) config('app.url'), '/'),
             'aud' => $instance->uuid,
-            'sub' => (string) $user->id,
-            'email' => $user->email,
-            'name' => $user->name,
+            'sub' => (string) ($account?->uuid ?: $fallbackUser?->id),
+            'email' => $email,
+            'name' => $name ?: 'Administrador',
             'iat' => now()->timestamp,
             'exp' => now()->addSeconds($ttl)->timestamp,
             'jti' => bin2hex(random_bytes(16)),

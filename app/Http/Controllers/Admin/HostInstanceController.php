@@ -114,9 +114,9 @@ class HostInstanceController extends Controller
 
     public function access(HostInstance $instance, HostSsoLink $sso)
     {
-        $instance->loadMissing('tenant.user');
-        abort_unless($instance->status === 'active' && $instance->tenant?->user, 409, 'La instancia todavía no está disponible.');
+        $instance->loadMissing(['hostingAccount', 'tenant.user']);
+        abort_unless($instance->status === 'active' && ($instance->hostingAccount?->admin_email || $instance->tenant?->user), 409, 'La instancia todavía no está disponible.');
 
-        return redirect()->away($sso->for($instance, $instance->tenant->user));
+        return redirect()->away($sso->for($instance));
     }
 }
