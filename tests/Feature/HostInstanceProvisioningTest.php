@@ -33,6 +33,19 @@ class HostInstanceProvisioningTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_instance_helper_prepares_the_account_home_for_the_panel_user(): void
+    {
+        $helper = File::get(base_path('scripts/xpanel-instance-helper.sh'));
+
+        $this->assertStringContainsString('ACCOUNT_HOME="/home/$SYSTEM_USER"', $helper);
+        $this->assertStringContainsString('for account_path in "$ACCOUNT_HOME" "$ACCOUNT_HOME/public_html"', $helper);
+        $this->assertStringContainsString('install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$account_path"', $helper);
+        $this->assertLessThan(
+            strpos($helper, 'runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" migrate'),
+            strpos($helper, 'ACCOUNT_HOME="/home/$SYSTEM_USER"'),
+        );
+    }
+
     public function test_it_creates_a_staged_isolated_host_instance_for_a_tenant(): void
     {
         $user = User::factory()->create(['role' => 'client']);

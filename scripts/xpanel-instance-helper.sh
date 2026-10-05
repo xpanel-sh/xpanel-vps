@@ -157,6 +157,21 @@ if ! id "$SYSTEM_USER" >/dev/null 2>&1; then
     useradd --system --home-dir "$INSTANCE_ROOT" --shell /usr/sbin/nologin --user-group "$SYSTEM_USER"
 fi
 
+# The panel process runs as SYSTEM_USER, while site provisioning runs through
+# the privileged broker. Prepare the account home before either process uses it;
+# otherwise a first site can leave /home/$SYSTEM_USER root-owned and iKode
+# cannot create the rest of the account layout.
+ACCOUNT_HOME="/home/$SYSTEM_USER"
+for account_path in "$ACCOUNT_HOME" "$ACCOUNT_HOME/public_html"; do
+    [[ ! -L "$account_path" ]] || fail "account workspace is a symlink"
+    if [[ -e "$account_path" ]]; then
+        [[ -d "$account_path" ]] || fail "account workspace is not a directory"
+        owner="$(stat -c %U -- "$account_path")"
+        [[ "$owner" == root || "$owner" == "$SYSTEM_USER" ]] || fail "account workspace has an unexpected owner"
+    fi
+    install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$account_path"
+done
+
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$INSTANCE_ROOT" "$INSTANCE_ROOT/database"
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" \
     "$INSTANCE_ROOT/storage/app/private" \
