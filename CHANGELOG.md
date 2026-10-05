@@ -4,6 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Added per-instance Host updates from the VPS administrator, backed by immutable commit-addressed releases and automatic rollback when applying an update fails.
+- Added custom panel-domain management to each administrator hosting card and propagated the public server IPv4 into managed Host environments.
+- Reapplied managed instance configuration after successful SSL issuance so Laravel immediately adopts the verified custom panel URL.
 - Fixed fresh MariaDB installations by preserving a normal tenant index before removing the former one-instance unique constraint.
 - Installer repositories now ignore executable-bit changes applied to privileged helpers, keeping future `xpanel update` operations clean.
 - Fixed strict-mode early exits when package, firewall or CLI steps are intentionally skipped during recovery and updates.

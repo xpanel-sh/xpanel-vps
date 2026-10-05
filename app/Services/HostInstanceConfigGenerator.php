@@ -78,6 +78,8 @@ class HostInstanceConfigGenerator
             'XPANEL_BROKER_URL' => config('xpanel.host_instances.broker_url'),
             'XPANEL_BROKER_SECRET' => $instance->broker_secret,
             'XPANEL_PANEL_DOMAIN' => $instance->panel_domain,
+            'XPANEL_SERVER_IPV4' => config('xpanel.server_ip'),
+            'XPANEL_PANEL_PORT' => $instance->access_port ?: 80,
             'XPANEL_SSO_ENABLED' => 'true',
             // Host enables mutations, but ServerCommandRunner sends its helper calls
             // to the signed VPS broker; the tenant process itself never gets sudo.

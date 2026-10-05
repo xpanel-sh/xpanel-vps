@@ -8,6 +8,7 @@ use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
+use App\Services\HostInstanceUpdater;
 use App\Services\HostSsoLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -102,14 +103,68 @@ class HostInstanceController extends Controller
         return back()->with('success', 'La configuración de la instancia fue aplicada.');
     }
 
-    public function retrySsl(HostInstance $instance, HostInstanceCertificateProvisioner $certificates)
+    public function retrySsl(
+        HostInstance $instance,
+        HostInstanceCertificateProvisioner $certificates,
+        HostInstanceProvisioner $provisioner,
+    )
     {
         $issued = $certificates->issue($instance->load('tenant.user'));
+        if ($issued) {
+            $provisioner->apply($instance->fresh());
+        }
 
         return back()->with(
             $issued ? 'success' : 'warning',
             $issued ? 'Certificado SSL emitido correctamente.' : ($instance->fresh()->ssl_last_error ?: 'SSL pendiente de DNS.'),
         );
+    }
+
+    public function update(HostInstance $instance, HostInstanceUpdater $updater)
+    {
+        try {
+            $updated = $updater->updateToCurrent($instance);
+        } catch (\Throwable $exception) {
+            Log::error('Host instance update failed', ['instance_id' => $instance->id, 'exception' => $exception]);
+
+            return back()->withErrors(['update' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', $updated
+            ? 'XPanel Host se actualizó correctamente para esta cuenta.'
+            : 'Esta cuenta ya utiliza la versión actual de XPanel Host.');
+    }
+
+    public function updateDomain(
+        Request $request,
+        HostInstance $instance,
+        HostInstanceProvisioner $provisioner,
+        HostInstanceCertificateProvisioner $certificates,
+    ) {
+        $account = $instance->hostingAccount()->firstOrFail();
+        $data = $request->validate([
+            'custom_panel_domain' => [
+                'nullable', 'string', 'max:253',
+                'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/',
+                Rule::unique('hosting_accounts', 'custom_panel_domain')->ignore($account),
+                Rule::unique('host_instances', 'panel_domain')->ignore($instance),
+            ],
+        ]);
+        $domain = strtolower(trim((string) ($data['custom_panel_domain'] ?? '')));
+        $account->update([
+            'custom_panel_domain' => $domain ?: null,
+            'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
+            'custom_domain_last_error' => null,
+        ]);
+
+        $provisioner->apply($instance);
+        if ($domain && $certificates->issue($instance->fresh(['tenant.user', 'hostingAccount']))) {
+            $provisioner->apply($instance->fresh());
+        }
+
+        return back()->with($domain ? 'success' : 'info', $domain
+            ? "El dominio $domain quedó asociado. SSL se activará cuando el DNS directo apunte al servidor."
+            : 'Se retiró el dominio personalizado; la dirección técnica continúa disponible.');
     }
 
     public function access(HostInstance $instance, HostSsoLink $sso)

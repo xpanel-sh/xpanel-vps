@@ -61,8 +61,8 @@ class HostAccessController extends Controller
 
         if ($instance = $hostingAccount->hostInstance) {
             $provisioner->apply($instance);
-            if ($domain) {
-                $certificates->issue($instance->fresh(['tenant.user', 'hostingAccount']));
+            if ($domain && $certificates->issue($instance->fresh(['tenant.user', 'hostingAccount']))) {
+                $provisioner->apply($instance->fresh());
             }
         }
 

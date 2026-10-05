@@ -19,6 +19,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
         config()->set('xpanel.host_instances.staging_root', $this->stagingRoot);
         config()->set('xpanel.host_instances.root', '/var/lib/xpanel-vps/instances');
         config()->set('xpanel.host_instances.control_plane_url', 'https://host.example.test');
+        config()->set('xpanel.server_ip', '203.0.113.10');
     }
 
     protected function tearDown(): void
@@ -39,6 +40,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
 
         $firstEnvironment = File::get($firstFiles['environment']);
         $this->assertStringContainsString('XPANEL_MANAGEMENT_MODE="vps-instance"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_SERVER_IPV4="203.0.113.10"', $firstEnvironment);
         $this->assertStringContainsString('DB_DATABASE="'.$first->database_path.'"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SYSTEMD_SLICE="xpanel-instance-'.$first->uuid.'.slice"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);

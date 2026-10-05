@@ -87,6 +87,12 @@ class AdminClientProvisioningFlowTest extends TestCase
         $this->assertSame('principal@example.com', $first->admin_email);
         $this->assertSame($password, $first->hostInstance->initial_password);
 
+        $this->actingAs($admin, 'admin')->put(route('admin.instances.domain', $first->hostInstance), [
+            'custom_panel_domain' => 'panel.cliente.example.com',
+        ])->assertRedirect();
+        $this->assertSame('panel.cliente.example.com', $first->fresh()->custom_panel_domain);
+        $this->assertSame('waiting_dns', $first->fresh()->custom_domain_status);
+
         $this->actingAs($admin, 'admin')->post(route('admin.clients.instances.store', $tenant), [
             'name' => 'Tienda',
             'plan_id' => $plan->id,

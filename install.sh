@@ -382,7 +382,7 @@ install_host_release() {
   local source="${XPANEL_HOST_SOURCE:-}"
   local repository="${XPANEL_HOST_REPO:-https://github.com/xpanel-sh/xpanel-host.git}"
   local revision="${XPANEL_HOST_REVISION:-main}"
-  local release_id target php_bin
+  local release_id target php_bin managed_source
 
   if [[ -z "$source" && -d "$ROOT/../xpanel-host/.git" ]]; then
     source="$(realpath "$ROOT/../xpanel-host")"
@@ -392,17 +392,23 @@ install_host_release() {
     [[ -d "$source/.git" ]] || fail "XPANEL_HOST_SOURCE debe apuntar al repositorio de xpanel-host."
     release_id="$(git -C "$source" rev-parse --short=12 HEAD)"
   else
-    release_id="${revision//[^A-Za-z0-9._-]/-}"
+    managed_source="$host_base/source"
+    if [[ ! -d "$managed_source/.git" ]]; then
+      [[ ! -e "$managed_source" ]] || fail "$managed_source existe pero no es un repositorio administrado de XPanel Host."
+      git clone --depth 1 --branch "$revision" "$repository" "$managed_source"
+    else
+      git -C "$managed_source" fetch --depth 1 origin "$revision"
+      git -C "$managed_source" checkout --force --detach FETCH_HEAD
+    fi
+    source="$managed_source"
+    release_id="$(git -C "$source" rev-parse --short=12 HEAD)"
   fi
 
   target="$host_base/releases/$release_id"
   install -d -m 0755 "$host_base/releases"
   if [[ ! -d "$target/.git" ]]; then
-    if [[ -n "$source" ]]; then
-      git clone --no-hardlinks "$source" "$target"
-    else
-      git clone --depth 1 --branch "$revision" "$repository" "$target"
-    fi
+    git clone --no-hardlinks "$source" "$target"
+    git -C "$target" checkout --force --detach "$(git -C "$source" rev-parse HEAD)"
   fi
 
   php_bin="/usr/bin/php${XPANEL_HOST_PHP_VERSION:-8.3}"

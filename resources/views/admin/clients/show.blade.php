@@ -14,6 +14,10 @@
                             <div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i>{{ session('warning') }}</div>
                         @endif
 
+                        @if(session('info'))
+                            <div class="kt-alert kt-alert-primary"><i class="ki-filled ki-information-2"></i>{{ session('info') }}</div>
+                        @endif
+
                         @if($errors->any())
                             <div class="kt-alert kt-alert-destructive">
                                 <i class="ki-filled ki-information-2"></i>
@@ -87,6 +91,20 @@
                                                 <div><div class="text-xs text-secondary-foreground">SSL</div><div class="mt-0.5 font-medium text-mono">{{ match($instance?->ssl_status) { 'active' => 'Activo', 'waiting_dns' => 'Esperando DNS', 'error' => 'Con error', default => 'Pendiente' } }}</div></div>
                                             </div>
 
+                                            @if($instance)
+                                                <form action="{{ route('admin.instances.domain', $instance) }}" method="POST" class="mt-4 flex flex-col gap-2 rounded-lg bg-muted/40 p-3 sm:flex-row sm:items-end">
+                                                    @csrf @method('PUT')
+                                                    <label class="min-w-0 grow">
+                                                        <span class="text-xs font-medium text-mono">Dominio personalizado del panel</span>
+                                                        <input class="kt-input mt-1.5" name="custom_panel_domain" value="{{ old('custom_panel_domain', $account->custom_panel_domain) }}" placeholder="panel.cliente.com">
+                                                    </label>
+                                                    <button class="kt-btn kt-btn-outline kt-btn-sm shrink-0" type="submit">Verificar y guardar</button>
+                                                </form>
+                                                @if($account->custom_domain_last_error)
+                                                    <p class="mt-2 text-xs text-warning">{{ $account->custom_domain_last_error }}</p>
+                                                @endif
+                                            @endif
+
                                             @if($instance?->last_error)
                                                 <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{{ Str::limit($instance->last_error, 180) }}</div>
                                             @endif
@@ -99,6 +117,10 @@
                                                     <form action="{{ route('admin.instances.retry-ssl', $instance) }}" method="POST">@csrf<button class="kt-btn kt-btn-outline kt-btn-sm"><i class="ki-filled ki-shield-tick"></i>Reintentar SSL</button></form>
                                                 @endif
                                                 @if($instance)
+                                                    <form action="{{ route('admin.instances.update', $instance) }}" method="POST" onsubmit="return confirm('Se migrará esta instancia a la release actual de XPanel Host. ¿Continuar?')">
+                                                        @csrf
+                                                        <button class="kt-btn kt-btn-outline kt-btn-sm" title="Actualiza únicamente esta instancia a la release preparada por XPanel VPS"><i class="ki-filled ki-update-file"></i>Actualizar Host</button>
+                                                    </form>
                                                     <form action="{{ route('admin.instances.apply', $instance) }}" method="POST" class="ms-auto" onsubmit="return confirm('Esto volverá a generar y aplicar la configuración técnica de esta instancia. ¿Continuar?')">
                                                         @csrf
                                                         <button class="kt-btn kt-btn-ghost kt-btn-sm" title="Regenera PHP-FPM, Nginx, entorno y límites de la instancia"><i class="ki-filled ki-arrows-circle"></i>Reparar configuración</button>
