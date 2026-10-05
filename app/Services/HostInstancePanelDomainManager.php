@@ -20,6 +20,7 @@ class HostInstancePanelDomainManager
             'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
             'custom_domain_last_error' => null,
         ]);
+        $instance->update(['ssl_status' => 'pending', 'ssl_last_error' => null]);
     }
 
     public function apply(HostInstance $instance): void
