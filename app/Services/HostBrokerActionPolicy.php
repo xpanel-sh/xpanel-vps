@@ -28,8 +28,24 @@ class HostBrokerActionPolicy
             'site-diagnose' => $this->diagnostic($instance, $arguments),
             'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
+            'panel-domain-set' => $this->panelDomain($instance, $arguments),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
+    }
+
+    /** @param array<int, string> $arguments */
+    private function panelDomain(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) !== 1 || ! $this->domain($arguments[0]) || ! $instance->hosting_account_id) {
+            throw new RuntimeException('El dominio solicitado para el panel no es válido.');
+        }
+
+        $domain = $arguments[0];
+        if (HostInstance::query()->whereKeyNot($instance->id)->where('panel_domain', $domain)->exists()
+            || \App\Models\HostingAccount::query()->whereKeyNot($instance->hosting_account_id)->where('custom_panel_domain', $domain)->exists()
+            || HostBrokerResource::query()->where('type', 'site-domain')->where('name', $domain)->exists()) {
+            throw new RuntimeException('El dominio ya pertenece a otro panel o sitio del servidor.');
+        }
     }
 
     /** @param array<int, string> $arguments */

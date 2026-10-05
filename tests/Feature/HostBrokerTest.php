@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\HostBrokerOperation;
 use App\Models\HostInstance;
+use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -137,12 +138,31 @@ class HostBrokerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_instance_can_request_its_own_custom_panel_domain(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $payload = $this->payload($instance, 'panel-domain-set', ['panel.customer.test']);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'output' => 'url=https://panel.customer.test']);
+
+        $this->assertSame('panel.customer.test', $instance->hostingAccount->fresh()->custom_panel_domain);
+        $this->assertSame('waiting_dns', $instance->hostingAccount->fresh()->custom_domain_status);
+    }
+
     private function instanceWithSite(): array
     {
         $uuid = '01234567-89ab-cdef-8123-456789abcdef';
         $secret = str_repeat('a', 64);
         $user = User::factory()->create(['role' => 'client']);
         $tenant = Tenant::create(['name' => 'Broker', 'domain' => 'broker.test', 'user_id' => $user->id, 'status' => 'active']);
+        $account = HostingAccount::create([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'tenant_id' => $tenant->id,
+            'name' => 'Hosting broker',
+            'status' => 'active',
+        ]);
         $instanceRoot = str_replace('\\', '/', $this->root).'/'.$uuid;
         File::ensureDirectoryExists($instanceRoot.'/database');
         $database = $instanceRoot.'/database/database.sqlite';
@@ -155,7 +175,8 @@ class HostBrokerTest extends TestCase
         $statement->execute(['example.test', 'nginx', 'php', '8.3', '/home/xhi0123456789ab/public_html/example.test', $siteUser, 'public']);
 
         $instance = HostInstance::create([
-            'tenant_id' => $tenant->id, 'uuid' => $uuid, 'panel_domain' => 'panel.broker.test',
+            'tenant_id' => $tenant->id, 'hosting_account_id' => $account->id,
+            'uuid' => $uuid, 'panel_domain' => 'panel.broker.test',
             'system_user' => 'xhi0123456789ab', 'release_path' => '/opt/xpanel-host/releases/test',
             'instance_root' => $instanceRoot, 'database_path' => $database, 'broker_secret' => $secret,
             'php_version' => '8.3', 'status' => 'active',

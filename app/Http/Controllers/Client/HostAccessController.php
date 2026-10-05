@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
 use App\Services\HostSsoLink;
-use App\Services\HostInstanceCertificateProvisioner;
-use App\Services\HostInstanceProvisioner;
+use App\Services\HostInstancePanelDomainManager;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -40,8 +39,7 @@ class HostAccessController extends Controller
     public function updateDomain(
         Request $request,
         HostingAccount $hostingAccount,
-        HostInstanceProvisioner $provisioner,
-        HostInstanceCertificateProvisioner $certificates,
+        HostInstancePanelDomainManager $domains,
     ) {
         $this->authorizeAccount($request, $hostingAccount);
         $data = $request->validate([
@@ -53,17 +51,15 @@ class HostAccessController extends Controller
             ],
         ]);
         $domain = strtolower(trim((string) ($data['custom_panel_domain'] ?? '')));
-        $hostingAccount->update([
-            'custom_panel_domain' => $domain ?: null,
-            'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
-            'custom_domain_last_error' => null,
-        ]);
-
         if ($instance = $hostingAccount->hostInstance) {
-            $provisioner->apply($instance);
-            if ($domain && $certificates->issue($instance->fresh(['tenant.user', 'hostingAccount']))) {
-                $provisioner->apply($instance->fresh());
-            }
+            $domains->stage($instance, $domain ?: null);
+            $domains->apply($instance->fresh());
+        } else {
+            $hostingAccount->update([
+                'custom_panel_domain' => $domain ?: null,
+                'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
+                'custom_domain_last_error' => null,
+            ]);
         }
 
         return back()->with($domain ? 'success' : 'info', $domain

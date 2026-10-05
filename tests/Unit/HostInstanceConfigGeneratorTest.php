@@ -31,7 +31,10 @@ class HostInstanceConfigGeneratorTest extends TestCase
     public function test_it_generates_an_isolated_runtime_for_each_host_instance(): void
     {
         $first = $this->makeInstance('01234567-89ab-cdef-0123-456789abcdef', 'panel.one.test');
-        $first->setRelation('hostingAccount', new HostingAccount(['custom_panel_domain' => 'panel.customer.test']));
+        $first->setRelation('hostingAccount', new HostingAccount([
+            'custom_panel_domain' => 'panel.customer.test',
+            'custom_domain_status' => 'active',
+        ]));
         $second = $this->makeInstance('fedcba98-7654-3210-fedc-ba9876543210', 'panel.two.test');
 
         $generator = app(HostInstanceConfigGenerator::class);
@@ -41,6 +44,8 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $firstEnvironment = File::get($firstFiles['environment']);
         $this->assertStringContainsString('XPANEL_MANAGEMENT_MODE="vps-instance"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SERVER_IPV4="203.0.113.10"', $firstEnvironment);
+        $this->assertStringContainsString('APP_URL="https://panel.customer.test"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_PANEL_DOMAIN="panel.customer.test"', $firstEnvironment);
         $this->assertStringContainsString('DB_DATABASE="'.$first->database_path.'"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SYSTEMD_SLICE="xpanel-instance-'.$first->uuid.'.slice"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);

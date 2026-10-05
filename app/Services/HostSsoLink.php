@@ -6,7 +6,7 @@ use App\Models\HostInstance;
 
 class HostSsoLink
 {
-    public function for(HostInstance $instance): string
+    public function for(HostInstance $instance, bool $recovery = false): string
     {
         $instance->loadMissing(['hostingAccount', 'tenant.user']);
         $account = $instance->hostingAccount;
@@ -31,7 +31,9 @@ class HostSsoLink
         ], JSON_THROW_ON_ERROR));
         $signature = $this->encode(hash_hmac('sha256', $payload, $instance->broker_secret, true));
 
-        return rtrim($instance->panelUrl(), '/').'/auth/control-plane?token='.$payload.'.'.$signature;
+        $baseUrl = $recovery ? ($instance->fallbackUrl() ?: $instance->panelUrl()) : $instance->panelUrl();
+
+        return rtrim($baseUrl, '/').'/auth/control-plane?token='.$payload.'.'.$signature;
     }
 
     private function encode(string $value): string

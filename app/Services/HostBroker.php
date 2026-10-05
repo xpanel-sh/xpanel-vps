@@ -34,6 +34,31 @@ class HostBroker
         try {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
             $operation->update(['status' => 'authorized']);
+            if ($payload['action'] === 'panel-domain-set') {
+                $domain = $payload['arguments'][0];
+                app(HostInstancePanelDomainManager::class)->stage($instance, $domain);
+                if (! config('xpanel.native_hosting.apply_system_changes')) {
+                    $operation->update(['status' => 'staged', 'output' => 'url=https://'.$domain]);
+
+                    return 'url=https://'.$domain;
+                }
+
+                $operation->update(['status' => 'staged', 'output' => 'url=https://'.$domain]);
+                app()->terminating(function () use ($instance, $operation): void {
+                    try {
+                        app(HostInstancePanelDomainManager::class)->apply($instance->fresh());
+                        $operation->update(['status' => 'completed']);
+                    } catch (Throwable $exception) {
+                        $operation->update([
+                            'status' => 'failed',
+                            'error' => mb_substr($exception->getMessage(), 0, 65535),
+                        ]);
+                        report($exception);
+                    }
+                });
+
+                return 'url=https://'.$domain;
+            }
             if (! config('xpanel.native_hosting.apply_system_changes')) {
                 $operation->update(['status' => 'staged', 'output' => 'authorized-staged']);
 

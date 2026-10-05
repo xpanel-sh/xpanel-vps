@@ -19,6 +19,7 @@ class HostingAccountAccessTest extends TestCase
     {
         config()->set('xpanel.native_hosting.apply_system_changes', false);
         config()->set('xpanel.host_instances.release_path', '/opt/xpanel-host/current');
+        config()->set('xpanel.server_ip', '203.0.113.10');
         $user = User::factory()->create(['role' => 'client']);
         $plan = HostingPlan::create([
             'name' => 'Starter', 'slug' => 'starter', 'max_sites' => 1, 'max_databases' => 1,
@@ -47,7 +48,7 @@ class HostingAccountAccessTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin, 'admin')
             ->get(route('admin.instances.access', $instance))
-            ->assertRedirectContains('https://'.$instance->panel_domain.'/auth/control-plane?token=');
+            ->assertRedirectContains('https://'.config('xpanel.server_ip').':'.$instance->access_port.'/auth/control-plane?token=');
     }
 
     public function test_client_cannot_access_another_clients_hosting(): void

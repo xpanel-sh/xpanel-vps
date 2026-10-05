@@ -135,43 +135,11 @@ class HostInstanceController extends Controller
             : 'Esta cuenta ya utiliza la versión actual de XPanel Host.');
     }
 
-    public function updateDomain(
-        Request $request,
-        HostInstance $instance,
-        HostInstanceProvisioner $provisioner,
-        HostInstanceCertificateProvisioner $certificates,
-    ) {
-        $account = $instance->hostingAccount()->firstOrFail();
-        $data = $request->validate([
-            'custom_panel_domain' => [
-                'nullable', 'string', 'max:253',
-                'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/',
-                Rule::unique('hosting_accounts', 'custom_panel_domain')->ignore($account),
-                Rule::unique('host_instances', 'panel_domain')->ignore($instance),
-            ],
-        ]);
-        $domain = strtolower(trim((string) ($data['custom_panel_domain'] ?? '')));
-        $account->update([
-            'custom_panel_domain' => $domain ?: null,
-            'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
-            'custom_domain_last_error' => null,
-        ]);
-
-        $provisioner->apply($instance);
-        if ($domain && $certificates->issue($instance->fresh(['tenant.user', 'hostingAccount']))) {
-            $provisioner->apply($instance->fresh());
-        }
-
-        return back()->with($domain ? 'success' : 'info', $domain
-            ? "El dominio $domain quedó asociado. SSL se activará cuando el DNS directo apunte al servidor."
-            : 'Se retiró el dominio personalizado; la dirección técnica continúa disponible.');
-    }
-
     public function access(HostInstance $instance, HostSsoLink $sso)
     {
         $instance->loadMissing(['hostingAccount', 'tenant.user']);
         abort_unless($instance->status === 'active' && ($instance->hostingAccount?->admin_email || $instance->tenant?->user), 409, 'La instancia todavía no está disponible.');
 
-        return redirect()->away($sso->for($instance));
+        return redirect()->away($sso->for($instance, true));
     }
 }

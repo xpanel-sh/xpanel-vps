@@ -52,13 +52,15 @@ class HostInstanceConfigGenerator
         $instance->loadMissing(['hostingAccount.plan', 'tenant.plan']);
         $plan = $instance->hostingAccount?->plan ?? $instance->tenant?->plan;
         $limits = $this->limiter->limitsFor($instance);
+        $panelUrl = $instance->panelUrl();
+        $panelDomain = parse_url($panelUrl, PHP_URL_HOST) ?: $instance->panel_domain;
 
         return [
             'APP_NAME' => 'XPanel Host',
             'APP_ENV' => 'production',
             'APP_KEY' => $existingKey ?: 'base64:'.base64_encode(random_bytes(32)),
             'APP_DEBUG' => 'false',
-            'APP_URL' => $instance->panelUrl(),
+            'APP_URL' => $panelUrl,
             'APP_CONFIG_CACHE' => $cache.'/config.php',
             'APP_EVENTS_CACHE' => $cache.'/events.php',
             'APP_PACKAGES_CACHE' => $cache.'/packages.php',
@@ -77,7 +79,8 @@ class HostInstanceConfigGenerator
             'XPANEL_CONTROL_PLANE_URL' => config('xpanel.host_instances.control_plane_url'),
             'XPANEL_BROKER_URL' => config('xpanel.host_instances.broker_url'),
             'XPANEL_BROKER_SECRET' => $instance->broker_secret,
-            'XPANEL_PANEL_DOMAIN' => $instance->panel_domain,
+            'XPANEL_PANEL_DOMAIN' => $panelDomain,
+            'XPANEL_PANEL_ACCESS_MODE' => 'domain',
             'XPANEL_SERVER_IPV4' => config('xpanel.server_ip'),
             'XPANEL_PANEL_PORT' => $instance->access_port ?: 80,
             'XPANEL_SSO_ENABLED' => 'true',
