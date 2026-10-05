@@ -26,7 +26,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -87,6 +87,20 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   fi
 elif [[ "$ACTION" == "php-profile-remove" ]]; then
   [[ $# -eq 1 && "$1" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile removal"
+elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$ACTION" == "ownership-sync-tree" ]]; then
+  if [[ "$ACTION" == "ownership-fix" ]]; then [[ $# -eq 3 ]] || fail "invalid ownership argument count"; else [[ $# -eq 4 ]] || fail "invalid ownership argument count"; fi
+  DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"
+  [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid ownership domain"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && -d "$DOCUMENT_ROOT" && ! -L "$DOCUMENT_ROOT" ]] || fail "invalid ownership site root"
+  [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "ownership user escaped the instance"
+  if [[ "$ACTION" != "ownership-fix" ]]; then
+    TARGET="$4"
+    [[ "$TARGET" == "$DOCUMENT_ROOT" || "$TARGET" == "$DOCUMENT_ROOT/"* ]] || fail "ownership target escaped the site"
+    [[ "$TARGET" != *".."* && "$TARGET" != *'\\'* && -e "$TARGET" && ! -L "$TARGET" ]] || fail "invalid ownership target"
+    RESOLVED_ROOT="$(realpath -e -- "$DOCUMENT_ROOT")"
+    RESOLVED_TARGET="$(realpath -e -- "$TARGET")"
+    [[ "$RESOLVED_TARGET" == "$RESOLVED_ROOT" || "$RESOLVED_TARGET" == "$RESOLVED_ROOT/"* ]] || fail "ownership target follows a link outside the site"
+  fi
 else
   [[ $# -eq 2 ]] || fail "invalid database argument count"
   DB_PREFIX="xp_${INSTANCE_HEX:0:6}_"

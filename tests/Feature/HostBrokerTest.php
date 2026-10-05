@@ -203,6 +203,25 @@ class HostBrokerTest extends TestCase
         $this->assertTrue(app(NativePackageManager::class)->isWebServerInUse('apache'));
     }
 
+    public function test_ownership_repairs_are_limited_to_the_instances_registered_site(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $root = '/home/'.$instance->system_user.'/public_html/example.test';
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        foreach ([
+            ['ownership-fix', ['example.test', $root, $siteUser], 200],
+            ['ownership-sync-path', ['example.test', $root, $siteUser, $root.'/assets/file.txt'], 200],
+            ['ownership-sync-tree', ['example.test', $root, $siteUser, $root.'/assets'], 200],
+            ['ownership-sync-path', ['example.test', $root, $siteUser, '/home/'.$instance->system_user.'/other.txt'], 422],
+            ['ownership-sync-path', ['example.test', $root, $siteUser, $root.'/../other.test/file.txt'], 422],
+            ['ownership-fix', ['example.test', $root, 'xpsforeign123456789'], 422],
+        ] as [$action, $arguments, $status]) {
+            $payload = $this->payload($instance, $action, $arguments);
+            $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+                ->assertStatus($status);
+        }
+    }
+
     private function instanceWithSite(): array
     {
         $uuid = '01234567-89ab-cdef-8123-456789abcdef';

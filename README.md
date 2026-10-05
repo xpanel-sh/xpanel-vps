@@ -59,6 +59,8 @@ El código compartido de Host permanece en `/opt/xpanel-host/releases`; no es la
 
 El broker admite creación, eliminación y reinicio de sitios, perfiles PHP-FPM con selecciones verificadas contra la SQLite de la instancia, runtimes Node.js, reserva global de puertos y dominios wildcard, certificados normales o wildcard y operaciones MariaDB. También permite consultar estado, emisor y vencimiento del certificado únicamente cuando el dominio pertenece a la SQLite de esa instancia; nunca entrega la clave privada. El cliente sólo puede elegir entre módulos instalados por el administrador de VPS. Los secretos DNS viajan por stdin y no se conservan en el historial. Correo permanece bloqueado hasta que VPS genere mapas agregados de Postfix/Dovecot para todas las instancias; un mapa por cliente no es seguro en un servicio global.
 
+El gestor iKode de Host también puede solicitar corrección de propiedad de un sitio o de un árbol modificado. VPS valida la identidad Unix, el dominio y la ruta contra la SQLite de esa instancia antes de llamar al helper, y el helper comprueba la ruta física para impedir escapes por enlaces. Esto mantiene operativas las operaciones de archivos sin entregar `sudo` a Host. La terminal interactiva de Host dentro de VPS permanece desactivada hasta integrar un agente y una cárcel por instancia; la terminal de Host independiente conserva su instalación propia.
+
 ## Aplicaciones alojadas y tenancy
 
 Cada instancia entrega al cliente un XPanel Host completo. Dentro de ella puede publicar:
