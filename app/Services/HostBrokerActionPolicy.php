@@ -28,6 +28,7 @@ class HostBrokerActionPolicy
             'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
+            'host-update-status', 'host-update-start', 'host-update-feed' => $this->hostUpdate($arguments),
             'engine-status' => $this->engineStatus($arguments),
             'access-remove' => $this->accessRemoval($instance, $arguments),
             'access-stage-prepare' => $this->accessRemoval($instance, $arguments),
@@ -35,6 +36,14 @@ class HostBrokerActionPolicy
             'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
+    }
+
+    /** @param array<int, string> $arguments */
+    private function hostUpdate(array $arguments): void
+    {
+        if ($arguments !== []) {
+            throw new RuntimeException('La actualización de Host no acepta argumentos.');
+        }
     }
 
     /** @param array<int, string> $arguments */

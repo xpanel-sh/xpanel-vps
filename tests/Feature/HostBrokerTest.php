@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\NativePackageManager;
 use App\Services\HostInstanceDatabaseReader;
 use App\Services\ServerCommandRunner;
+use App\Services\HostUpdateCoordinator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use PDO;
@@ -301,6 +302,63 @@ class HostBrokerTest extends TestCase
             $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
                 ->assertStatus($status);
         }
+    }
+
+    public function test_signed_host_can_read_only_its_own_update_status(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $instance->update(['update_status' => 'completed']);
+        $payload = $this->payload($instance, 'host-update-status', []);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', json_encode([
+                'current' => 'test', 'prepared' => null, 'status' => 'completed', 'error' => null,
+            ]));
+
+        $invalid = $this->payload($instance, 'host-update-status', ['another-instance']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
+    public function test_signed_host_can_request_its_own_update_without_arguments(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $this->mock(HostUpdateCoordinator::class)->shouldReceive('start')->once()->withArgs(
+            fn (HostInstance $candidate) => $candidate->is($instance)
+        );
+        $payload = $this->payload($instance, 'host-update-start', []);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'started');
+
+        $invalid = $this->payload($instance, 'host-update-start', ['other']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
+    public function test_update_claim_prevents_duplicate_requests_and_recovers_stale_work(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        config()->set('xpanel.host_instances.helper', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh');
+        $this->mock(ServerCommandRunner::class)->shouldReceive('run')->twice()
+            ->with(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'host-update-start', $instance->uuid])
+            ->andReturn('started=unit');
+        $updates = app(HostUpdateCoordinator::class);
+
+        $updates->start($instance);
+        $this->assertSame('pending', $instance->fresh()->update_status);
+        try {
+            $updates->start($instance);
+            $this->fail('La segunda actualización debió rechazarse.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('en curso', $exception->getMessage());
+        }
+
+        $instance->update(['update_started_at' => now()->subHours(3)]);
+        $this->assertSame('failed', $updates->status($instance->fresh())['status']);
+        $updates->start($instance->fresh());
+        $this->assertSame('pending', $instance->fresh()->update_status);
     }
 
     private function instanceWithSite(): array

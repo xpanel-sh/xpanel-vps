@@ -34,6 +34,29 @@ class HostBroker
         try {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
             $operation->update(['status' => 'authorized']);
+            if ($payload['action'] === 'host-update-feed') {
+                $output = json_encode(app(HostReleaseCatalog::class)->recent(), JSON_THROW_ON_ERROR);
+                $operation->update(['status' => 'completed', 'output' => mb_substr($output, 0, 65535)]);
+
+                return $output;
+            }
+            if ($payload['action'] === 'host-update-status') {
+                $state = app(HostUpdateCoordinator::class)->status($instance);
+                $output = json_encode([
+                    'current' => basename(rtrim($instance->release_path, '/')),
+                    'prepared' => app(HostReleaseManager::class)->preparedRevision(),
+                    ...$state,
+                ], JSON_THROW_ON_ERROR);
+                $operation->update(['status' => 'completed', 'output' => $output]);
+
+                return $output;
+            }
+            if ($payload['action'] === 'host-update-start') {
+                app(HostUpdateCoordinator::class)->start($instance);
+                $operation->update(['status' => 'completed', 'output' => 'started']);
+
+                return 'started';
+            }
             if ($payload['action'] === 'engine-status') {
                 $engine = $payload['arguments'][0];
                 $package = collect(app(NativePackageManager::class)->catalog())->firstWhere('slug', $engine);

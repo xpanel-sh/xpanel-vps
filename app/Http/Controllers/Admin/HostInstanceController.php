@@ -8,7 +8,7 @@ use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
-use App\Services\HostInstanceUpdater;
+use App\Services\HostUpdateCoordinator;
 use App\Services\HostSsoLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,19 +120,17 @@ class HostInstanceController extends Controller
         );
     }
 
-    public function update(HostInstance $instance, HostInstanceUpdater $updater)
+    public function update(HostInstance $instance, HostUpdateCoordinator $updates)
     {
         try {
-            $updated = $updater->updateToCurrent($instance);
+            $updates->start($instance);
         } catch (\Throwable $exception) {
             Log::error('Host instance update failed', ['instance_id' => $instance->id, 'exception' => $exception]);
 
             return back()->withErrors(['update' => $exception->getMessage()]);
         }
 
-        return back()->with('success', $updated
-            ? 'XPanel Host se actualizó correctamente para esta cuenta.'
-            : 'Esta cuenta ya usa la versión actual de Host; se reaplicó su configuración y se repararon sus directorios.');
+        return back()->with('success', 'La actualización de esta cuenta comenzó en segundo plano. Se preparará la última versión de Host sin actualizar VPS.');
     }
 
     public function access(HostInstance $instance, HostSsoLink $sso)

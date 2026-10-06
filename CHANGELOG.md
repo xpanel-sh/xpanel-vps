@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- La actualización de Host se separa de la de VPS: una nueva release oficial se prepara bajo demanda y se aplica únicamente a la cuenta seleccionada, también a petición firmada desde ese Host. Actualizar VPS conserva la release de Host ya preparada y no cambia las versiones fijadas de las cuentas.
+
 - Managed Host broker checks now inspect only allowlisted, read-only SQLite records through a privileged helper; the VPS web process no longer needs direct access to each customer's private database. This fixes site operations failing with an unavailable instance database while preserving account isolation.
 - Instance apply now repairs the ownership of Laravel's `storage`, `storage/app`, and `storage/framework` parent directories. Earlier root-owned parents blocked PHP from staging vhosts or the OpenLiteSpeed registry with `mkdir(): Permission denied`; only those directory entries are changed, never site contents.
 - Updating an instance reapplies its configuration even when it is already on the current Host release, so VPS-side helper repairs reach existing accounts.

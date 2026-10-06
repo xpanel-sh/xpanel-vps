@@ -21,7 +21,7 @@ sudo -u www-data php "$ROOT/artisan" migrate --force
 sudo -u www-data php "$ROOT/artisan" db:seed --class=DefaultDataSeeder --force
 sudo -u www-data php "$ROOT/artisan" optimize
 
-XPANEL_SKIP_PACKAGES=true XPANEL_INSTALL_CLI=no bash "$ROOT/install.sh"
+XPANEL_SKIP_PACKAGES=true XPANEL_INSTALL_CLI=no XPANEL_PRESERVE_HOST_RELEASE=true bash "$ROOT/install.sh"
 sudo -u www-data php "$ROOT/artisan" up
 trap - EXIT
 

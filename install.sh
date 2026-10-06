@@ -387,6 +387,17 @@ install_host_release() {
   local revision="${XPANEL_HOST_REVISION:-main}"
   local release_id target php_bin managed_source
 
+  # Updating the VPS control plane must not implicitly advance Host. Each
+  # hosting account chooses its own release from Host or from the VPS admin.
+  if [[ "${XPANEL_PRESERVE_HOST_RELEASE:-false}" == "true" ]]; then
+    target="$(realpath "$host_base/current" 2>/dev/null || true)"
+    [[ "$target" == "$host_base/releases/"* && -f "$target/artisan" && -f "$target/public/index.php" ]] || fail "No hay una release actual de Host para conservar."
+    set_env_var XPANEL_HOST_INSTANCES true
+    set_env_var XPANEL_HOST_RELEASE "$target"
+    set_env_var XPANEL_HOST_VERSION "${target##*/}"
+    return
+  fi
+
   if [[ -z "$source" && -d "$ROOT/../xpanel-host/.git" ]]; then
     source="$(realpath "$ROOT/../xpanel-host")"
   fi

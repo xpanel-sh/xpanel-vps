@@ -42,7 +42,9 @@ class HostInstanceProvisioner
         $panelDomain ??= $this->technicalPanelDomain($uuid);
         $root = rtrim(config('xpanel.host_instances.root'), '/').'/'.$uuid;
         $configuredRelease = config('xpanel.host_instances.release_path');
-        $releasePath = realpath($configuredRelease) ?: $configuredRelease;
+        // The server may prepare a newer shared Host release without
+        // reinstalling VPS or rebuilding its cached configuration.
+        $releasePath = realpath('/opt/xpanel-host/current') ?: (realpath($configuredRelease) ?: $configuredRelease);
 
         $instance = $account->hostInstance()->create([
             'tenant_id' => $tenant->id,

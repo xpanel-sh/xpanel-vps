@@ -13,6 +13,7 @@ class HostInstance extends Model
         'tenant_id', 'hosting_account_id', 'uuid', 'panel_domain', 'access_port', 'system_user', 'release_path',
         'instance_root', 'database_path', 'broker_secret', 'initial_password', 'php_version', 'version',
         'update_channel', 'status', 'ssl_status', 'last_error', 'ssl_last_error', 'ssl_attempted_at', 'provisioned_at',
+        'update_status', 'update_error', 'update_started_at', 'update_finished_at',
     ];
 
     protected $hidden = ['broker_secret', 'initial_password'];
@@ -21,6 +22,8 @@ class HostInstance extends Model
         'access_port' => 'integer',
         'provisioned_at' => 'datetime',
         'ssl_attempted_at' => 'datetime',
+        'update_started_at' => 'datetime',
+        'update_finished_at' => 'datetime',
         'broker_secret' => 'encrypted',
         'initial_password' => 'encrypted',
     ];

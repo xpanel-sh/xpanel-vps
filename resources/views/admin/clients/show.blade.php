@@ -94,6 +94,9 @@
                                             @if($instance?->last_error)
                                                 <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{{ Str::limit($instance->last_error, 180) }}</div>
                                             @endif
+                                            @if($instance?->update_status)
+                                                <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Preparando e instalando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong>@if($instance->update_error) · {{ Str::limit($instance->update_error, 180) }}@endif</div>
+                                            @endif
 
                                             <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
                                                 @if($instance?->status === 'active')
@@ -103,9 +106,9 @@
                                                     <form action="{{ route('admin.instances.retry-ssl', $instance) }}" method="POST">@csrf<button class="kt-btn kt-btn-outline kt-btn-sm"><i class="ki-filled ki-shield-tick"></i>Reintentar SSL</button></form>
                                                 @endif
                                                 @if($instance)
-                                                    <form action="{{ route('admin.instances.update', $instance) }}" method="POST" onsubmit="return confirm('Se migrará esta instancia a la release actual de XPanel Host. ¿Continuar?')">
+                                                    <form action="{{ route('admin.instances.update', $instance) }}" method="POST" onsubmit="return confirm('Se preparará la última versión de XPanel Host y se actualizará solo esta cuenta. ¿Continuar?')">
                                                         @csrf
-                                                        <button class="kt-btn kt-btn-outline kt-btn-sm" title="Actualiza únicamente esta instancia a la release preparada por XPanel VPS"><i class="ki-filled ki-update-file"></i>Actualizar Host</button>
+                                                        <button class="kt-btn kt-btn-outline kt-btn-sm" title="Prepara la versión oficial de Host y actualiza solo esta cuenta" @disabled(in_array($instance->update_status, ['pending', 'running']))><i class="ki-filled ki-update-file"></i>Actualizar Host</button>
                                                     </form>
                                                     <form action="{{ route('admin.instances.apply', $instance) }}" method="POST" class="ms-auto" onsubmit="return confirm('Esto volverá a generar y aplicar la configuración técnica de esta instancia. ¿Continuar?')">
                                                         @csrf

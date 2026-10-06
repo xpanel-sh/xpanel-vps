@@ -8,6 +8,24 @@ validate_uuid() {
     [[ "$1" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid instance UUID"
 }
 
+if [[ "${1:-}" == "host-release-prepare" ]]; then
+    [[ $# -eq 1 ]] || fail "host-release-prepare expects no arguments"
+    exec bash "$(dirname "${BASH_SOURCE[0]}")/prepare-host-release.sh"
+fi
+
+if [[ "${1:-}" == "host-update-start" ]]; then
+    [[ $# -eq 2 ]] || fail "host-update-start expects an instance UUID"
+    validate_uuid "$2"
+    app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    [[ -f "$app_root/artisan" ]] || fail "VPS artisan is unavailable"
+    unit="xpanel-host-update-${2//-/}-$(date +%s)"
+    systemd-run --quiet --collect --unit="$unit" \
+        --property=User=www-data --property="WorkingDirectory=$app_root" \
+        /usr/bin/php "$app_root/artisan" xpanel:host-update "$2"
+    printf 'started=%s\n' "$unit"
+    exit 0
+fi
+
 write_slice_limits() {
     local uuid="$1" memory_high="$2" memory_max="$3" swap_max="$4" cpu_percent="$5" tasks_max="$6"
     validate_uuid "$uuid"

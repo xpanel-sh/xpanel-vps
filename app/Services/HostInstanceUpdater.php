@@ -17,7 +17,7 @@ class HostInstanceUpdater
             || ! preg_match('#^/opt/xpanel-host/releases/[A-Za-z0-9._-]+$#', $target)
             || ! is_file($target.'/artisan')
             || ! is_file($target.'/public/index.php')) {
-            throw new RuntimeException('No hay una release actual de XPanel Host preparada para actualizar esta instancia. Ejecuta primero xpanel update en el servidor.');
+            throw new RuntimeException('No hay una release actual de XPanel Host preparada para esta instancia. Intenta preparar la versión desde Actualizaciones.');
         }
 
         $target = str_replace('\\', '/', $target);
