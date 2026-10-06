@@ -14,7 +14,7 @@ class HostReleaseCatalog
             try {
                 $response = Http::acceptJson()->withHeaders(['User-Agent' => 'XPanel-VPS'])
                     ->timeout(8)->get('https://api.github.com/repos/xpanel-sh/xpanel-host/commits', [
-                        'sha' => 'main', 'per_page' => 10,
+                        'sha' => 'main', 'per_page' => 50,
                     ]);
                 if (! $response->successful()) {
                     return [];
@@ -28,7 +28,7 @@ class HostReleaseCatalog
                         return [
                             'sha' => $item['sha'],
                             'title' => mb_substr($title, 0, 160),
-                            'details' => mb_substr(trim($details), 0, 800),
+                            'details' => mb_substr(trim($details), 0, 2000),
                             'date' => (string) data_get($item, 'commit.committer.date', ''),
                             'url' => 'https://github.com/xpanel-sh/xpanel-host/commit/'.$item['sha'],
                         ];
