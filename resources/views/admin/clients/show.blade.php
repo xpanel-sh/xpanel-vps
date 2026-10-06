@@ -95,7 +95,13 @@
                                                 <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{{ Str::limit($instance->last_error, 180) }}</div>
                                             @endif
                                             @if($instance?->update_status)
-                                                <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Preparando e instalando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong>@if($instance->update_error) · {{ Str::limit($instance->update_error, 180) }}@endif</div>
+                                                <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Preparando e instalando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong></div>
+                                                @if($instance->update_error)
+                                                    <details class="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs">
+                                                        <summary class="cursor-pointer font-medium text-destructive">Ver error completo de la actualización</summary>
+                                                        <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-secondary-foreground">{{ $instance->update_error }}</pre>
+                                                    </details>
+                                                @endif
                                             @endif
 
                                             <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
