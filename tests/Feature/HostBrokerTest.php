@@ -11,6 +11,8 @@ use App\Services\NativePackageManager;
 use App\Services\HostInstanceDatabaseReader;
 use App\Services\ServerCommandRunner;
 use App\Services\HostUpdateCoordinator;
+use App\Services\HostReleaseManager;
+use App\Services\HostInstanceUpdater;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use PDO;
@@ -312,7 +314,8 @@ class HostBrokerTest extends TestCase
 
         $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
             ->assertOk()->assertJsonPath('output', json_encode([
-                'current' => 'test', 'prepared' => null, 'status' => 'completed', 'error' => null,
+                'current' => 'test', 'prepared' => null, 'status' => 'completed', 'stage' => null,
+                'message' => null, 'error' => null,
             ]));
 
         $invalid = $this->payload($instance, 'host-update-status', ['another-instance']);
@@ -348,6 +351,7 @@ class HostBrokerTest extends TestCase
 
         $updates->start($instance);
         $this->assertSame('pending', $instance->fresh()->update_status);
+        $this->assertSame('queued', $instance->fresh()->update_stage);
         try {
             $updates->start($instance);
             $this->fail('La segunda actualización debió rechazarse.');
@@ -359,6 +363,45 @@ class HostBrokerTest extends TestCase
         $this->assertSame('failed', $updates->status($instance->fresh())['status']);
         $updates->start($instance->fresh());
         $this->assertSame('pending', $instance->fresh()->update_status);
+    }
+
+    public function test_admin_can_poll_the_live_stage_but_client_cannot(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        $instance->update([
+            'update_status' => 'running', 'update_stage' => 'php', 'update_started_at' => now(),
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'admin')->getJson(route('admin.instances.update-status', $instance))
+            ->assertOk()->assertJsonPath('stage', 'php')
+            ->assertJsonPath('message', 'Instalando dependencias PHP')
+            ->assertJsonPath('current', 'test');
+
+        auth('admin')->logout();
+        $this->actingAs($instance->tenant->user, 'web')
+            ->getJson(route('admin.instances.update-status', $instance))->assertUnauthorized();
+    }
+
+    public function test_update_worker_finishes_after_preparing_and_applying_only_one_instance(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        $instance->update(['update_status' => 'pending', 'update_stage' => 'queued', 'update_started_at' => now()]);
+        $this->mock(HostReleaseManager::class)->shouldReceive('prepareLatest')->once()
+            ->withArgs(function ($callback) use ($instance): bool {
+                $callback('php');
+                $this->assertSame('php', $instance->fresh()->update_stage);
+
+                return true;
+            })->andReturn('2597ed78245e');
+        $this->mock(HostInstanceUpdater::class)->shouldReceive('updateToCurrent')->once()
+            ->withArgs(fn (HostInstance $candidate) => $candidate->is($instance))
+            ->andReturn(true);
+
+        app(HostUpdateCoordinator::class)->perform($instance->fresh());
+
+        $this->assertSame('completed', $instance->fresh()->update_status);
+        $this->assertSame('finished', $instance->fresh()->update_stage);
     }
 
     private function instanceWithSite(): array

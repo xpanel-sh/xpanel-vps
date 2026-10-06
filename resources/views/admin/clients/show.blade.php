@@ -70,7 +70,7 @@
                                 <div class="grid gap-4 xl:grid-cols-2">
                                     @forelse($tenant->hostingAccounts as $account)
                                         @php($instance = $account->hostInstance)
-                                        <article class="rounded-xl border border-border bg-background p-5">
+                                        <article class="rounded-xl border border-border bg-background p-5" @if($instance && in_array($instance->update_status, ['pending', 'running'])) data-host-update-url="{{ route('admin.instances.update-status', $instance) }}" @endif>
                                             <div class="flex flex-wrap items-start justify-between gap-3">
                                                 <div class="min-w-0">
                                                     <div class="flex flex-wrap items-center gap-2">
@@ -87,7 +87,7 @@
                                             <div class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                                                 <div class="min-w-0"><div class="text-xs text-secondary-foreground">Administrador</div><div class="mt-0.5 truncate font-medium text-mono">{{ $account->admin_name ?: 'No definido' }}</div></div>
                                                 <div class="min-w-0"><div class="text-xs text-secondary-foreground">Correo</div><div class="mt-0.5 truncate font-medium text-mono" title="{{ $account->admin_email }}">{{ $account->admin_email ?: 'No definido' }}</div></div>
-                                                <div><div class="text-xs text-secondary-foreground">Versión</div><div class="mt-0.5 font-medium text-mono">{{ $instance?->version ?? 'Pendiente' }}</div></div>
+                                                <div><div class="text-xs text-secondary-foreground">Versión</div><div class="mt-0.5 font-medium text-mono" data-host-update-version>{{ $instance?->version ?? 'Pendiente' }}</div></div>
                                                 <div><div class="text-xs text-secondary-foreground">SSL</div><div class="mt-0.5 font-medium text-mono">{{ match($instance?->ssl_status) { 'active' => 'Activo', 'waiting_dns' => 'Esperando DNS', 'error' => 'Con error', default => 'Pendiente' } }}</div></div>
                                             </div>
 
@@ -95,13 +95,11 @@
                                                 <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{{ Str::limit($instance->last_error, 180) }}</div>
                                             @endif
                                             @if($instance?->update_status)
-                                                <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Preparando e instalando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong></div>
-                                                @if($instance->update_error)
-                                                    <details class="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs">
+                                                <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong data-host-update-state>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Actualizando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong><span class="ms-1" data-host-update-stage aria-live="polite">{{ match($instance->update_stage) { 'queued' => 'En espera de iniciar', 'preparing' => 'Preparando la actualización', 'download' => 'Descargando Host desde GitHub', 'php' => 'Instalando dependencias PHP', 'javascript' => 'Instalando dependencias JavaScript', 'build' => 'Compilando recursos', 'ready' => 'Release preparada', 'applying' => 'Aplicando esta cuenta', default => '' } }}</span></div>
+                                                <details class="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs" data-host-update-error @if(!$instance->update_error) hidden @endif>
                                                         <summary class="cursor-pointer font-medium text-destructive">Ver error completo de la actualización</summary>
-                                                        <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-secondary-foreground">{{ $instance->update_error }}</pre>
-                                                    </details>
-                                                @endif
+                                                        <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-secondary-foreground" data-host-update-error-text>{{ $instance->update_error }}</pre>
+                                                </details>
                                             @endif
 
                                             <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
@@ -114,7 +112,7 @@
                                                 @if($instance)
                                                     <form action="{{ route('admin.instances.update', $instance) }}" method="POST" onsubmit="return confirm('Se preparará la última versión de XPanel Host y se actualizará solo esta cuenta. ¿Continuar?')">
                                                         @csrf
-                                                        <button class="kt-btn kt-btn-outline kt-btn-sm" title="Prepara la versión oficial de Host y actualiza solo esta cuenta" @disabled(in_array($instance->update_status, ['pending', 'running']))><i class="ki-filled ki-update-file"></i>Actualizar Host</button>
+                                                        <button class="kt-btn kt-btn-outline kt-btn-sm" data-host-update-button title="Prepara la versión oficial de Host y actualiza solo esta cuenta" @disabled(in_array($instance->update_status, ['pending', 'running']))><i class="ki-filled ki-update-file"></i>Actualizar Host</button>
                                                     </form>
                                                     <form action="{{ route('admin.instances.apply', $instance) }}" method="POST" class="ms-auto" onsubmit="return confirm('Esto volverá a generar y aplicar la configuración técnica de esta instancia. ¿Continuar?')">
                                                         @csrf
@@ -164,3 +162,43 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    (() => {
+        const cards = [...document.querySelectorAll('[data-host-update-url]')];
+        if (!cards.length) return;
+        const labels = { pending: 'En espera', running: 'Actualizando', completed: 'Completada', unchanged: 'Ya estaba al día', failed: 'Falló' };
+        let checking = false;
+        const check = async () => {
+            if (checking || document.hidden) return;
+            checking = true;
+            try {
+                await Promise.all(cards.filter(card => card.dataset.hostUpdateUrl).map(async (card) => {
+                    try {
+                        const response = await fetch(card.dataset.hostUpdateUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+                        if (!response.ok) return;
+                        const data = await response.json();
+                        card.querySelector('[data-host-update-state]').textContent = labels[data.status] || data.status || 'Listo';
+                        card.querySelector('[data-host-update-stage]').textContent = data.message || '';
+                        if (data.current) card.querySelector('[data-host-update-version]').textContent = data.current;
+                        const detail = card.querySelector('[data-host-update-error]');
+                        detail.hidden = !data.error;
+                        detail.querySelector('[data-host-update-error-text]').textContent = data.error || '';
+                        const active = ['pending', 'running'].includes(data.status);
+                        card.querySelector('[data-host-update-button]').disabled = active;
+                        if (!active) delete card.dataset.hostUpdateUrl;
+                    } catch (_) {
+                        card.querySelector('[data-host-update-stage]').textContent = 'Conexión interrumpida; reintentando...';
+                    }
+                }));
+            } finally { checking = false; }
+        };
+        const timer = setInterval(() => {
+            if (!cards.some(card => card.dataset.hostUpdateUrl)) { clearInterval(timer); return; }
+            check();
+        }, 3000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    })();
+</script>
+@endpush

@@ -10,7 +10,7 @@ class HostReleaseCatalog
     /** @return array<int, array{sha:string, title:string, details:string, date:string, url:string}> */
     public function recent(): array
     {
-        return Cache::remember('xpanel-host-official-commits', now()->addHour(), function (): array {
+        return Cache::remember('xpanel-host-official-commits', now()->addMinutes(5), function (): array {
             try {
                 $response = Http::acceptJson()->withHeaders(['User-Agent' => 'XPanel-VPS'])
                     ->timeout(8)->get('https://api.github.com/repos/xpanel-sh/xpanel-host/commits', [

@@ -8,7 +8,7 @@ use Symfony\Component\Process\Process;
 class ServerCommandRunner
 {
     /** @param array<int, string> $command */
-    public function run(array $command, ?string $input = null, int $timeout = 300): string
+    public function run(array $command, ?string $input = null, int $timeout = 300, ?callable $onOutput = null): string
     {
         $process = new Process($command, base_path());
         $process->setTimeout($timeout);
@@ -17,7 +17,7 @@ class ServerCommandRunner
             $process->setInput($input);
         }
 
-        $process->run();
+        $process->run($onOutput);
 
         if (! $process->isSuccessful()) {
             $message = trim($process->getErrorOutput()) ?: trim($process->getOutput());

@@ -133,6 +133,14 @@ class HostInstanceController extends Controller
         return back()->with('success', 'La actualización de esta cuenta comenzó en segundo plano. Se preparará la última versión de Host sin actualizar VPS.');
     }
 
+    public function updateStatus(HostInstance $instance, HostUpdateCoordinator $updates)
+    {
+        return response()->json([
+            ...$updates->status($instance),
+            'current' => basename(rtrim($instance->fresh()->release_path, '/')),
+        ]);
+    }
+
     public function access(HostInstance $instance, HostSsoLink $sso)
     {
         $instance->loadMissing(['hostingAccount', 'tenant.user']);

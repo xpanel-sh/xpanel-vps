@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+- Corregido el falso fallo al preparar una release: la limpieza temporal devolvía código 1 después de imprimir el hash. El preparador ahora emite etapas verificables y el estado de cada cuenta se consulta en vivo tanto desde VPS como desde Host, sin llenar el registro de auditoría con cada sondeo.
+
 - La preparación de una nueva release de Host registra por separado descarga, Composer y compilación en `/var/log/xpanel-vps/host-release-prepare.log`; si falla, el panel muestra el error completo en vez de recortar la salida de progreso de Composer. Composer usa la versión PHP configurada para Host y limita descargas concurrentes.
 
 - La actualización de Host se separa de la de VPS: una nueva release oficial se prepara bajo demanda y se aplica únicamente a la cuenta seleccionada, también a petición firmada desde ese Host. Actualizar VPS conserva la release de Host ya preparada y no cambia las versiones fijadas de las cuentas.

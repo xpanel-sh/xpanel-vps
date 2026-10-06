@@ -23,6 +23,20 @@ class HostBroker
             throw new RuntimeException('La solicitud del broker expiró.');
         }
 
+        // Polling is read-only and frequent. Validate it as strictly as every
+        // broker request, but do not create an audit row every few seconds.
+        if (in_array($payload['action'], ['host-update-status', 'host-update-feed'], true)) {
+            $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
+
+            return $payload['action'] === 'host-update-feed'
+                ? json_encode(app(HostReleaseCatalog::class)->recent(), JSON_THROW_ON_ERROR)
+                : json_encode([
+                    'current' => basename(rtrim($instance->release_path, '/')),
+                    'prepared' => app(HostReleaseManager::class)->preparedRevision(),
+                    ...app(HostUpdateCoordinator::class)->status($instance),
+                ], JSON_THROW_ON_ERROR);
+        }
+
         $operation = HostBrokerOperation::create([
             'host_instance_id' => $instance->id,
             'request_id' => $payload['request_id'],
@@ -34,23 +48,6 @@ class HostBroker
         try {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
             $operation->update(['status' => 'authorized']);
-            if ($payload['action'] === 'host-update-feed') {
-                $output = json_encode(app(HostReleaseCatalog::class)->recent(), JSON_THROW_ON_ERROR);
-                $operation->update(['status' => 'completed', 'output' => mb_substr($output, 0, 65535)]);
-
-                return $output;
-            }
-            if ($payload['action'] === 'host-update-status') {
-                $state = app(HostUpdateCoordinator::class)->status($instance);
-                $output = json_encode([
-                    'current' => basename(rtrim($instance->release_path, '/')),
-                    'prepared' => app(HostReleaseManager::class)->preparedRevision(),
-                    ...$state,
-                ], JSON_THROW_ON_ERROR);
-                $operation->update(['status' => 'completed', 'output' => $output]);
-
-                return $output;
-            }
             if ($payload['action'] === 'host-update-start') {
                 app(HostUpdateCoordinator::class)->start($instance);
                 $operation->update(['status' => 'completed', 'output' => 'started']);

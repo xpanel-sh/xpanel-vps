@@ -103,6 +103,7 @@ Route::group(['middleware' => ['web']], function () {
         Route::get('/admin/instances/{instance}/access', [\App\Http\Controllers\Admin\HostInstanceController::class, 'access'])->name('admin.instances.access');
         Route::post('/admin/instances/{instance}/apply', [\App\Http\Controllers\Admin\HostInstanceController::class, 'apply'])->name('admin.instances.apply');
         Route::post('/admin/instances/{instance}/update', [\App\Http\Controllers\Admin\HostInstanceController::class, 'update'])->name('admin.instances.update');
+        Route::get('/admin/instances/{instance}/update-status', [\App\Http\Controllers\Admin\HostInstanceController::class, 'updateStatus'])->middleware('throttle:30,1')->name('admin.instances.update-status');
         Route::post('/admin/instances/{instance}/retry-ssl', [\App\Http\Controllers\Admin\HostInstanceController::class, 'retrySsl'])->name('admin.instances.retry-ssl');
 
         Route::get('/admin/servers', [\App\Http\Controllers\Admin\ServerNodeController::class, 'index'])->name('admin.servers.index');
