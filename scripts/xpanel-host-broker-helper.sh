@@ -5,6 +5,28 @@ umask 027
 fail() { echo "xpanel-host-broker-helper: $*" >&2; exit 1; }
 
 [[ "$(id -u)" == "0" ]] || fail "must run as root"
+if [[ "${1:-}" == "inspect" ]]; then
+  shift
+  [[ $# -eq 6 ]] || fail "invalid inspection argument count"
+  UUID="$1"; PANEL_USER="$2"; INSTANCE_ROOT="$3"; KIND="$4"; FIRST="$5"; SECOND="$6"
+  [[ "$UUID" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
+  INSTANCE_HEX="${UUID//-/}"
+  [[ "$PANEL_USER" == "xhi${INSTANCE_HEX:0:12}" ]] || fail "invalid panel user"
+  [[ "$INSTANCE_ROOT" == "/var/lib/xpanel-vps/instances/$UUID" ]] || fail "invalid instance root"
+  [[ -d "$INSTANCE_ROOT" && ! -L "$INSTANCE_ROOT" && -d "$INSTANCE_ROOT/database" && ! -L "$INSTANCE_ROOT/database" ]] || fail "instance database directory unavailable"
+  DB_PATH="$INSTANCE_ROOT/database/database.sqlite"
+  [[ -f "$DB_PATH" && ! -L "$DB_PATH" ]] || fail "instance database unavailable"
+  [[ "$KIND" =~ ^(site|profile|profile-site|database|aliases|engine)$ ]] || fail "inspection query not allowed"
+  [[ "$FIRST" =~ ^[a-zA-Z0-9_.-]{1,253}$ ]] || fail "invalid inspection key"
+  if [[ "$KIND" == "database" ]]; then
+    [[ "$SECOND" =~ ^[a-zA-Z0-9_]{1,64}$ ]] || fail "invalid second inspection key"
+  else
+    [[ -z "$SECOND" ]] || fail "unexpected second inspection key"
+  fi
+  INSPECTOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/xpanel-host-sqlite-inspect.php"
+  [[ -f "$INSPECTOR" && ! -L "$INSPECTOR" ]] || fail "inspector unavailable"
+  exec /usr/bin/php "$INSPECTOR" "$DB_PATH" "$KIND" "$FIRST" "$SECOND"
+fi
 [[ "${1:-}" == "execute" ]] || fail "unsupported broker command"
 shift
 [[ $# -ge 5 ]] || fail "missing broker arguments"

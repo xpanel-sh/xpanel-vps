@@ -8,6 +8,8 @@ use App\Models\HostingAccount;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\NativePackageManager;
+use App\Services\HostInstanceDatabaseReader;
+use App\Services\ServerCommandRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use PDO;
@@ -32,6 +34,33 @@ class HostBrokerTest extends TestCase
     {
         File::deleteDirectory($this->root);
         parent::tearDown();
+    }
+
+    public function test_native_broker_inspects_private_instance_database_through_scoped_helper(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        File::delete($instance->database_path);
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        config()->set('xpanel.host_instances.broker_helper', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh');
+        $expected = [
+            'sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh', 'inspect',
+            $instance->uuid, $instance->system_user, $instance->instance_root, 'site', 'example.test', '',
+        ];
+        $this->mock(ServerCommandRunner::class)
+            ->shouldReceive('run')->once()->with($expected, null, 15)
+            ->andReturn('{"id":1,"domain":"example.test"}');
+
+        $row = app(HostInstanceDatabaseReader::class)->query($instance, 'site', 'example.test');
+
+        $this->assertSame('example.test', $row['domain']);
+    }
+
+    public function test_inspector_rejects_unapproved_queries(): void
+    {
+        [$instance] = $this->instanceWithSite();
+
+        $this->expectException(\RuntimeException::class);
+        HostInstanceDatabaseReader::inspectPath($instance->database_path, 'arbitrary-sql', 'example.test');
     }
 
     public function test_a_signed_instance_can_stage_an_authorized_site_operation(): void

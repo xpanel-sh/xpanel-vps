@@ -6,7 +6,6 @@ use App\Models\ServerNode;
 use App\Models\SoftwarePackage;
 use App\Models\HostInstance;
 use App\Models\Site;
-use PDO;
 use RuntimeException;
 
 class NativePackageManager
@@ -88,15 +87,8 @@ class NativePackageManager
         }
 
         foreach (HostInstance::query()->whereIn('status', ['active', 'suspended'])->get() as $instance) {
-            if (! is_file($instance->database_path) || is_link($instance->database_path)) {
-                throw new RuntimeException('No se puede comprobar el uso del motor en todas las instancias.');
-            }
             try {
-                $sqlite = new PDO('sqlite:'.$instance->database_path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-                $sqlite->exec('PRAGMA query_only = ON');
-                $statement = $sqlite->prepare('SELECT 1 FROM sites WHERE web_server = :slug LIMIT 1');
-                $statement->execute(['slug' => $slug]);
-                if ($statement->fetchColumn()) {
+                if (app(HostInstanceDatabaseReader::class)->query($instance, 'engine', $slug)) {
                     return true;
                 }
             } catch (\Throwable $exception) {

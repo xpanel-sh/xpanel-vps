@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\HostBrokerResource;
 use App\Models\HostInstance;
-use PDO;
 use RuntimeException;
 
 class HostBrokerActionPolicy
@@ -57,7 +56,7 @@ class HostBrokerActionPolicy
             || ! preg_match('/^'.preg_quote($expectedUserPrefix, '/').'[a-z0-9]{9,20}$/', $siteUser)) {
             throw new RuntimeException('La identidad solicitada no pertenece al hosting.');
         }
-        $site = $this->row($instance, 'SELECT document_root, system_user FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'site', $domain);
         if (! $site || $site['document_root'] !== $documentRoot || $site['system_user'] !== $siteUser) {
             throw new RuntimeException('El sitio no pertenece a la instancia.');
         }
@@ -88,7 +87,7 @@ class HostBrokerActionPolicy
         if (! $this->domain($domain)) {
             throw new RuntimeException('El acceso solicitado no pertenece a un sitio válido.');
         }
-        $site = $this->row($instance, 'SELECT document_root, system_user FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'site', $domain);
         if (! $site || $site['document_root'] !== $documentRoot || $site['system_user'] !== $siteUser) {
             throw new RuntimeException('El sitio no pertenece a la instancia.');
         }
@@ -116,7 +115,7 @@ class HostBrokerActionPolicy
             throw new RuntimeException('Argumentos de diagnóstico inválidos.');
         }
         [$domain, $documentRoot, $systemUser, $engine, $type, $php, $expectedIp, $runtimePort] = $arguments;
-        $site = $this->row($instance, 'SELECT domain, document_root, system_user, web_server, type, php_version, runtime_port FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'site', $domain);
         if (! $site || $site['document_root'] !== $documentRoot || $site['system_user'] !== $systemUser
             || $site['web_server'] !== $engine || $site['type'] !== $type || $site['php_version'] !== $php
             || $runtimePort !== ($type === 'node' ? (string) $site['runtime_port'] : '0')
@@ -138,7 +137,7 @@ class HostBrokerActionPolicy
         if ($engine === 'openlitespeed') {
             throw new RuntimeException('OpenLiteSpeed no está aislado para este hosting.');
         }
-        $site = $this->row($instance, 'SELECT domain, web_server, document_root, public_path, system_user, wildcard_domain FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'site', $domain);
         if (! $site || $site['web_server'] !== $engine || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El certificado no coincide con el registro de la instancia.');
         }
@@ -158,7 +157,7 @@ class HostBrokerActionPolicy
         if (count($arguments) !== 1 || ! $this->domain($arguments[0])) {
             throw new RuntimeException('Argumentos de inspección SSL inválidos.');
         }
-        $site = $this->row($instance, 'SELECT domain FROM sites WHERE domain = :domain', ['domain' => $arguments[0]]);
+        $site = $this->row($instance, 'site', $arguments[0]);
         if (! $site) {
             throw new RuntimeException('El certificado no pertenece a la instancia.');
         }
@@ -194,7 +193,7 @@ class HostBrokerActionPolicy
             }
         }
 
-        $site = $this->row($instance, 'SELECT id, domain, web_server, type, php_version, php_profile_id, document_root, system_user, public_path, node_version, runtime_port, wildcard_domain, status FROM sites WHERE domain = :domain', ['domain' => $domain]);
+        $site = $this->row($instance, 'site', $domain);
         if (! $site || ($action !== 'remove' && ($site['web_server'] !== $engine || $site['type'] !== $type || $site['php_version'] !== $php))
             || $site['document_root'] !== $documentRoot || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El sitio solicitado no coincide con el registro de la instancia.');
@@ -220,7 +219,7 @@ class HostBrokerActionPolicy
                     throw new RuntimeException('El sitio no utiliza un perfil PHP aislado.');
                 }
             } else {
-                $profile = $this->row($instance, 'SELECT id, php_version, extensions FROM php_profiles WHERE id = :id', ['id' => $site['php_profile_id']]);
+                $profile = $this->row($instance, 'profile', (string) $site['php_profile_id']);
                 $expectedKey = 'i'.substr(str_replace('-', '', $instance->uuid), 0, 12).'-p'.$site['php_profile_id'];
                 $selected = json_decode((string) ($profile['extensions'] ?? '[]'), true);
                 $selected = is_array($selected) ? array_values(array_unique(array_map('strval', $selected))) : [];
@@ -276,8 +275,8 @@ class HostBrokerActionPolicy
             throw new RuntimeException('El perfil PHP solicitado no pertenece a la instancia.');
         }
         $id = substr($arguments[0], strlen($prefix));
-        if (! ctype_digit($id) || ! $this->row($instance, 'SELECT id FROM php_profiles WHERE id = :id', ['id' => $id])
-            || $this->row($instance, 'SELECT id FROM sites WHERE php_profile_id = :id LIMIT 1', ['id' => $id])) {
+        if (! ctype_digit($id) || ! $this->row($instance, 'profile', $id)
+            || $this->row($instance, 'profile-site', $id)) {
             throw new RuntimeException('El perfil PHP no se puede retirar.');
         }
     }
@@ -285,7 +284,7 @@ class HostBrokerActionPolicy
     public function complete(HostInstance $instance, string $action, array $arguments): void
     {
         if ($action === 'remove' && isset($arguments[0])) {
-            $removedSite = $this->row($instance, 'SELECT id, runtime_port FROM sites WHERE domain = :domain', ['domain' => $arguments[0]]);
+            $removedSite = $this->row($instance, 'site', $arguments[0]);
             $names = [$arguments[0], '*.'.$arguments[0]];
             if ($removedSite) {
                 $names = array_merge($names, $this->siteAliases($instance, (int) $removedSite['id']));
@@ -324,7 +323,7 @@ class HostBrokerActionPolicy
             || ! str_starts_with($arguments[0], $prefix) || ! str_starts_with($arguments[1], $prefix)) {
             throw new RuntimeException('Identificadores de base de datos inválidos.');
         }
-        $row = $this->row($instance, 'SELECT id FROM site_databases WHERE name = :name AND username = :username', ['name' => $arguments[0], 'username' => $arguments[1]]);
+        $row = $this->row($instance, 'database', $arguments[0], $arguments[1]);
         if (! $row) {
             throw new RuntimeException('La base de datos no pertenece a la instancia.');
         }
@@ -339,32 +338,15 @@ class HostBrokerActionPolicy
         }
     }
 
-    private function row(HostInstance $instance, string $query, array $parameters): array|false
+    private function row(HostInstance $instance, string $kind, string $first, string $second = ''): ?array
     {
-        if (! is_file($instance->database_path) || is_link($instance->database_path)) {
-            throw new RuntimeException('La base SQLite de la instancia no está disponible.');
-        }
-        $pdo = new PDO('sqlite:'.$instance->database_path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        $pdo->exec('PRAGMA query_only = ON');
-        $statement = $pdo->prepare($query);
-        $statement->execute($parameters);
-
-        return $statement->fetch(PDO::FETCH_ASSOC);
+        return app(HostInstanceDatabaseReader::class)->query($instance, $kind, $first, $second);
     }
 
     /** @return array<int, string> */
     private function siteAliases(HostInstance $instance, int $siteId): array
     {
-        try {
-            $pdo = new PDO('sqlite:'.$instance->database_path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $pdo->exec('PRAGMA query_only = ON');
-            $statement = $pdo->prepare("SELECT domain FROM domains WHERE site_id = :site_id AND type = 'alias'");
-            $statement->execute(['site_id' => $siteId]);
-
-            return array_column($statement->fetchAll(PDO::FETCH_ASSOC), 'domain');
-        } catch (\PDOException) {
-            return [];
-        }
+        return array_column(app(HostInstanceDatabaseReader::class)->query($instance, 'aliases', (string) $siteId) ?? [], 'domain');
     }
 
     private function claimDomain(HostInstance $instance, string $domain): void
@@ -397,15 +379,8 @@ class HostBrokerActionPolicy
     private function assertDomainIsNotOwnedByAnotherInstance(HostInstance $instance, string $domain): void
     {
         foreach (HostInstance::query()->whereKeyNot($instance->id)->whereIn('status', ['active', 'suspended'])->get() as $other) {
-            if (! is_file($other->database_path) || is_link($other->database_path)) {
-                continue;
-            }
-            try {
-                if ($this->row($other, 'SELECT id FROM sites WHERE domain = :domain', ['domain' => $domain])) {
-                    throw new RuntimeException('El dominio ya pertenece a otra instancia.');
-                }
-            } catch (\PDOException) {
-                continue;
+            if ($this->row($other, 'site', $domain)) {
+                throw new RuntimeException('El dominio ya pertenece a otra instancia.');
             }
         }
     }
