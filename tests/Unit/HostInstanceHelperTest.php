@@ -35,4 +35,15 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString('"$INSTANCE_ROOT/storage/app/access/$SITE_USER"', $helper);
         $this->assertStringContainsString('[[ "$access_owner" == root || "$access_owner" == "$PANEL_USER" ]]', $helper);
     }
+
+    public function test_terminal_installer_updates_existing_jail_profiles_for_optional_file_colors(): void
+    {
+        $installer = file_get_contents(base_path('scripts/configure-host-terminal.sh'));
+
+        $this->assertStringContainsString('XPANEL_TERMINAL_COLORS', $installer);
+        $this->assertStringContainsString("alias ls='ls --color=auto'", $installer);
+        $this->assertStringContainsString("alias grep='grep --color=auto'", $installer);
+        $this->assertStringContainsString("alias diff='diff --color=auto'", $installer);
+        $this->assertStringContainsString('grep -q \'XPANEL_TERMINAL_STYLE_V2\' "$jail_profile"', $installer);
+    }
 }

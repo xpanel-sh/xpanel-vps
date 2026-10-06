@@ -57,6 +57,8 @@ workspace_home="$(printf '%s' "$response" | /usr/bin/php -r '$d=json_decode(file
 XPANEL_RUNTIME_TOKEN="$(printf '%s' "$response" | /usr/bin/php -r '$d=json_decode(file_get_contents("php://stdin"),true); if(is_array($d)&&is_string($d["runtime_token"]??null)) echo $d["runtime_token"];')"
 [[ "$XPANEL_RUNTIME_TOKEN" =~ ^[A-Za-z0-9]{64}$ ]] || exit 1
 export XPANEL_RUNTIME_TOKEN
+XPANEL_TERMINAL_COLORS="$(printf '%s' "$response" | /usr/bin/php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo is_array($d)&&($d["colorize_terminal"]??false)===true ? "1" : "0";')"
+export XPANEL_TERMINAL_COLORS
 if [[ -n "$workspace_home" ]]; then
   [[ "$workspace_home" == "/home/$expected_user" ]] || exit 1
   cd "$workspace_home"
@@ -67,6 +69,25 @@ exec /bin/bash -l
 AUTHORIZE
 chown root:root /usr/local/bin/xpanel-vps-terminal-authorize
 chmod 0755 /usr/local/bin/xpanel-vps-terminal-authorize
+
+# Existing site jails keep their generated /etc/profile across Host releases.
+# Add the guarded alias during VPS updates so the preference works without
+# forcing a costly recursive access synchronization for every tenant site.
+for jail_profile in /var/lib/xpanel-host/jails/xhi*/etc/profile /var/lib/xpanel-host/jails/xps*/etc/profile; do
+  [[ -f "$jail_profile" && ! -L "$jail_profile" && ! -L "$(dirname -- "$jail_profile")" && ! -L "$(dirname -- "$(dirname -- "$jail_profile")")" ]] || continue
+  [[ "$jail_profile" =~ ^/var/lib/xpanel-host/jails/(xhi[a-f0-9]{12}|xps[a-z0-9]{9,29})/etc/profile$ ]] || continue
+  [[ "$(stat -c %U -- "$jail_profile")" == root ]] || continue
+  grep -q 'XPANEL_TERMINAL_STYLE_V2' "$jail_profile" && continue
+  cat >> "$jail_profile" <<'TERMINAL_COLORS'
+# XPANEL_TERMINAL_STYLE_V2
+if [[ "${XPANEL_TERMINAL_COLORS:-0}" == "1" ]]; then
+  alias ls='ls --color=auto'
+  alias grep='grep --color=auto'
+  alias diff='diff --color=auto'
+  PS1="\[\e[36m\]${PS1}\[\e[0m\]"
+fi
+TERMINAL_COLORS
+done
 
 cat > /etc/systemd/system/xpanel-vps-terminal-agent.service <<EOF
 [Unit]
