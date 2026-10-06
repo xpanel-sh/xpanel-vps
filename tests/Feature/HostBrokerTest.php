@@ -101,6 +101,27 @@ class HostBrokerTest extends TestCase
         $this->assertSame(0, HostBrokerOperation::count());
     }
 
+    public function test_ssh_access_sync_is_limited_to_a_site_owned_by_the_instance(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
+        $arguments = [$siteUser, $siteRoot, '0', '0', '0', '1'];
+        $payload = $this->payload($instance, 'access-sync', $arguments);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk();
+
+        $arguments[1] = '/home/'.$instance->system_user.'/public_html/other.test';
+        $foreign = $this->payload($instance, 'access-sync', $arguments);
+        $this->postJson(route('api.host-broker'), $foreign, ['X-XPanel-Signature' => $this->signature($foreign, $secret)])
+            ->assertStatus(422);
+
+        $arguments = [$siteUser, $siteRoot, '0', '0', '0', '2'];
+        $invalid = $this->payload($instance, 'access-sync', $arguments);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_node_runtime_and_wildcard_are_reserved_for_the_owning_instance(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

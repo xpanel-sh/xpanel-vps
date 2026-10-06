@@ -49,6 +49,8 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('DB_DATABASE="'.$first->database_path.'"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SYSTEMD_SLICE="xpanel-instance-'.$first->uuid.'.slice"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_TERMINAL_ENABLED="true"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_TERMINAL_INTERNAL_PORT="10000"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="512"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_FPM_SERVICE="xpanel-instance-'.$first->uuid.'-fpm.service"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_APACHE_BACKEND_PORT="50000"', $firstEnvironment);
@@ -60,6 +62,10 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('php8.3-fpm-xpanel-instance-'.$first->uuid.'.sock', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('listen 10000 ssl;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('server_name panel.one.test panel.customer.test;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('location /terminal-ws {', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('proxy_pass http://127.0.0.1:7093;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('location = /internal/terminal/consume {', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('allow 127.0.0.1;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('Slice=xpanel-instance-'.$first->uuid.'.slice', File::get($firstFiles['fpm_service']));
         $this->assertStringContainsString('/php-fpm-pools/*.conf', File::get($firstFiles['fpm_global']));
     }

@@ -91,6 +91,8 @@ class HostInstanceConfigGenerator
             // Host enables mutations, but ServerCommandRunner sends its helper calls
             // to the signed VPS broker; the tenant process itself never gets sudo.
             'XPANEL_APPLY_SYSTEM_CHANGES' => 'true',
+            'XPANEL_TERMINAL_ENABLED' => 'true',
+            'XPANEL_TERMINAL_INTERNAL_PORT' => $instance->access_port,
             'XPANEL_WEB_ROOT' => '/var/www/xpanel-instances/'.$instance->uuid,
             'XPANEL_ACCOUNT_USER' => $instance->system_user,
             'XPANEL_ACCOUNT_HOME' => '/home/'.$instance->system_user,
@@ -168,7 +170,7 @@ class HostInstanceConfigGenerator
         $serverNames = collect([$instance->panel_domain, $instance->hostingAccount?->custom_panel_domain])
             ->filter()->implode(' ');
 
-        return "server {\n    listen 80;\n    listen [::]:80;\n{$fallbackTls}    include /etc/nginx/snippets/xpanel-instance-{$instance->uuid}-tls.conf;\n    server_name {$serverNames};\n    root {$instance->release_path}/public;\n    index index.php;\n\n    location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }\n    location / { try_files \$uri \$uri/ /index.php?\$query_string; }\n    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:{$socket};\n        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n    }\n    location ~ /\\. { deny all; }\n}\n";
+        return "server {\n    listen 80;\n    listen [::]:80;\n{$fallbackTls}    include /etc/nginx/snippets/xpanel-instance-{$instance->uuid}-tls.conf;\n    server_name {$serverNames};\n    root {$instance->release_path}/public;\n    index index.php;\n\n    location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }\n    location = /internal/terminal/consume {\n        allow 127.0.0.1;\n        deny all;\n        include fastcgi_params;\n        fastcgi_param SCRIPT_FILENAME \$document_root/index.php;\n        fastcgi_param SCRIPT_NAME /index.php;\n        fastcgi_pass unix:{$socket};\n    }\n    location = /internal/terminal/runtime/start {\n        allow 127.0.0.1;\n        deny all;\n        include fastcgi_params;\n        fastcgi_param SCRIPT_FILENAME \$document_root/index.php;\n        fastcgi_param SCRIPT_NAME /index.php;\n        fastcgi_pass unix:{$socket};\n        fastcgi_read_timeout 1800s;\n    }\n    location /terminal-ws {\n        proxy_pass http://127.0.0.1:7093;\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade \$http_upgrade;\n        proxy_set_header Connection \"upgrade\";\n        proxy_set_header Host \$host;\n        proxy_read_timeout 3600s;\n    }\n    location / { try_files \$uri \$uri/ /index.php?\$query_string; }\n    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:{$socket};\n        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n    }\n    location ~ /\\. { deny all; }\n}\n";
     }
 
     private function fpmGlobal(HostInstance $instance): string

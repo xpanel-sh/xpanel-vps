@@ -215,6 +215,15 @@ source "$INSTANCE_ROOT/runtime.sh"
 runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" migrate --force --no-interaction
 runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" optimize
 
+# Account-wide iKode terminal has its own jail and can see only this hosting's
+# /home directory. Site terminals are synchronized through the signed broker.
+ACCESS_STAGE="$INSTANCE_ROOT/storage/app/access/$SYSTEM_USER"
+install -d -o "$SYSTEM_USER" -g "$SYSTEM_USER" -m 0750 "$ACCESS_STAGE"
+if [[ ! -f "$ACCESS_STAGE/authorized_keys" ]]; then
+    install -o "$SYSTEM_USER" -g "$SYSTEM_USER" -m 0640 /dev/null "$ACCESS_STAGE/authorized_keys"
+fi
+bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" access-sync "$SYSTEM_USER" "$ACCOUNT_HOME" 0 0 0 1 </dev/null
+
 if [[ -n "$INITIAL_PASSWORD" ]]; then
     printf '%s\n' "$INITIAL_PASSWORD" | runuser -u "$SYSTEM_USER" --preserve-environment -- \
         "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:admin-bootstrap \

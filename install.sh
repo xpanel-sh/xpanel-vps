@@ -89,7 +89,7 @@ install_packages() {
   apt-get update -y
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw \
-    nginx mariadb-server composer nodejs npm \
+    nginx mariadb-server composer nodejs npm golang-go openssh-server \
     php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd
 
   if [[ "$INSTALL_APACHE" == "true" ]]; then
@@ -428,6 +428,14 @@ install_host_release() {
   set_env_var XPANEL_HOST_PHP_VERSION "${XPANEL_HOST_PHP_VERSION:-8.3}"
 }
 
+configure_host_terminal() {
+  # Also covers upgrades that use XPANEL_SKIP_PACKAGES=true on an older VPS.
+  if ! command -v go >/dev/null 2>&1 || ! command -v sshd >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y golang-go openssh-server
+  fi
+  bash "$ROOT/scripts/configure-host-terminal.sh" "$(realpath /opt/xpanel-host/current)"
+}
+
 install_cli() {
   [[ "${XPANEL_INSTALL_CLI:-yes}" != "no" ]] || return 0
   local adjacent=""
@@ -471,6 +479,7 @@ detect_php_versions
 configure_apache
 configure_database
 install_host_release
+configure_host_terminal
 
 [[ -n "$(env_value APP_KEY)" ]] || php "$ROOT/artisan" key:generate --force
 php "$ROOT/artisan" migrate --force

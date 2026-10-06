@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -109,8 +109,13 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   fi
 elif [[ "$ACTION" == "php-profile-remove" ]]; then
   [[ $# -eq 1 && "$1" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile removal"
-elif [[ "$ACTION" == "access-remove" ]]; then
-  [[ $# -eq 2 ]] || fail "invalid access removal argument count"
+elif [[ "$ACTION" == "access-remove" || "$ACTION" == "access-sync" ]]; then
+  if [[ "$ACTION" == "access-sync" ]]; then
+    [[ $# -eq 6 ]] || fail "invalid access sync argument count"
+    for access_flag in "${@:3}"; do [[ "$access_flag" == "0" || "$access_flag" == "1" ]] || fail "invalid access flag"; done
+  else
+    [[ $# -eq 2 ]] || fail "invalid access removal argument count"
+  fi
   SITE_USER="$1"; DOCUMENT_ROOT="$2"
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "access user escaped the instance"
   [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/"* && "$DOCUMENT_ROOT" != *".."* && "$DOCUMENT_ROOT" != *'\'* ]] || fail "access root escaped the account home"

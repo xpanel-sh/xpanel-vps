@@ -59,7 +59,7 @@ El código compartido de Host permanece en `/opt/xpanel-host/releases`; no es la
 
 El broker admite creación, eliminación y reinicio de sitios, perfiles PHP-FPM con selecciones verificadas contra la SQLite de la instancia, runtimes Node.js, reserva global de puertos y dominios wildcard, certificados normales o wildcard y operaciones MariaDB. También permite consultar estado, emisor y vencimiento del certificado únicamente cuando el dominio pertenece a la SQLite de esa instancia; nunca entrega la clave privada. El cliente sólo puede elegir entre módulos instalados por el administrador de VPS. Los secretos DNS viajan por stdin y no se conservan en el historial. Correo permanece bloqueado hasta que VPS genere mapas agregados de Postfix/Dovecot para todas las instancias; un mapa por cliente no es seguro en un servicio global.
 
-El gestor iKode de Host también puede solicitar corrección de propiedad de un sitio o de un árbol modificado. VPS valida la identidad Unix, el dominio y la ruta contra la SQLite de esa instancia antes de llamar al helper, y el helper comprueba la ruta física para impedir escapes por enlaces. Esto mantiene operativas las operaciones de archivos sin entregar `sudo` a Host. La terminal interactiva de Host dentro de VPS permanece desactivada hasta integrar un agente y una cárcel por instancia; la terminal de Host independiente conserva su instalación propia.
+El gestor iKode de Host también puede solicitar corrección de propiedad de un sitio o de un árbol modificado. VPS valida la identidad Unix, el dominio y la ruta contra la SQLite de esa instancia antes de llamar al helper, y el helper comprueba la ruta física para impedir escapes por enlaces. Esto mantiene operativas las operaciones de archivos sin entregar `sudo` a Host. La terminal web usa un agente de transporte compartido en loopback; cada token se consume en la instancia que lo emitió y cada shell entra a la cárcel SSH del usuario Unix de esa cuenta o sitio. Host independiente conserva su agente e instalación propios.
 
 ## Aplicaciones alojadas y tenancy
 
@@ -129,6 +129,8 @@ Actualización:
 ```bash
 sudo ./scripts/xpanel-update.sh
 ```
+
+La terminal web de una instancia requiere que VPS instale su agente y que esa cuenta use una release de Host compatible. Tras actualizar VPS, abre cada cuenta en Administración y pulsa **Actualizar Host**; las releases de cada cliente no cambian automáticamente. En Host → iKode, la terminal general cubre solo esa cuenta. Para la terminal de un sitio, activa **Avanzado → Acceso SSH → Permitir terminal real desde el navegador**. El transporte escucha únicamente en `127.0.0.1:7093` y no se debe publicar ese puerto.
 
 ## Desarrollo local
 
