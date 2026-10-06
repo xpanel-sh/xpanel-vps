@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
+  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -109,7 +109,7 @@ elif [[ "$ACTION" == "ssl-issue" || "$ACTION" == "ssl-wildcard-issue" || "$ACTIO
   fi
 elif [[ "$ACTION" == "php-profile-remove" ]]; then
   [[ $# -eq 1 && "$1" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile removal"
-elif [[ "$ACTION" == "access-remove" || "$ACTION" == "access-sync" ]]; then
+elif [[ "$ACTION" == "access-remove" || "$ACTION" == "access-sync" || "$ACTION" == "access-stage-prepare" ]]; then
   if [[ "$ACTION" == "access-sync" ]]; then
     [[ $# -eq 6 ]] || fail "invalid access sync argument count"
     for access_flag in "${@:3}"; do [[ "$access_flag" == "0" || "$access_flag" == "1" ]] || fail "invalid access flag"; done
@@ -141,6 +141,21 @@ else
   DB_PREFIX="xp_${INSTANCE_HEX:0:6}_"
   [[ "$1" =~ ^[a-z0-9_]{1,64}$ && "$1" == "$DB_PREFIX"* ]] || fail "database escaped the instance"
   [[ "$2" =~ ^[a-z0-9_]{1,32}$ && "$2" == "$DB_PREFIX"* ]] || fail "database user escaped the instance"
+fi
+
+if [[ "$ACTION" == "access-stage-prepare" ]]; then
+  for access_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/app/access" "$INSTANCE_ROOT/storage/app/access/$SITE_USER"; do
+    [[ ! -L "$access_path" ]] || fail "access staging directory is a symlink"
+    if [[ -e "$access_path" ]]; then
+      [[ -d "$access_path" ]] || fail "access staging path is not a directory"
+      access_owner="$(stat -c %U -- "$access_path")"
+      [[ "$access_owner" == root || "$access_owner" == "$PANEL_USER" ]] || fail "access staging has an unexpected owner"
+    fi
+    install -d -m 0750 -o "$PANEL_USER" -g "$PANEL_USER" "$access_path"
+    chown "$PANEL_USER:$PANEL_USER" "$access_path"
+    chmod 0750 "$access_path"
+  done
+  exit 0
 fi
 
 exec bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" "$ACTION" "$@"

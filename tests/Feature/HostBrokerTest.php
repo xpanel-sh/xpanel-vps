@@ -122,6 +122,20 @@ class HostBrokerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_access_staging_preparation_is_limited_to_the_owned_site(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $siteUser = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $siteRoot = '/home/'.$instance->system_user.'/public_html/example.test';
+        $payload = $this->payload($instance, 'access-stage-prepare', [$siteUser, $siteRoot]);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk();
+
+        $foreign = $this->payload($instance, 'access-stage-prepare', [$siteUser, '/home/'.$instance->system_user.'/public_html/other.test']);
+        $this->postJson(route('api.host-broker'), $foreign, ['X-XPanel-Signature' => $this->signature($foreign, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_node_runtime_and_wildcard_are_reserved_for_the_owning_instance(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

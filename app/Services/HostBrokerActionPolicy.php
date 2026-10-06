@@ -30,6 +30,7 @@ class HostBrokerActionPolicy
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
             'engine-status' => $this->engineStatus($arguments),
             'access-remove' => $this->accessRemoval($instance, $arguments),
+            'access-stage-prepare' => $this->accessRemoval($instance, $arguments),
             'access-sync' => $this->accessSync($instance, $arguments),
             'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),

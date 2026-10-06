@@ -26,4 +26,13 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString('chown "$SYSTEM_USER:$SYSTEM_USER" "$storage_path"', $helper);
         $this->assertStringContainsString('ACCESS_STAGE="$INSTANCE_ROOT/storage/app/access/$SYSTEM_USER"', $helper);
     }
+
+    public function test_broker_repairs_only_its_instance_access_staging_directories(): void
+    {
+        $helper = file_get_contents(base_path('scripts/xpanel-host-broker-helper.sh'));
+
+        $this->assertStringContainsString('if [[ "$ACTION" == "access-stage-prepare" ]]', $helper);
+        $this->assertStringContainsString('"$INSTANCE_ROOT/storage/app/access/$SITE_USER"', $helper);
+        $this->assertStringContainsString('[[ "$access_owner" == root || "$access_owner" == "$PANEL_USER" ]]', $helper);
+    }
 }
