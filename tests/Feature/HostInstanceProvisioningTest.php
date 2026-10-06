@@ -49,7 +49,7 @@ class HostInstanceProvisioningTest extends TestCase
     public function test_instance_helper_owns_laravel_storage_parents_before_creating_child_directories(): void
     {
         $helper = File::get(base_path('scripts/xpanel-instance-helper.sh'));
-        $parents = 'for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/framework"';
+        $parents = 'for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/app/access" "$INSTANCE_ROOT/storage/framework"';
         $children = '"$INSTANCE_ROOT/storage/app/private"';
 
         $this->assertStringContainsString($parents, $helper);

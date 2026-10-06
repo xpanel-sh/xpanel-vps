@@ -173,7 +173,7 @@ for account_path in "$ACCOUNT_HOME" "$ACCOUNT_HOME/public_html"; do
 done
 
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$INSTANCE_ROOT" "$INSTANCE_ROOT/database"
-for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/framework"; do
+for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/app/access" "$INSTANCE_ROOT/storage/framework"; do
     [[ ! -L "$storage_path" ]] || fail "instance storage is a symlink"
     if [[ -e "$storage_path" ]]; then
         [[ -d "$storage_path" ]] || fail "instance storage is not a directory"
@@ -181,6 +181,8 @@ for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INST
         [[ "$owner" == root || "$owner" == "$SYSTEM_USER" ]] || fail "instance storage has an unexpected owner"
     fi
     install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$storage_path"
+    chown "$SYSTEM_USER:$SYSTEM_USER" "$storage_path"
+    chmod 0750 "$storage_path"
 done
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" \
     "$INSTANCE_ROOT/storage/app/private" \
