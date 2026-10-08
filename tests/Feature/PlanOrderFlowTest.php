@@ -13,6 +13,20 @@ class PlanOrderFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_paid_order_is_not_created_when_server_quota_is_unavailable(): void
+    {
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        $plan = $this->plan(['inode_limit' => 0]);
+        [$user] = $this->client(null);
+
+        $this->actingAs($user)->post(route('client.plans.contract', $plan))
+            ->assertSessionHasErrors('plan');
+
+        $this->assertDatabaseCount('plan_orders', 0);
+        $this->assertDatabaseCount('hosting_accounts', 0);
+        $this->assertDatabaseCount('host_instances', 0);
+    }
+
     public function test_client_contracts_a_plan_and_receives_service_before_payment(): void
     {
         $currentPlan = $this->plan(['name' => 'Starter', 'slug' => 'starter']);

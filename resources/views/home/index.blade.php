@@ -26,7 +26,7 @@
                     <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->max_sites ?: 'Ilimitados' }} sitios web</div>
                     <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->max_databases ?: 'Ilimitadas' }} bases de datos</div>
                     <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->storage_mb >= 1024 ? number_format($plan->storage_mb / 1024, 0).' GB' : $plan->storage_mb.' MB' }} de almacenamiento</div>
-                    <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->bandwidth_gb ?: 'Ilimitada' }} GB de transferencia</div>
+                    <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->bandwidth_gb > 0 ? $plan->bandwidth_gb.' GB/mes de referencia (aviso; sin corte)' : 'Transferencia sin umbral de aviso definido' }}</div>
                     <div class="flex items-center gap-2"><i class="ki-filled ki-check text-green-500"></i>{{ $plan->email_accounts ?: 'Sin' }} cuentas de correo</div>
                 </div>
                 <a href="{{ route('client.login', ['plan' => $plan->slug]) }}" class="kt-btn {{ $loop->iteration === 2 ? 'kt-btn-primary' : 'kt-btn-outline' }} justify-center w-full mt-7">Elegir {{ $plan->name }}</a>

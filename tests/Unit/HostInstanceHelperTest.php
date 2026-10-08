@@ -16,6 +16,16 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringNotContainsString('systemctl reload "php$PHP_VERSION-fpm"', $helper);
     }
 
+    public function test_managed_host_gets_its_own_scheduler_and_disk_quota(): void
+    {
+        $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
+
+        $this->assertStringContainsString('xpanel-project-quota.sh" apply "$UUID" "$SYSTEM_USER"', $helper);
+        $this->assertStringContainsString('xpanel-instance-$UUID-scheduler.timer', $helper);
+        $this->assertStringContainsString('schedule:run --no-interaction', $helper);
+        $this->assertStringContainsString('systemctl disable --now "xpanel-instance-$UUID-scheduler.timer"', $helper);
+    }
+
     public function test_access_staging_parent_is_writable_by_the_instance_user(): void
     {
         $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));

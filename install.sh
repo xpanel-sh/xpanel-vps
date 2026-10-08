@@ -88,7 +88,7 @@ install_packages() {
 
   apt-get update -y
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw \
+    ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw quota e2fsprogs \
     nginx mariadb-server composer nodejs npm golang-go openssh-server \
     php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd
 
@@ -343,18 +343,21 @@ configure_helper() {
   local helper="$ROOT/scripts/xpanel-site-helper.sh"
   local package_helper="$ROOT/scripts/xpanel-package-helper.sh"
   local instance_helper="$ROOT/scripts/xpanel-instance-helper.sh"
+  local quota_helper="$ROOT/scripts/xpanel-project-quota.sh"
   local broker_helper="$ROOT/scripts/xpanel-host-broker-helper.sh"
   local control_plane_helper="$ROOT/scripts/xpanel-control-plane-helper.sh"
   local sudoers_file="/etc/sudoers.d/xpanel-vps-site"
   chmod 0750 "$helper"
   chmod 0750 "$package_helper"
   chmod 0750 "$instance_helper"
+  chmod 0750 "$quota_helper"
   chmod 0750 "$broker_helper"
   chmod 0640 "$ROOT/scripts/xpanel-host-sqlite-inspect.php"
   chmod 0750 "$control_plane_helper"
   chown root:www-data "$helper"
   chown root:www-data "$package_helper"
   chown root:www-data "$instance_helper"
+  chown root:www-data "$quota_helper"
   chown root:www-data "$broker_helper"
   chown root:www-data "$ROOT/scripts/xpanel-host-sqlite-inspect.php"
   chown root:www-data "$control_plane_helper"
@@ -469,6 +472,20 @@ if [[ -d "$ROOT/.git" ]]; then
 fi
 write_marker
 install_packages
+install -d -m 0755 /var/lib/xpanel-vps
+if [[ "$(findmnt -n -o FSTYPE -T /home 2>/dev/null || true)" == ext4 ]] \
+  && [[ ",$(findmnt -n -o OPTIONS -T /home 2>/dev/null || true)," == *,prjquota,* ]]; then
+  quota_state="$(quotaon -P -p "$(findmnt -n -o TARGET -T /home)" 2>/dev/null || true)"
+  if [[ "$quota_state" != *'is on'* ]]; then
+    quotaon -P "$(findmnt -n -o TARGET -T /home)" || true
+  fi
+fi
+if quota_check="$(bash "$ROOT/scripts/xpanel-project-quota.sh" status 2>&1)"; then
+  echo "Cuotas de proyecto ext4: listas para archivos y bases de cuentas administradas."
+else
+  echo "AVISO: el disco aún no tiene cuotas de proyecto listas: $quota_check" >&2
+  echo "XPanel no modificará una partición montada; configura ext4 en modo rescate antes de crear cuentas administradas. Consulta README.md." >&2
+fi
 configure_firewall
 ensure_node_runtime
 command -v php >/dev/null 2>&1 || fail "PHP no está disponible."

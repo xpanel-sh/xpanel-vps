@@ -58,6 +58,30 @@ class AdminClientProvisioningFlowTest extends TestCase
         $this->assertSame('Cliente Uno Editado', $tenant->fresh()->name);
     }
 
+    public function test_admin_cannot_create_an_unprotected_hosting_account(): void
+    {
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $tenant = Tenant::create([
+            'name' => 'Cliente', 'domain' => 'client.test',
+            'user_id' => User::factory()->create(['role' => 'client'])->id,
+            'status' => 'active',
+        ]);
+        $plan = HostingPlan::create([
+            'name' => 'Sin cuotas', 'slug' => 'sin-cuotas', 'max_sites' => 1,
+            'max_databases' => 1, 'storage_mb' => 2048, 'inode_limit' => 0,
+            'monthly_price' => 5,
+        ]);
+
+        $this->actingAs($admin, 'admin')->post(route('admin.clients.instances.store', $tenant), [
+            'plan_id' => $plan->id, 'admin_name' => 'Admin',
+            'admin_email' => 'admin@example.com', 'admin_password' => 'Secure-Password-2026',
+        ])->assertSessionHasErrors('hosting');
+
+        $this->assertDatabaseCount('hosting_accounts', 0);
+        $this->assertDatabaseCount('host_instances', 0);
+    }
+
     public function test_each_host_receives_its_own_admin_and_the_first_enables_client_access(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

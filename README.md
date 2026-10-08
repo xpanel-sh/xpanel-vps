@@ -79,18 +79,28 @@ Una instancia Linux puede limitar recursos sin convertirse en MicroVM, aunque el
 
 | Recurso | Estado actual | Aplicación prevista |
 | --- | --- | --- |
-| Sitios, bases y correos | Sitios aplicados por plan; bases y correos en ampliación | Validación antes de crear recursos |
+| Sitios, bases y correos | Host administrado comprueba los tres cupos antes de crear recursos (incluye subdominios, WordPress y migraciones con SQL); Host independiente no hereda un plan VPS | Validación de aplicación; no sustituye cuotas de servicios externos |
 | RAM | Aplicado a panel, PHP y Node.js | `MemoryHigh`, `MemoryMax` y `MemorySwapMax` en la slice |
 | CPU | Aplicado a panel, PHP y Node.js | `CPUQuota` por instancia |
 | Procesos | Aplicado a panel, PHP y Node.js | `TasksMax` para evitar fork bombs |
-| Disco e inodos | El plan entrega ambos límites a Host y los muestra; todavía no son cuotas duras | Project quotas de XFS/ext4 sobre datos y webs de la instancia |
-| Transferencia | El plan guarda `bandwidth_gb`, todavía no corta tráfico | Contadores Nginx por dominio, ciclo mensual y suspensión o reducción al alcanzar el límite |
+| Disco e inodos | Cuotas ext4 por proyecto sobre archivos de cuenta, datos del panel y bases MariaDB (en el mismo volumen y con `innodb_file_per_table`); creación de cuentas bloqueada si falta soporte | Comprobar en Linux real las rutas auxiliares y archivos temporales antes de anunciar un cupo total garantizado |
+| Transferencia | Host suma mensualmente el cuerpo HTTP registrado por Nginx y avisa al 80 % y al 100 % | Es un umbral de aviso: nunca suspende ni reduce tráfico; no equivale a facturación exacta de red |
 | I/O de disco | Pendiente | `IOWeight` y, cuando el dispositivo lo permita, límites de lectura/escritura |
 | Docker | Pendiente por plan | Límites de CPU, memoria, procesos y almacenamiento adicionales por contenedor |
 
-Cada instancia ejecuta un master PHP-FPM independiente dentro de `xpanel-instance-<uuid>.slice`; los pools PHP de sus sitios y sus unidades Node.js se incorporan a la misma slice. Si el administrador habilita Apache, Host inicia además un servicio Apache exclusivo de esa instancia en `127.0.0.1:<puerto de recuperación + 40000>` dentro de la misma slice. El paquete se instala una vez, pero sus procesos, configuración y virtual hosts son independientes por hosting. Los próximos contratos del broker deben hacer lo mismo con cron, workers, terminales y contenedores antes de considerarlos cubiertos por estos límites.
+Cada instancia ejecuta un master PHP-FPM independiente dentro de `xpanel-instance-<uuid>.slice`; los pools PHP de sus sitios y sus unidades Node.js se incorporan a la misma slice. Si el administrador habilita Apache, Host inicia además un servicio Apache exclusivo de esa instancia en `127.0.0.1:<puerto de recuperación + 40000>` dentro de la misma slice. El paquete se instala una vez, pero sus procesos, configuración y virtual hosts son independientes por hosting. Cada instancia administrada recibe además su propio timer de Laravel dentro de la slice. Los trabajos cron específicos de sitios, otros workers, terminales y contenedores todavía necesitan incorporarse a esa frontera antes de considerarlos cubiertos por todos esos límites.
 
-VPS entrega a Host el contrato completo del plan —CPU, RAM, disco, inodos, transferencia y máximo de sitios— mediante el entorno generado de la instancia. Host consulta en vivo la slice que le pertenece y refresca el dashboard sin recargar; no necesita XPanel Pod ni Docker para medir o funcionar. Un Host standalone conserva el mismo dashboard usando métricas locales de Linux, y XPanel Pod puede instalarse en el mismo servidor como producto separado.
+VPS entrega a Host el contrato del plan —CPU, RAM, disco, inodos, transferencia, sitios, bases y buzones— mediante el entorno generado de la instancia. Host consulta en vivo la slice que le pertenece y refresca el dashboard sin recargar; no necesita XPanel Pod ni Docker para medir o funcionar. Un Host standalone conserva el mismo dashboard usando métricas locales de Linux, y XPanel Pod puede instalarse en el mismo servidor como producto separado.
+
+Las instalaciones nuevas preparan cuatro planes inactivos (Esencial, Plus, Pro y Max) dimensionados inicialmente para un VPS de 4 vCPU, 8 GB de RAM y 150 GB SSD, con avisos de tráfico de 25/75/150/300 GB al mes. Reejecutar el seeder no cambia precios ni cupos de planes ya existentes; los planes heredados Starter/Growth quedan fuera de venta sin alterar los recursos asignados a sus clientes. Aun con precio, la activación de los cuatro planes nuevos permanece bloqueada hasta comprobar todos los caminos de almacenamiento en Linux real. `bandwidth_gb = 0` significa que no se ha definido un umbral de aviso, no una promesa de tráfico ilimitado.
+
+### Preparar cuotas ext4 para cuentas administradas
+
+El instalador instala `quota` y `e2fsprogs`, comprueba las funciones `project` y `quota`, verifica `prjquota` y activa la contabilidad si el sistema de archivos ya está preparado. Cada nueva cuenta recibe un identificador de proyecto estable, límite duro de espacio y de inodos sobre sus archivos web y datos del panel; al cambiar el plan se actualizan los límites. Si el disco no está preparado, el panel se instala pero **no crea nuevas instancias administradas**; una cuota mostrada en la interfaz nunca sustituye a una cuota del sistema de archivos.
+
+En un VPS como el actual, donde `/dev/sda1` alberga `/`, `/home` y `/var/lib/xpanel-vps`, **no ejecutes `tune2fs` ni `e2fsck` desde Ubuntu en funcionamiento**. Primero prepara y comprueba un respaldo recuperable, inicia el servidor en modo rescate de Contabo, confirma el dispositivo real con `lsblk -f` y que está desmontado. Solo en ese entorno se comprueba el volumen con `e2fsck -f`, se habilitan `project,quota` y `prjquota` con `tune2fs`, y se vuelve a comprobar con `e2fsck -f`. Añade `prjquota` a las opciones de la entrada de raíz en `/etc/fstab` del sistema instalado, reinicia normalmente y verifica `findmnt -no FSTYPE,OPTIONS -T /home`. No cambies particiones ni formatees. Si alguna comprobación falla, detén la instalación de cuentas y restaura el respaldo antes de continuar.
+
+La cuota etiqueta los archivos del usuario, los datos del panel y cada directorio MariaDB al crear o restaurar una base. También sitúa los cachés npm/WP-CLI y los registros cron de Host administrado dentro de la cuenta. No cubre por completo tablas InnoDB compartidas, temporales del sistema ni todos los registros auxiliares; por eso sigue siendo necesario verificar el conjunto en Linux antes de venderlo como cupo total garantizado. El tráfico genera avisos visibles en Host; los sitios permanecen en línea.
 
 MariaDB, el Nginx frontal, Postfix y otros servicios continúan siendo compartidos. OpenLiteSpeed no se ofrece a las instancias administradas mientras no tenga un backend aislado; Host independiente conserva su instalación local. Se pueden aplicar límites lógicos —conexiones, bases, buzones, tamaño y frecuencia—, pero no ofrecen la misma frontera de CPU/RAM que una MicroVM. Si un cliente necesita kernel, memoria reservada o aislamiento fuerte frente al resto, debe desplegarse con XPanel VM.
 
@@ -127,10 +137,14 @@ Si `xpanel-host` está junto a `xpanel-vps`, el instalador lo detecta. En otro c
 Actualización:
 
 ```bash
-sudo ./scripts/xpanel-update.sh
+xpanel update --force
 ```
 
-La terminal web de una instancia requiere que VPS instale su agente y que esa cuenta use una release de Host compatible. Tras actualizar VPS, abre cada cuenta en Administración y pulsa **Actualizar Host**; las releases de cada cliente no cambian automáticamente. En Host → iKode, la terminal general cubre solo esa cuenta. Para la terminal de un sitio, activa **Avanzado → Acceso SSH → Permitir terminal real desde el navegador**. El transporte escucha únicamente en `127.0.0.1:7093` y no se debe publicar ese puerto.
+La CLI actualiza VPS y ejecuta su verificador de sistema. Después de aplicar componentes globales, vuelve a validar y reconciliar cada instancia Host activa con su release fijada, límites de CPU/RAM/disco, migraciones y servicios. Esto también etiqueta los directorios MariaDB que existían antes de introducir las cuotas. Si alguna instancia requiere una intervención manual, la actualización informa su UUID y el motivo sin eliminarla ni actualizar a la fuerza su release de Host. `--force` solo respalda y restaura cambios Git locales; **no** fuerza cuotas ext4 sobre un disco montado. Cuando faltan las funciones ext4, prepara el volumen en modo rescate y repite `xpanel update --force`.
+
+Al añadir un requisito del sistema en versiones futuras, incorpora su configuración idempotente al instalador y su comprobación a la reconciliación: así el mismo comando cubre instalaciones nuevas y existentes. Puedes repetir solo el diagnóstico con `php artisan xpanel:system-reconcile`; `--repair` reaplica la configuración de las instancias activas.
+
+La terminal web de una instancia requiere que VPS instale su agente y que esa cuenta use una release de Host compatible. La reconciliación de VPS **no** cambia la versión de Host fijada por cliente: para eso pulsa **Actualizar Host** desde Administración o desde los ajustes de esa instancia. En Host → iKode, la terminal general cubre solo esa cuenta. Para la terminal de un sitio, activa **Avanzado → Acceso SSH → Permitir terminal real desde el navegador**. El transporte escucha únicamente en `127.0.0.1:7093` y no se debe publicar ese puerto.
 
 ## Desarrollo local
 
@@ -153,7 +167,7 @@ XPANEL_DOCKER_APPS=false
 
 Completado: runtime web nativo PHP/Node.js/estático, hosting para aplicaciones SaaS tenant, wildcard DNS/SSL con Cloudflare, instalador, software, archivos multi-tenant, MariaDB, suspensión, SSL, varias cuentas de hosting por cliente, dominio técnico estable, dominio personalizado y SSO de Cloud hacia Host.
 
-La tienda crea una nueva cuenta de hosting y prepara su instancia Host al contratar, sin esperar el pago. La boleta conserva precio, duración y plazo configurado; el administrador confirma el pago como un estado financiero separado que no modifica el acceso. En desarrollo: incorporar cron, workers, terminales y Docker a la slice; cuotas de disco y medición mensual de transferencia; métodos de pago, cobro automático y renovaciones; ampliación del broker para correo agregado, cron, Git y backups; actualizaciones/rollback por instancia y límites Docker.
+La tienda crea una nueva cuenta de hosting y prepara su instancia Host al contratar, sin esperar el pago. La boleta conserva precio, duración y plazo configurado; el administrador confirma el pago como un estado financiero separado que no modifica el acceso. En desarrollo: incorporar cron, workers, terminales y Docker a la slice; cerrar las rutas de almacenamiento fuera de cuota y validar el montaje ext4 en un servidor Linux real; métodos de pago, cobro automático y renovaciones; ampliación del broker para correo agregado, cron, Git y backups; actualizaciones/rollback por instancia y límites Docker.
 
 ## Seguridad y contribuciones
 

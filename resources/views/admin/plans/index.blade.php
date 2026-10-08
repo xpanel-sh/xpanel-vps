@@ -12,6 +12,7 @@
                 <p class="text-sm font-semibold uppercase tracking-[0.25em] text-gray-500">Admin Global</p>
                 <h1 class="mt-2 text-3xl font-black tracking-tight">Planes de Hosting</h1>
                 <p class="mt-2 text-gray-400">Define límites base para clientes: sitios, bases de datos, almacenamiento y correo.</p>
+                <p class="mt-2 text-sm text-amber-300">RAM, CPU, procesos, sitios, bases y buzones se aplican en Host administrado. Almacenamiento e inodos aún no son cuotas de disco; transferencia no tiene corte automático.</p>
             </div>
             <a href="{{ route('admin.plans.create') }}" class="rounded-xl bg-white px-5 py-3 text-sm font-bold text-black transition hover:bg-gray-200">
                 Crear plan
@@ -32,8 +33,12 @@
                     </div>
 
                     <div class="mt-5 text-3xl font-black">
-                        ${{ $plan->monthly_price }}
-                        <span class="text-sm font-medium text-gray-500">/ mes</span>
+                        @if(!$plan->is_active && (float) $plan->monthly_price === 0.0)
+                            <span class="text-lg">Precio pendiente</span>
+                        @else
+                            ${{ $plan->monthly_price }}
+                            <span class="text-sm font-medium text-gray-500">/ mes</span>
+                        @endif
                     </div>
 
                     <dl class="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -50,7 +55,7 @@
                             <dd class="mt-1 font-bold">{{ number_format($plan->storage_mb / 1024, 1) }} GB</dd>
                         </div>
                         <div class="rounded-xl bg-black p-3">
-                            <dt class="text-gray-500">Hostings</dt>
+                            <dt class="text-gray-500">Cuentas asignadas</dt>
                             <dd class="mt-1 font-bold">{{ $plan->hosting_accounts_count }}</dd>
                         </div>
                         <div class="rounded-xl bg-black p-3">

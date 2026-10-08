@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\HostInstance;
 use App\Models\HostingAccount;
+use App\Models\HostingPlan;
 use App\Services\HostInstanceConfigGenerator;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -31,10 +32,15 @@ class HostInstanceConfigGeneratorTest extends TestCase
     public function test_it_generates_an_isolated_runtime_for_each_host_instance(): void
     {
         $first = $this->makeInstance('01234567-89ab-cdef-0123-456789abcdef', 'panel.one.test');
-        $first->setRelation('hostingAccount', new HostingAccount([
+        $account = new HostingAccount([
             'custom_panel_domain' => 'panel.customer.test',
             'custom_domain_status' => 'active',
+        ]);
+        $account->setRelation('plan', new HostingPlan([
+            'max_sites' => 3, 'max_databases' => 3, 'email_accounts' => 3,
+            'storage_mb' => 5120, 'memory_mb' => 768,
         ]));
+        $first->setRelation('hostingAccount', $account);
         $second = $this->makeInstance('fedcba98-7654-3210-fedc-ba9876543210', 'panel.two.test');
 
         $generator = app(HostInstanceConfigGenerator::class);
@@ -43,6 +49,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
 
         $firstEnvironment = File::get($firstFiles['environment']);
         $this->assertStringContainsString('XPANEL_MANAGEMENT_MODE="vps-instance"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_PROJECT_ID="100000"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SERVER_IPV4="203.0.113.10"', $firstEnvironment);
         $this->assertStringContainsString('APP_URL="https://panel.customer.test"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_PANEL_DOMAIN="panel.customer.test"', $firstEnvironment);
@@ -51,7 +58,10 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_TERMINAL_ENABLED="true"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_TERMINAL_INTERNAL_PORT="10000"', $firstEnvironment);
-        $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="512"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="768"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_MAX_SITES="3"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_MAX_DATABASES="3"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ASSIGNED_EMAIL_ACCOUNTS="3"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_FPM_SERVICE="xpanel-instance-'.$first->uuid.'-fpm.service"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_APACHE_BACKEND_PORT="50000"', $firstEnvironment);
         $this->assertStringContainsString('Listen 127.0.0.1:50000', File::get($firstFiles['apache']));

@@ -27,6 +27,16 @@ class PlanOrderController extends Controller
         abort_unless($plan->is_active, 404);
         $tenant = $request->attributes->get('tenant');
 
+        if (config('xpanel.host_instances.enabled')) {
+            try {
+                $provisioner->assertPlanReady($plan);
+            } catch (\RuntimeException $exception) {
+                report($exception);
+
+                return back()->withErrors(['plan' => 'Este plan todavía no está disponible: el servidor necesita completar la configuración de sus límites.']);
+            }
+        }
+
         $activatedAt = now();
         [$order, $account] = DB::transaction(function () use ($tenant, $plan, $activatedAt): array {
             $order = PlanOrder::create([

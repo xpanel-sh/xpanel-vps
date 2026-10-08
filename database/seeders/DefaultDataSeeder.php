@@ -16,49 +16,37 @@ class DefaultDataSeeder extends Seeder
 {
     public function run(): void
     {
-        HostingPlan::updateOrCreate(
-            ['slug' => 'starter'],
-            [
-                'name' => 'Starter',
-                'max_sites' => 1,
-                'max_databases' => 1,
-                'storage_mb' => 1024,
-                'inode_limit' => 50000,
-                'bandwidth_gb' => 10,
-                'email_accounts' => 0,
-                'memory_mb' => 512,
+        // New plans are drafts until the operator chooses actual selling prices.
+        // Never overwrite an existing plan: active customers retain their terms.
+        foreach ([
+            ['esencial', 'Esencial', 1, 1, 2048, 50000, 25, 1, 512, 50, 128],
+            ['plus', 'Plus', 3, 3, 5120, 100000, 75, 3, 768, 75, 192],
+            ['pro', 'Pro', 5, 5, 10240, 200000, 150, 5, 1024, 100, 256],
+            ['max', 'Max', 10, 10, 20480, 400000, 300, 10, 1536, 150, 384],
+        ] as [$slug, $name, $sites, $databases, $storage, $inodes, $bandwidth, $mailboxes, $memory, $cpu, $tasks]) {
+            HostingPlan::firstOrCreate(['slug' => $slug], [
+                'name' => $name,
+                'max_sites' => $sites,
+                'max_databases' => $databases,
+                'storage_mb' => $storage,
+                'inode_limit' => $inodes,
+                'bandwidth_gb' => $bandwidth,
+                'email_accounts' => $mailboxes,
+                'memory_mb' => $memory,
                 'swap_mb' => 0,
-                'cpu_percent' => 50,
-                'tasks_max' => 128,
+                'cpu_percent' => $cpu,
+                'tasks_max' => $tasks,
                 'monthly_price' => 0,
                 'billing_period_months' => 1,
-                'payment_due_days' => 30,
-                'is_active' => true,
-                'description' => 'Plan base para instalaciones pequeñas y primeras pruebas.',
-            ]
-        );
-
-        HostingPlan::updateOrCreate(
-            ['slug' => 'growth'],
-            [
-                'name' => 'Growth',
-                'max_sites' => 5,
-                'max_databases' => 5,
-                'storage_mb' => 10240,
-                'inode_limit' => 250000,
-                'bandwidth_gb' => 100,
-                'email_accounts' => 10,
-                'memory_mb' => 2048,
-                'swap_mb' => 512,
-                'cpu_percent' => 200,
-                'tasks_max' => 512,
-                'monthly_price' => 9.99,
-                'billing_period_months' => 1,
                 'payment_due_days' => 7,
-                'is_active' => true,
-                'description' => 'Plan para clientes con varios sitios y mayor capacidad.',
-            ]
-        );
+                'is_active' => false,
+                'description' => 'Plan en preparación; define el precio y activa solo tras comprobar los límites del servidor.',
+            ]);
+        }
+
+        // Legacy plans remain available to assigned accounts but are not sold
+        // to new customers. Do not alter their resource limits or price.
+        HostingPlan::whereIn('slug', ['starter', 'growth'])->update(['is_active' => false]);
 
         SystemSetting::firstOrCreate(
             ['key' => 'app_name'],
@@ -101,26 +89,26 @@ class DefaultDataSeeder extends Seeder
                         'name' => 'Cliente Demo',
                         'code' => 'XDEMO001',
                         'user_id' => $client->id,
-                        'plan_id' => HostingPlan::where('slug', 'starter')->value('id'),
+                        'plan_id' => HostingPlan::where('slug', 'esencial')->value('id'),
                         'status' => 'active',
                     ]
                 );
-                $growthPlan = HostingPlan::where('slug', 'growth')->first();
-                if ($growthPlan) {
-                    $demoTenant->update(['plan_id' => $growthPlan->id, 'status' => 'active']);
+                $demoPlan = HostingPlan::where('slug', 'plus')->first();
+                if ($demoPlan) {
+                    $demoTenant->update(['plan_id' => $demoPlan->id, 'status' => 'active']);
                     PlanOrder::firstOrCreate(
                         ['number' => 'XP-DEMO-0001'],
                         [
                             'tenant_id' => $demoTenant->id,
-                            'hosting_plan_id' => $growthPlan->id,
+                            'hosting_plan_id' => $demoPlan->id,
                             'status' => PlanOrder::STATUS_ACTIVE,
                             'payment_status' => PlanOrder::PAYMENT_PENDING,
-                            'amount' => (float) $growthPlan->monthly_price * $growthPlan->billing_period_months,
+                            'amount' => (float) $demoPlan->monthly_price * $demoPlan->billing_period_months,
                             'currency' => 'USD',
-                            'billing_period_months' => $growthPlan->billing_period_months,
-                            'payment_due_at' => now()->addDays($growthPlan->payment_due_days),
+                            'billing_period_months' => $demoPlan->billing_period_months,
+                            'payment_due_at' => now()->addDays($demoPlan->payment_due_days),
                             'activated_at' => now(),
-                            'service_ends_at' => now()->addMonths($growthPlan->billing_period_months),
+                            'service_ends_at' => now()->addMonths($demoPlan->billing_period_months),
                         ]
                     );
                 }

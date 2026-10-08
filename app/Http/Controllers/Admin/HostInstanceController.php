@@ -46,6 +46,12 @@ class HostInstanceController extends Controller
             'admin_password' => ['required', 'string', 'min:16', 'max:128'],
         ]);
 
+        try {
+            $provisioner->assertPlanReady(\App\Models\HostingPlan::findOrFail($validated['plan_id']));
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['hosting' => $exception->getMessage()])->withInput();
+        }
+
         $account = DB::transaction(function () use ($tenant, $validated): HostingAccount {
             if (! $tenant->access_ready) {
                 $tenant->user->update([

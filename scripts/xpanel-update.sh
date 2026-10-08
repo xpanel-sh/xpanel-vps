@@ -22,6 +22,8 @@ sudo -u www-data php "$ROOT/artisan" db:seed --class=DefaultDataSeeder --force
 sudo -u www-data php "$ROOT/artisan" optimize
 
 XPANEL_SKIP_PACKAGES=true XPANEL_INSTALL_CLI=no XPANEL_PRESERVE_HOST_RELEASE=true bash "$ROOT/install.sh"
+printf 'Verificando y reconciliando instancias Host existentes...\n'
+sudo -u www-data php "$ROOT/artisan" xpanel:system-reconcile --repair --no-interaction
 sudo -u www-data php "$ROOT/artisan" up
 trap - EXIT
 

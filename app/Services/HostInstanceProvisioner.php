@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\HostInstance;
 use App\Models\HostingAccount;
+use App\Models\HostingPlan;
 use App\Models\Tenant;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
@@ -19,6 +20,8 @@ class HostInstanceProvisioner
 
     public function create(HostingAccount|Tenant $account, ?string $panelDomain = null, ?string $password = null): HostInstance
     {
+        $this->assertPlanReady($account->plan);
+
         if ($account instanceof Tenant) {
             $tenant = $account;
             $account = $tenant->hostingAccounts()->firstOrCreate(
@@ -67,6 +70,19 @@ class HostInstanceProvisioner
         return $this->apply($instance, $password);
     }
 
+    public function assertPlanReady(?HostingPlan $plan): void
+    {
+        if (! config('xpanel.native_hosting.apply_system_changes')) {
+            return;
+        }
+        if (! $plan || $plan->storage_mb < 1 || $plan->inode_limit < 1) {
+            throw new \RuntimeException('El plan necesita límites de disco e inodos antes de crear un hosting.');
+        }
+        $this->commands->run([
+            'sudo', '-n', config('xpanel.host_instances.helper'), 'quota-status',
+        ]);
+    }
+
     private function technicalPanelDomain(string $uuid): string
     {
         $cloudDomain = strtolower(trim((string) config('xpanel.host_instances.cloud_domain'), '.'));
@@ -102,6 +118,7 @@ class HostInstanceProvisioner
             $owner = $instance->tenant->user;
             $ownerName = $instance->hostingAccount?->admin_name ?: ($owner?->name ?? 'Administrador');
             $ownerEmail = $instance->hostingAccount?->admin_email ?: ($owner?->email ?? 'admin@'.$instance->panel_domain);
+            [$projectId, $storageMib, $inodes] = $this->limits->diskArguments($instance);
             $this->commands->run([
                 'sudo', config('xpanel.host_instances.helper'), 'apply', $instance->uuid,
                 $instance->system_user, $instance->panel_domain, $instance->php_version,
@@ -109,6 +126,7 @@ class HostInstanceProvisioner
                 $ownerEmail,
                 ...$this->limits->helperArguments($instance),
                 $restartMode,
+                (string) $projectId, (string) $storageMib, (string) $inodes,
             ], ($password ?? '')."\n", 600);
 
             $instance->update([
@@ -117,7 +135,10 @@ class HostInstanceProvisioner
                 'provisioned_at' => now(),
             ]);
         } catch (Throwable $exception) {
-            $instance->update(['status' => 'error', 'last_error' => $exception->getMessage()]);
+            $instance->update([
+                'status' => $instance->provisioned_at ? $instance->status : 'error',
+                'last_error' => $exception->getMessage(),
+            ]);
             throw $exception;
         }
 

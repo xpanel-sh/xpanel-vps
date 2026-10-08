@@ -60,6 +60,7 @@ source "$INSTANCE_ROOT/runtime.sh"
 export XPANEL_INSTANCE_ROOT="$INSTANCE_ROOT"
 export XPANEL_SITE_USER="$PANEL_USER"
 export XPANEL_SITE_GROUP="$PANEL_USER"
+export XPANEL_PROJECT_QUOTA_HELPER="$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh"
 
 INSTANCE_HEX="${UUID//-/}"
 if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restart" ]]; then

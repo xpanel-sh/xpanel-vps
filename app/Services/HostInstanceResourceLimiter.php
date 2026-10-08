@@ -38,15 +38,36 @@ class HostInstanceResourceLimiter
         ]);
     }
 
+    /** @return array{int,int,int} */
+    public function diskArguments(HostInstance $instance): array
+    {
+        $instance->loadMissing(['hostingAccount.plan', 'tenant.plan']);
+        $plan = $instance->hostingAccount?->plan ?? $instance->tenant?->plan;
+
+        return [100000 + (int) $instance->id, (int) ($plan?->storage_mb ?? 0), (int) ($plan?->inode_limit ?? 0)];
+    }
+
     public function apply(HostInstance $instance): void
     {
         if (! $instance->provisioned_at || ! config('xpanel.native_hosting.apply_system_changes')) {
             return;
         }
 
+        [$projectId, $storageMib, $inodes] = $this->diskArguments($instance);
+        if ($storageMib > 0 && $inodes > 0) {
+            $this->commands->run([
+                'sudo', '-n', config('xpanel.host_instances.helper'), 'quota-status',
+            ]);
+        }
         $this->commands->run([
             'sudo', config('xpanel.host_instances.helper'), 'set-limits', $instance->uuid,
             ...$this->helperArguments($instance),
         ]);
+        if ($storageMib > 0 && $inodes > 0) {
+            $this->commands->run([
+                'sudo', config('xpanel.host_instances.helper'), 'set-disk-quota', $instance->uuid,
+                $instance->system_user, (string) $projectId, (string) $storageMib, (string) $inodes,
+            ], timeout: 600);
+        }
     }
 }

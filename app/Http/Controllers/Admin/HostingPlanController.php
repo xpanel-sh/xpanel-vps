@@ -7,7 +7,8 @@ use App\Models\HostingPlan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use App\Services\HostInstanceResourceLimiter;
+use Illuminate\Validation\ValidationException;
+use App\Services\HostInstanceProvisioner;
 
 class HostingPlanController extends Controller
 {
@@ -31,6 +32,7 @@ class HostingPlanController extends Controller
         $validated = $this->validatePlan($request);
         $validated['slug'] = Str::slug($validated['slug'] ?: $validated['name']);
         $validated['is_active'] = $request->boolean('is_active', true);
+        $this->assertPaidDraftHasPrice($validated);
 
         HostingPlan::create($validated);
 
@@ -42,17 +44,19 @@ class HostingPlanController extends Controller
         return view('admin.plans.edit', compact('plan'));
     }
 
-    public function update(Request $request, HostingPlan $plan, HostInstanceResourceLimiter $limits)
+    public function update(Request $request, HostingPlan $plan, HostInstanceProvisioner $provisioner)
     {
         $validated = $this->validatePlan($request, $plan);
         $validated['slug'] = Str::slug($validated['slug'] ?: $validated['name']);
         $validated['is_active'] = $request->boolean('is_active');
+        $this->assertPaidDraftHasPrice($validated);
 
         $plan->update($validated);
 
-        $plan->hostingAccounts()->with('hostInstance')->get()->each(function ($account) use ($limits): void {
+        $plan->hostingAccounts()->with('hostInstance')->get()->each(function ($account) use ($provisioner): void {
             if ($account->hostInstance) {
-                $limits->apply($account->hostInstance);
+                // Rebuild Host's environment as well as its systemd slice.
+                $provisioner->apply($account->hostInstance);
             }
         });
 
@@ -61,9 +65,32 @@ class HostingPlanController extends Controller
 
     public function toggle(HostingPlan $plan)
     {
+        if (! $plan->is_active) {
+            $this->assertPaidDraftHasPrice(array_merge($plan->toArray(), ['is_active' => true]));
+        }
         $plan->update(['is_active' => ! $plan->is_active]);
 
         return redirect()->route('admin.plans.index')->with('success', 'Estado del plan actualizado.');
+    }
+
+    private function assertPaidDraftHasPrice(array $data): void
+    {
+        if (($data['is_active'] ?? false)
+            && in_array($data['slug'] ?? '', ['esencial', 'plus', 'pro', 'max'], true)) {
+            if ((float) ($data['monthly_price'] ?? 0) <= 0) {
+                throw ValidationException::withMessages(['monthly_price' => 'Define un precio mensual mayor que cero antes de activar este plan.']);
+            }
+            foreach (['max_sites', 'max_databases', 'email_accounts', 'storage_mb', 'inode_limit'] as $field) {
+                if ((int) ($data[$field] ?? 0) <= 0) {
+                    throw ValidationException::withMessages([$field => 'Este límite debe ser mayor que cero para activar el plan.']);
+                }
+            }
+            // Per-account files are quota-tagged, but shared MariaDB files and
+            // other external data paths still need complete hard enforcement.
+            throw ValidationException::withMessages([
+                'storage_mb' => 'La cuota de archivos ya está preparada, pero la base MariaDB compartida y otros datos externos aún no están incluidos en el límite duro total. No actives este plan como cuota garantizada.',
+            ]);
+        }
     }
 
     private function validatePlan(Request $request, ?HostingPlan $plan = null): array

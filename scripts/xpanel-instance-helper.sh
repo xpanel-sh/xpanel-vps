@@ -8,6 +8,47 @@ validate_uuid() {
     [[ "$1" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid instance UUID"
 }
 
+system_revision() {
+    local app_root
+    app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    sha256sum "$app_root/scripts/xpanel-instance-helper.sh" \
+        "$app_root/scripts/xpanel-project-quota.sh" \
+        "$app_root/app/Services/HostInstanceConfigGenerator.php" | sha256sum | awk '{print $1}'
+}
+
+if [[ "${1:-}" == "verify-instance" ]]; then
+    [[ $# -eq 5 ]] || fail "verify-instance expects UUID, system user, project ID and staged directory"
+    uuid="$2" user="$3" project_id="$4" staged_dir="$5"
+    validate_uuid "$uuid"
+    uuid_hex="${uuid//-/}"
+    [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
+    [[ "$project_id" =~ ^[0-9]+$ ]] && (( project_id >= 100000 && project_id <= 4294967294 )) || fail "invalid project ID"
+    [[ "$staged_dir" == "/opt/xpanel-vps/storage/app/native/host-instances/$uuid" ]] || fail "invalid staged directory"
+    instance_root="/var/lib/xpanel-vps/instances/$uuid"
+    config_root="/etc/xpanel-vps/instances/$uuid"
+    [[ -f "$instance_root/.env" && ! -L "$instance_root/.env" ]] || fail "instance environment is unavailable"
+    [[ -f "$instance_root/runtime.sh" && ! -L "$instance_root/runtime.sh" ]] || fail "instance runtime is unavailable"
+    [[ -f "$config_root/system-revision" && ! -L "$config_root/system-revision" ]] || fail "system revision has not been applied"
+    [[ "$(<"$config_root/system-revision")" == "$(system_revision)" ]] || fail "instance system revision is outdated"
+    [[ -f "$config_root/project-quota-applied" && "$(<"$config_root/project-quota-applied")" == "$project_id" ]] || fail "instance disk quota is not applied"
+    "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" status >/dev/null
+    for quota_path in "/home/$user" "$instance_root"; do
+        [[ -d "$quota_path" && ! -L "$quota_path" ]] || fail "instance quota path is missing or unsafe"
+        [[ "$(lsattr -pd -- "$quota_path" | awk '{print $1}')" == "$project_id" ]] || fail "instance quota path lost its project ID"
+    done
+    "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" check-databases "$uuid" "$user" "$project_id" >/dev/null
+    for staged_file in runtime.sh nginx.conf; do
+        [[ -f "$staged_dir/$staged_file" && ! -L "$staged_dir/$staged_file" ]] || fail "staged instance configuration is unsafe"
+    done
+    cmp -s "$staged_dir/runtime.sh" "$instance_root/runtime.sh" || fail "instance runtime differs from its plan"
+    cmp -s "$staged_dir/nginx.conf" "/etc/nginx/sites-available/xpanel-instance-$uuid.conf" || fail "instance Nginx configuration is outdated"
+    systemctl is-active --quiet "xpanel-instance-$uuid-fpm.service" || fail "instance PHP-FPM is not active"
+    systemctl is-active --quiet "xpanel-instance-$uuid-scheduler.timer" || fail "instance scheduler is not active"
+    systemctl is-active --quiet "xpanel-instance-$uuid.slice" || fail "instance resource slice is not active"
+    echo verified
+    exit 0
+fi
+
 if [[ "${1:-}" == "host-release-prepare" ]]; then
     [[ $# -eq 1 ]] || fail "host-release-prepare expects no arguments"
     exec bash "$(dirname "${BASH_SOURCE[0]}")/prepare-host-release.sh"
@@ -69,6 +110,16 @@ if [[ "$ACTION" == "set-limits" ]]; then
     exit 0
 fi
 
+if [[ "$ACTION" == "quota-status" ]]; then
+    [[ $# -eq 0 ]] || fail "quota-status takes no arguments"
+    exec "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" status
+fi
+
+if [[ "$ACTION" == "set-disk-quota" ]]; then
+    [[ $# -eq 5 ]] || fail "set-disk-quota expects 5 arguments"
+    exec "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" apply "$@"
+fi
+
 if [[ "$ACTION" == "set-status" ]]; then
     [[ $# -eq 2 ]] || fail "set-status expects 2 arguments"
     UUID="$1"
@@ -79,9 +130,15 @@ if [[ "$ACTION" == "set-status" ]]; then
     [[ -f "$NGINX_TARGET" && ! -L "$NGINX_TARGET" ]] || fail "instance vhost does not exist"
     if [[ "$STATUS" == "active" ]]; then
         systemctl start "xpanel-instance-$UUID-fpm.service"
+        if [[ -f "/etc/systemd/system/xpanel-instance-$UUID-scheduler.timer" ]]; then
+            systemctl enable --now "xpanel-instance-$UUID-scheduler.timer"
+        fi
         ln -sfn "$NGINX_TARGET" "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf"
     else
         unlink "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf" 2>/dev/null || true
+        if [[ -f "/etc/systemd/system/xpanel-instance-$UUID-scheduler.timer" ]]; then
+            systemctl disable --now "xpanel-instance-$UUID-scheduler.timer"
+        fi
         systemctl stop "xpanel-instance-$UUID-fpm.service"
     fi
     nginx -t
@@ -126,7 +183,7 @@ EOF
 fi
 
 [[ "$ACTION" == "apply" ]] || fail "unsupported action"
-[[ $# -eq 14 ]] || fail "apply expects 14 arguments"
+[[ $# -eq 17 ]] || fail "apply expects 17 arguments"
 
 UUID="$1"
 SYSTEM_USER="$2"
@@ -142,6 +199,9 @@ SWAP_MAX_MB="${11}"
 CPU_PERCENT="${12}"
 TASKS_MAX="${13}"
 RESTART_MODE="${14}"
+PROJECT_ID="${15}"
+STORAGE_MIB="${16}"
+INODE_LIMIT="${17}"
 
 validate_uuid "$UUID"
 [[ "$SYSTEM_USER" =~ ^xhi[a-f0-9]{12}$ ]] || fail "invalid system user"
@@ -152,6 +212,10 @@ PHP_BIN="/usr/bin/php$PHP_VERSION"
 [[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/(current|releases/[A-Za-z0-9._-]+)$ ]] || fail "invalid release path"
 [[ "$RESTART_MODE" == "immediate" || "$RESTART_MODE" == "deferred" || "$RESTART_MODE" == "skip" ]] || fail "invalid restart mode"
 [[ "$STAGED_DIR" == "/opt/xpanel-vps/storage/app/native/host-instances/$UUID" ]] || fail "invalid staged directory"
+[[ "$PROJECT_ID" =~ ^[0-9]+$ && "$STORAGE_MIB" =~ ^[0-9]+$ && "$INODE_LIMIT" =~ ^[0-9]+$ ]] || fail "invalid disk quota arguments"
+if (( STORAGE_MIB > 0 && INODE_LIMIT > 0 )); then
+    "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" status >/dev/null
+fi
 [[ -f "$RELEASE_PATH/artisan" && -f "$RELEASE_PATH/public/index.php" ]] || fail "XPanel Host release is incomplete"
 for file in instance.env runtime.sh php-fpm.conf php-fpm-global.conf php-fpm.service nginx.conf apache.conf apache.service; do
     [[ -f "$STAGED_DIR/$file" && ! -L "$STAGED_DIR/$file" ]] || fail "missing staged $file"
@@ -166,6 +230,8 @@ FPM_POOL_TARGET="$FPM_POOL_ROOT/panel.conf"
 FPM_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-fpm.service"
 APACHE_CONFIG_TARGET="$FPM_CONFIG_ROOT/apache.conf"
 APACHE_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-apache.service"
+SCHEDULER_SERVICE_TARGET="/etc/systemd/system/xpanel-instance-$UUID-scheduler.service"
+SCHEDULER_TIMER_TARGET="/etc/systemd/system/xpanel-instance-$UUID-scheduler.timer"
 NGINX_TARGET="/etc/nginx/sites-available/xpanel-instance-$UUID.conf"
 TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
 
@@ -191,6 +257,9 @@ for account_path in "$ACCOUNT_HOME" "$ACCOUNT_HOME/public_html"; do
 done
 
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$INSTANCE_ROOT" "$INSTANCE_ROOT/database"
+if (( STORAGE_MIB > 0 && INODE_LIMIT > 0 )); then
+    "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" apply "$UUID" "$SYSTEM_USER" "$PROJECT_ID" "$STORAGE_MIB" "$INODE_LIMIT"
+fi
 for storage_path in "$INSTANCE_ROOT/storage" "$INSTANCE_ROOT/storage/app" "$INSTANCE_ROOT/storage/app/access" "$INSTANCE_ROOT/storage/framework"; do
     [[ ! -L "$storage_path" ]] || fail "instance storage is a symlink"
     if [[ -e "$storage_path" ]]; then
@@ -220,6 +289,33 @@ rm -f "$FPM_TARGET"
 install -m 0640 -o root -g root "$STAGED_DIR/php-fpm.conf" "$FPM_POOL_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/php-fpm-global.conf" "$FPM_GLOBAL_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/php-fpm.service" "$FPM_SERVICE_TARGET"
+cat > "$SCHEDULER_SERVICE_TARGET" <<EOF
+[Unit]
+Description=XPanel Host scheduled tasks $UUID
+After=network.target
+
+[Service]
+Type=oneshot
+Slice=xpanel-instance-$UUID.slice
+WorkingDirectory=$RELEASE_PATH
+ExecStart=/bin/bash -c '. $INSTANCE_ROOT/runtime.sh; exec /usr/sbin/runuser -u $SYSTEM_USER --preserve-environment -- $PHP_BIN $RELEASE_PATH/artisan schedule:run --no-interaction'
+TimeoutStartSec=300
+Nice=10
+EOF
+cat > "$SCHEDULER_TIMER_TARGET" <<EOF
+[Unit]
+Description=Run XPanel Host scheduler $UUID each minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+Unit=xpanel-instance-$UUID-scheduler.service
+
+[Install]
+WantedBy=timers.target
+EOF
+chown root:root "$SCHEDULER_SERVICE_TARGET" "$SCHEDULER_TIMER_TARGET"
+chmod 0644 "$SCHEDULER_SERVICE_TARGET" "$SCHEDULER_TIMER_TARGET"
 install -d -m 0755 -o root -g root "$FPM_CONFIG_ROOT/apache" "$FPM_CONFIG_ROOT/apache/sites"
 install -m 0644 -o root -g root "$STAGED_DIR/apache.conf" "$APACHE_CONFIG_TARGET"
 install -m 0644 -o root -g root "$STAGED_DIR/apache.service" "$APACHE_SERVICE_TARGET"
@@ -254,10 +350,13 @@ php-fpm"$PHP_VERSION" -t -y "$FPM_GLOBAL_TARGET"
 nginx -t
 systemctl daemon-reload
 systemctl enable "xpanel-instance-$UUID-fpm.service"
+systemctl enable --now "xpanel-instance-$UUID-scheduler.timer"
 if [[ "$RESTART_MODE" == "immediate" ]]; then
     systemctl restart "xpanel-instance-$UUID-fpm.service"
 elif [[ "$RESTART_MODE" == "deferred" ]]; then
     systemd-run --quiet --collect --on-active=5s /bin/systemctl restart "xpanel-instance-$UUID-fpm.service"
 fi
 systemctl reload nginx
+printf '%s\n' "$(system_revision)" > "$FPM_CONFIG_ROOT/system-revision"
+chmod 0600 "$FPM_CONFIG_ROOT/system-revision"
 echo "active"
