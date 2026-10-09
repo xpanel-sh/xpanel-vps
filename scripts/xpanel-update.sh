@@ -5,6 +5,25 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ "$(id -u)" == "0" ]] || { echo "Ejecuta la actualización con sudo." >&2; exit 1; }
 [[ -f "$ROOT/.env" ]] || { echo "Falta $ROOT/.env" >&2; exit 1; }
 
+ensure_quota_tools() {
+  local tool
+  for tool in setquota quotaon tune2fs chattr lsattr; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      printf 'Instalando herramientas de cuotas necesarias para las instancias Host...\n'
+      apt-get update -y
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends quota e2fsprogs
+      break
+    fi
+  done
+  for tool in setquota quotaon tune2fs chattr lsattr; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "Falta $tool después de instalar quota y e2fsprogs." >&2; return 1; }
+  done
+}
+
+# Existing VPS installations may predate project quotas. Repair these small
+# system dependencies before putting the panel into maintenance mode.
+ensure_quota_tools
+
 backup_root="$ROOT/storage/app/backups/updates/$(date -u +%Y%m%dT%H%M%SZ)"
 install -d -o www-data -g www-data -m 0700 "$backup_root"
 install -o www-data -g www-data -m 0600 "$ROOT/.env" "$backup_root/.env"

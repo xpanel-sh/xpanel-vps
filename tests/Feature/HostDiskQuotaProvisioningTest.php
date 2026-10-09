@@ -25,6 +25,9 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
 
         $this->assertStringContainsString('xpanel:system-reconcile --repair', $update);
+        $this->assertStringContainsString('ensure_quota_tools', $update);
+        $this->assertStringContainsString('apt-get install -y --no-install-recommends quota e2fsprogs', $update);
+        $this->assertLessThan(strpos($update, 'php "$ROOT/artisan" down'), strpos($update, 'ensure_quota_tools\n'));
         $this->assertStringContainsString('reconcile-databases "$uuid" "$user" "$project_id"', $quota);
         $this->assertStringContainsString('FROM site_databases WHERE status', $quota);
         $this->assertStringContainsString('tag-database "$uuid" "$user" "$project_id" "$database"', $quota);
