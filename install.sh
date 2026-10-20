@@ -488,7 +488,7 @@ if quota_check="$(bash "$ROOT/scripts/xpanel-project-quota.sh" status 2>&1)"; th
 else
   echo "AVISO: las cuotas aún no están activas: $quota_check" >&2
   if bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare; then
-    echo "Reinicia el VPS antes de crear cuentas Host; el instalador no afirmará que los límites ya funcionan." >&2
+    echo "Inicializa el archivo de cuotas y verifica quotaon antes de crear cuentas Host; el instalador no afirmará que los límites ya funcionan." >&2
   else
     echo "El panel seguirá disponible, pero no permitirá aprovisionar cuentas con cuotas hasta corregir el almacenamiento." >&2
   fi

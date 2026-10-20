@@ -26,7 +26,7 @@ ensure_quota_tools
 if ! bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
   bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare
   if ! bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
-    echo "Las cuotas de hosting aún no están activas. Reinicia el VPS y vuelve a ejecutar xpanel update --force; el panel no se puso en mantenimiento." >&2
+    echo "Las cuotas de hosting aún no están activas. Inicialízalas y comprueba su estado antes de repetir xpanel update --force; el panel no se puso en mantenimiento." >&2
     exit 75
   fi
 fi
