@@ -54,6 +54,9 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('user-quota-applied', $dispatcher);
         $this->assertStringContainsString('setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit"', $userQuota);
         $this->assertStringContainsString('database-excluded-from-user-quota', $userQuota);
+        $this->assertSame(1, preg_match('/\[\[ "\$uuid" =~ (\S+) \]\]/', $userQuota, $uuidValidation));
+        $this->assertSame(1, preg_match('~'.$uuidValidation[1].'~', 'da0ae5e1-207b-48ab-a82b-b14d4547963f'));
+        $this->assertSame(0, preg_match('~'.$uuidValidation[1].'~', 'da0ae5e1-207b-48ab-b14d4547963f'));
     }
 
     private function account(int $inodes = 50000): HostingAccount

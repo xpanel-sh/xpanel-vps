@@ -6,7 +6,7 @@ fail() { echo "xpanel-user-quota: $*" >&2; exit 1; }
 
 validate_account() {
     local uuid="$1" user="$2" uuid_hex
-    [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
+    [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
     uuid_hex="${uuid//-/}"
     [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
 }
