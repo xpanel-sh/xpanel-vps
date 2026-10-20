@@ -27,7 +27,29 @@ if awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" && ("," $4 ",") ~ /,usrquota,/ {
     if [[ ! -f /aquota.user && ! -f /quota.user ]]; then
         fail "usrquota está montado, pero falta /aquota.user: quotaon no puede activarse. Inicializa el archivo de cuotas antes de repetir la actualización (consulta README.md). No sirve reiniciar otra vez"
     fi
-    fail "usrquota figura en /etc/fstab y existe un archivo de cuotas, pero sigue inactivo. Revisa quotaon.service y su registro; no reinicies a ciegas"
+    if ! modprobe quota_v2 2>/dev/null; then
+        module_package="linux-modules-extra-$(uname -r)"
+        apt-get update -y
+        if apt-cache show "$module_package" >/dev/null 2>&1; then
+            echo "Instalando $module_package para habilitar quota_v2..."
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$module_package"
+            modprobe quota_v2 || fail "quota_v2 no se pudo cargar tras instalar $module_package"
+        else
+            fail "el kernel no dispone de quota_v2. Comprueba uname -r y modinfo quota_v2; instala los módulos extra del kernel en uso"
+        fi
+    fi
+    quotaon -u / || fail "existe el archivo de cuotas, pero quotaon no pudo activarlo; revisa quotaon.service y dmesg"
+    bash "$script_dir/xpanel-user-quota.sh" status >/dev/null || fail "quotaon terminó, pero XPanel no confirmó la cuota de usuario"
+    module_config=/etc/modules-load.d/xpanel-quota.conf
+    if [[ ! -e "$module_config" ]]; then
+        printf 'quota_v2\n' > "$module_config"
+        chmod 0644 "$module_config"
+    else
+        [[ ! -L "$module_config" ]] || fail "unsafe quota module configuration"
+        grep -qx 'quota_v2' "$module_config" || fail "$module_config exists but does not load quota_v2"
+    fi
+    echo "Cuotas por usuario activas."
+    exit 0
 fi
 
 tmp="$(mktemp /etc/.xpanel-fstab.XXXXXX)"

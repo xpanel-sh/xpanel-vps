@@ -45,6 +45,9 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertLessThan(strpos($update, 'php "$ROOT/artisan" down'), strpos($update, 'xpanel-quota-setup.sh" prepare'));
         $this->assertStringContainsString('findmnt --verify --tab-file "$tmp"', $setup);
         $this->assertStringContainsString('cp -p -- /etc/fstab "$backup"', $setup);
+        $this->assertStringContainsString('falta /aquota.user', $setup);
+        $this->assertStringContainsString('modprobe quota_v2', $setup);
+        $this->assertStringContainsString('linux-modules-extra-$(uname -r)', $setup);
         $this->assertStringContainsString('project-quota-applied', $dispatcher);
         $this->assertStringContainsString('user-quota-applied', $dispatcher);
         $this->assertStringContainsString('setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit"', $userQuota);
