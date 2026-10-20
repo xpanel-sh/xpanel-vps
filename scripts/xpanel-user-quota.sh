@@ -21,8 +21,10 @@ quota_mount() {
     [[ -n "$home_mount" && "$home_mount" == "$instance_mount" ]] || fail "/home and Host instances must use the same quota-enabled filesystem"
     filesystem="$(findmnt -n -o FSTYPE -T /home)"
     [[ "$filesystem" == ext4 || "$filesystem" == xfs ]] || fail "user quotas require ext4 or XFS (found $filesystem)"
-    state="$(quotaon -u -p "$home_mount")" || fail "could not inspect user quota state"
-    [[ "$state" == *'is on'* ]] || fail "user quotas are not active on $home_mount; reboot after preparing quotas"
+    # quotaon -p may report a non-zero exit code even when its state line
+    # confirms that enforcement is on. The state text is authoritative here.
+    state="$(quotaon -u -p "$home_mount" 2>&1)" || true
+    [[ "$state" == *'is on'* ]] || fail "user quotas are not active on $home_mount: $state"
     printf '%s\n' "$home_mount"
 }
 

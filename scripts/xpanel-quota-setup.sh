@@ -38,7 +38,12 @@ if awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" && ("," $4 ",") ~ /,usrquota,/ {
             fail "el kernel no dispone de quota_v2. Comprueba uname -r y modinfo quota_v2; instala los módulos extra del kernel en uso"
         fi
     fi
-    quotaon -u / || fail "existe el archivo de cuotas, pero quotaon no pudo activarlo; revisa quotaon.service y dmesg"
+    if ! quota_output="$(quotaon -u / 2>&1)"; then
+        if ! bash "$script_dir/xpanel-user-quota.sh" status >/dev/null 2>&1; then
+            printf '%s\n' "$quota_output" >&2
+            fail "existe el archivo de cuotas, pero quotaon no pudo activarlo; revisa quotaon.service y dmesg"
+        fi
+    fi
     bash "$script_dir/xpanel-user-quota.sh" status >/dev/null || fail "quotaon terminó, pero XPanel no confirmó la cuota de usuario"
     module_config=/etc/modules-load.d/xpanel-quota.conf
     if [[ ! -e "$module_config" ]]; then

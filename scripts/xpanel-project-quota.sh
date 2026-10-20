@@ -48,7 +48,7 @@ quota_mount() {
     [[ -b "$source" ]] || fail "could not resolve the ext4 block device"
     features="$(tune2fs -l "$source" | sed -n 's/^Filesystem features:[[:space:]]*//p')"
     [[ " $features " == *' project '* && " $features " == *' quota '* ]] || fail "ext4 project and quota features are missing; enable them while unmounted in rescue mode"
-    quota_state="$(quotaon -P -p "$home_mount")" || fail "could not inspect project quota state"
+    quota_state="$(quotaon -P -p "$home_mount" 2>&1)" || true
     [[ "$quota_state" == *'is on'* ]] || fail "project quota accounting is not active; enable it before provisioning"
     [[ "$(mariadb --protocol=socket --batch --skip-column-names -e 'SELECT @@innodb_file_per_table')" == 1 ]] || fail "MariaDB innodb_file_per_table is required"
     printf '%s\n' "$home_mount"

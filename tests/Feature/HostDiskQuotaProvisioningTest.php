@@ -48,6 +48,8 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('falta /aquota.user', $setup);
         $this->assertStringContainsString('modprobe quota_v2', $setup);
         $this->assertStringContainsString('linux-modules-extra-$(uname -r)', $setup);
+        $this->assertStringContainsString('quotaon -u -p "$home_mount" 2>&1)" || true', $userQuota);
+        $this->assertStringContainsString('if ! bash "$script_dir/xpanel-user-quota.sh" status', $setup);
         $this->assertStringContainsString('project-quota-applied', $dispatcher);
         $this->assertStringContainsString('user-quota-applied', $dispatcher);
         $this->assertStringContainsString('setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit"', $userQuota);
