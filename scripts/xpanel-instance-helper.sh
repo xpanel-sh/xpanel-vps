@@ -13,12 +13,13 @@ system_revision() {
     app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     sha256sum "$app_root/scripts/xpanel-instance-helper.sh" \
         "$app_root/scripts/xpanel-project-quota.sh" \
+        "$app_root/scripts/xpanel-user-quota.sh" \
         "$app_root/app/Services/HostInstanceConfigGenerator.php" | sha256sum | awk '{print $1}'
 }
 
 if [[ "${1:-}" == "verify-instance" ]]; then
-    [[ $# -eq 5 ]] || fail "verify-instance expects UUID, system user, project ID and staged directory"
-    uuid="$2" user="$3" project_id="$4" staged_dir="$5"
+    [[ $# -eq 7 ]] || fail "verify-instance expects UUID, system user, project ID, staged directory and disk limits"
+    uuid="$2" user="$3" project_id="$4" staged_dir="$5" storage_mib="$6" inode_limit="$7"
     validate_uuid "$uuid"
     uuid_hex="${uuid//-/}"
     [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
@@ -30,12 +31,16 @@ if [[ "${1:-}" == "verify-instance" ]]; then
     [[ -f "$instance_root/runtime.sh" && ! -L "$instance_root/runtime.sh" ]] || fail "instance runtime is unavailable"
     [[ -f "$config_root/system-revision" && ! -L "$config_root/system-revision" ]] || fail "system revision has not been applied"
     [[ "$(<"$config_root/system-revision")" == "$(system_revision)" ]] || fail "instance system revision is outdated"
-    [[ -f "$config_root/project-quota-applied" && "$(<"$config_root/project-quota-applied")" == "$project_id" ]] || fail "instance disk quota is not applied"
-    "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" status >/dev/null
-    for quota_path in "/home/$user" "$instance_root"; do
-        [[ -d "$quota_path" && ! -L "$quota_path" ]] || fail "instance quota path is missing or unsafe"
-        [[ "$(lsattr -pd -- "$quota_path" | awk '{print $1}')" == "$project_id" ]] || fail "instance quota path lost its project ID"
-    done
+    if [[ -f "$config_root/user-quota-applied" ]]; then
+        bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-user-quota.sh" verify "$uuid" "$user" "$project_id" "$storage_mib" "$inode_limit" >/dev/null
+    else
+        [[ -f "$config_root/project-quota-applied" && "$(<"$config_root/project-quota-applied")" == "$project_id" ]] || fail "instance disk quota is not applied"
+        "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" status >/dev/null
+        for quota_path in "/home/$user" "$instance_root"; do
+            [[ -d "$quota_path" && ! -L "$quota_path" ]] || fail "instance quota path is missing or unsafe"
+            [[ "$(lsattr -pd -- "$quota_path" | awk '{print $1}')" == "$project_id" ]] || fail "instance quota path lost its project ID"
+        done
+    fi
     "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" check-databases "$uuid" "$user" "$project_id" >/dev/null
     for staged_file in runtime.sh nginx.conf; do
         [[ -f "$staged_dir/$staged_file" && ! -L "$staged_dir/$staged_file" ]] || fail "staged instance configuration is unsafe"

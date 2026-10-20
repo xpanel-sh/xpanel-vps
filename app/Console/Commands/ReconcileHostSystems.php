@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\HostInstance;
 use App\Services\HostInstanceConfigGenerator;
 use App\Services\HostInstanceProvisioner;
+use App\Services\HostInstanceResourceLimiter;
 use App\Services\ServerCommandRunner;
 use Illuminate\Console\Command;
 use RuntimeException;
@@ -16,7 +17,7 @@ class ReconcileHostSystems extends Command
 
     protected $description = 'Verify managed Host prerequisites and reconcile existing instances after a VPS update';
 
-    public function handle(HostInstanceProvisioner $provisioner, HostInstanceConfigGenerator $generator, ServerCommandRunner $commands): int
+    public function handle(HostInstanceProvisioner $provisioner, HostInstanceConfigGenerator $generator, HostInstanceResourceLimiter $limiter, ServerCommandRunner $commands): int
     {
         if (! config('xpanel.native_hosting.apply_system_changes')) {
             $this->warn('Sin cambios de sistema: verificación omitida en este entorno.');
@@ -37,9 +38,11 @@ class ReconcileHostSystems extends Command
                     throw new RuntimeException('Falta el entorno original de la instancia; no se regenerará su APP_KEY automáticamente.');
                 }
                 $staged = $generator->generate($instance);
+                [$projectId, $storageMib, $inodes] = $limiter->diskArguments($instance);
                 $check = [
                     'sudo', '-n', (string) config('xpanel.host_instances.helper'), 'verify-instance',
-                    $instance->uuid, $instance->system_user, (string) (100000 + $instance->id), $staged['directory'],
+                    $instance->uuid, $instance->system_user, (string) $projectId, $staged['directory'],
+                    (string) $storageMib, (string) $inodes,
                 ];
                 try {
                     $commands->run($check);

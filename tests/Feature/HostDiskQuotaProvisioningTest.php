@@ -35,6 +35,22 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('system_revision', $helper);
     }
 
+    public function test_user_quota_is_prepared_before_maintenance_and_preserves_project_accounts(): void
+    {
+        $update = file_get_contents(base_path('scripts/xpanel-update.sh'));
+        $setup = file_get_contents(base_path('scripts/xpanel-quota-setup.sh'));
+        $dispatcher = file_get_contents(base_path('scripts/xpanel-project-quota.sh'));
+        $userQuota = file_get_contents(base_path('scripts/xpanel-user-quota.sh'));
+
+        $this->assertLessThan(strpos($update, 'php "$ROOT/artisan" down'), strpos($update, 'xpanel-quota-setup.sh" prepare'));
+        $this->assertStringContainsString('findmnt --verify --tab-file "$tmp"', $setup);
+        $this->assertStringContainsString('cp -p -- /etc/fstab "$backup"', $setup);
+        $this->assertStringContainsString('project-quota-applied', $dispatcher);
+        $this->assertStringContainsString('user-quota-applied', $dispatcher);
+        $this->assertStringContainsString('setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit"', $userQuota);
+        $this->assertStringContainsString('database-excluded-from-user-quota', $userQuota);
+    }
+
     private function account(int $inodes = 50000): HostingAccount
     {
         $plan = HostingPlan::create([

@@ -5,6 +5,32 @@ fail() { echo "xpanel-project-quota: $*" >&2; exit 1; }
 
 [[ "$(id -u)" == 0 ]] || fail "root is required"
 
+# Keep this public helper path stable: pinned Host releases and the broker use
+# it directly. Existing project-tagged accounts remain on their original mode.
+user_helper="$(dirname "${BASH_SOURCE[0]}")/xpanel-user-quota.sh"
+action="${1:-}"
+if [[ "$action" == status && "${XPANEL_PROJECT_ONLY:-}" != 1 ]]; then
+    if bash "$user_helper" status >/dev/null 2>&1; then
+        exec bash "$user_helper" status
+    fi
+elif [[ "$action" == apply || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases ]]; then
+    uuid="${2:-}"
+    if [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; then
+        if [[ -f "/etc/xpanel-vps/instances/$uuid/user-quota-applied" ]]; then
+            exec bash "$user_helper" "$@"
+        fi
+        if [[ -f "/etc/xpanel-vps/instances/$uuid/project-quota-applied" ]]; then
+            if [[ "$action" == apply ]] && ! XPANEL_PROJECT_ONLY=1 bash "$0" status >/dev/null 2>&1 && bash "$user_helper" status >/dev/null 2>&1; then
+                bash "$user_helper" "$@"
+                rm -- "/etc/xpanel-vps/instances/$uuid/project-quota-applied"
+                exit 0
+            fi
+        elif bash "$user_helper" status >/dev/null 2>&1; then
+            exec bash "$user_helper" "$@"
+        fi
+    fi
+fi
+
 quota_mount() {
     local home_mount instance_mount database_mount filesystem options features source
     for tool in findmnt tune2fs chattr lsattr setquota quotaon; do

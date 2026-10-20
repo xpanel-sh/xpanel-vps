@@ -344,6 +344,7 @@ configure_helper() {
   local package_helper="$ROOT/scripts/xpanel-package-helper.sh"
   local instance_helper="$ROOT/scripts/xpanel-instance-helper.sh"
   local quota_helper="$ROOT/scripts/xpanel-project-quota.sh"
+  local user_quota_helper="$ROOT/scripts/xpanel-user-quota.sh"
   local broker_helper="$ROOT/scripts/xpanel-host-broker-helper.sh"
   local control_plane_helper="$ROOT/scripts/xpanel-control-plane-helper.sh"
   local sudoers_file="/etc/sudoers.d/xpanel-vps-site"
@@ -351,6 +352,7 @@ configure_helper() {
   chmod 0750 "$package_helper"
   chmod 0750 "$instance_helper"
   chmod 0750 "$quota_helper"
+  chmod 0750 "$user_quota_helper"
   chmod 0750 "$broker_helper"
   chmod 0640 "$ROOT/scripts/xpanel-host-sqlite-inspect.php"
   chmod 0750 "$control_plane_helper"
@@ -358,6 +360,7 @@ configure_helper() {
   chown root:www-data "$package_helper"
   chown root:www-data "$instance_helper"
   chown root:www-data "$quota_helper"
+  chown root:www-data "$user_quota_helper"
   chown root:www-data "$broker_helper"
   chown root:www-data "$ROOT/scripts/xpanel-host-sqlite-inspect.php"
   chown root:www-data "$control_plane_helper"
@@ -481,10 +484,14 @@ if [[ "$(findmnt -n -o FSTYPE -T /home 2>/dev/null || true)" == ext4 ]] \
   fi
 fi
 if quota_check="$(bash "$ROOT/scripts/xpanel-project-quota.sh" status 2>&1)"; then
-  echo "Cuotas de proyecto ext4: listas para archivos y bases de cuentas administradas."
+  echo "Cuotas de hosting activas: $quota_check"
 else
-  echo "AVISO: el disco aún no tiene cuotas de proyecto listas: $quota_check" >&2
-  echo "XPanel no modificará una partición montada; configura ext4 en modo rescate antes de crear cuentas administradas. Consulta README.md." >&2
+  echo "AVISO: las cuotas aún no están activas: $quota_check" >&2
+  if bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare; then
+    echo "Reinicia el VPS antes de crear cuentas Host; el instalador no afirmará que los límites ya funcionan." >&2
+  else
+    echo "El panel seguirá disponible, pero no permitirá aprovisionar cuentas con cuotas hasta corregir el almacenamiento." >&2
+  fi
 fi
 configure_firewall
 ensure_node_runtime
