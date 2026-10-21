@@ -1,0 +1,14 @@
+[Unit]
+Description=Complete XPanel VPS quota setup after first reboot
+Documentation=file:/opt/xpanel-vps/README.md
+ConditionPathExists=/var/lib/xpanel-vps/install/quota-firstboot.pending
+After=local-fs.target
+Before=mariadb.service nginx.service cron.service php8.3-fpm.service php8.4-fpm.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/xpanel-vps/scripts/xpanel-quota-firstboot.sh
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

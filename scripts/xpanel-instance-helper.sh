@@ -14,6 +14,7 @@ system_revision() {
     sha256sum "$app_root/scripts/xpanel-instance-helper.sh" \
         "$app_root/scripts/xpanel-project-quota.sh" \
         "$app_root/scripts/xpanel-user-quota.sh" \
+        "$app_root/scripts/xpanel-traffic-rate.sh" \
         "$app_root/app/Services/HostInstanceConfigGenerator.php" | sha256sum | awk '{print $1}'
 }
 
@@ -29,6 +30,7 @@ if [[ "${1:-}" == "verify-instance" ]]; then
     config_root="/etc/xpanel-vps/instances/$uuid"
     [[ -f "$instance_root/.env" && ! -L "$instance_root/.env" ]] || fail "instance environment is unavailable"
     [[ -f "$instance_root/runtime.sh" && ! -L "$instance_root/runtime.sh" ]] || fail "instance runtime is unavailable"
+    [[ -f "/etc/nginx/snippets/xpanel-traffic-$uuid.conf" && ! -L "/etc/nginx/snippets/xpanel-traffic-$uuid.conf" ]] || fail "instance traffic configuration is unavailable"
     [[ -f "$config_root/system-revision" && ! -L "$config_root/system-revision" ]] || fail "system revision has not been applied"
     [[ "$(<"$config_root/system-revision")" == "$(system_revision)" ]] || fail "instance system revision is outdated"
     if [[ -f "$config_root/user-quota-applied" ]]; then
@@ -262,6 +264,7 @@ for account_path in "$ACCOUNT_HOME" "$ACCOUNT_HOME/public_html"; do
 done
 
 install -d -m 0750 -o "$SYSTEM_USER" -g "$SYSTEM_USER" "$INSTANCE_ROOT" "$INSTANCE_ROOT/database"
+bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-traffic-rate.sh" ensure "$UUID" normal
 if (( STORAGE_MIB > 0 && INODE_LIMIT > 0 )); then
     "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" apply "$UUID" "$SYSTEM_USER" "$PROJECT_ID" "$STORAGE_MIB" "$INODE_LIMIT"
 fi

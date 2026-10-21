@@ -21,6 +21,8 @@ class HostBrokerActionPolicy
 
         match ($action) {
             'apply' => $this->site($instance, $arguments, 12, $action),
+            'resource-snapshot' => $this->resourceSnapshot($instance, $arguments),
+            'traffic-rate-status', 'traffic-rate-set' => $this->trafficRate($arguments, $action),
             'remove', 'site-restart' => $this->site($instance, $arguments, 6, $action),
             'ssl-issue', 'ssl-wildcard-issue', 'ssl-delete' => $this->certificate($instance, $arguments, $action),
             'ssl-inspect' => $this->certificateInspection($instance, $arguments),
@@ -51,6 +53,41 @@ class HostBrokerActionPolicy
     {
         if (count($arguments) !== 1 || ! in_array($arguments[0], ['nginx', 'apache', 'openlitespeed'], true)) {
             throw new RuntimeException('Motor web solicitado no válido.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function trafficRate(array $arguments, string $action): void
+    {
+        if ($action === 'traffic-rate-status' && $arguments !== []) {
+            throw new RuntimeException('La consulta de tráfico no acepta argumentos.');
+        }
+        if ($action === 'traffic-rate-set' && (count($arguments) !== 1 || ! in_array($arguments[0], ['normal', 'reduced'], true))) {
+            throw new RuntimeException('Modo de tráfico inválido.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function resourceSnapshot(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) < 4 || count($arguments) > 68) {
+            throw new RuntimeException('Medición de recursos inválida.');
+        }
+        [$domain, $root, $user, $engine] = $arguments;
+        $prefix = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6);
+        $site = $this->row($instance, 'site', $domain);
+        if (! $this->domain($domain) || ! $site
+            || $site['document_root'] !== $root || $site['system_user'] !== $user
+            || $site['web_server'] !== $engine
+            || $root !== '/home/'.$instance->system_user.'/public_html/'.$domain
+            || ! preg_match('/^'.preg_quote($prefix, '/').'[a-z0-9]{9,20}$/', $user)) {
+            throw new RuntimeException('El sitio medido no pertenece a la instancia.');
+        }
+        foreach (array_slice($arguments, 4) as $database) {
+            if (! preg_match('/^xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_[a-z0-9_]+$/', $database)
+                || ! $this->row($instance, 'database-name', $database)) {
+                throw new RuntimeException('La base medida no pertenece a la instancia.');
+            }
         }
     }
 

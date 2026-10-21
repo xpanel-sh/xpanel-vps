@@ -97,6 +97,7 @@ class HostInstanceConfigGenerator
             'XPANEL_WEB_ROOT' => '/var/www/xpanel-instances/'.$instance->uuid,
             'XPANEL_ACCOUNT_USER' => $instance->system_user,
             'XPANEL_ACCOUNT_HOME' => '/home/'.$instance->system_user,
+            'XPANEL_BACKUP_ROOT' => $instance->instance_root.'/backups',
             'XPANEL_SITE_USER' => $instance->system_user,
             'XPANEL_SITE_GROUP' => $instance->system_user,
             'XPANEL_SYSTEMD_SLICE' => 'xpanel-instance-'.$instance->uuid.'.slice',

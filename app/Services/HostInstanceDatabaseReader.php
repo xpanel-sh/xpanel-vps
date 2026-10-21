@@ -13,6 +13,7 @@ class HostInstanceDatabaseReader
         'profile' => 'SELECT id, php_version, extensions FROM php_profiles WHERE id = :first LIMIT 1',
         'profile-site' => 'SELECT id FROM sites WHERE php_profile_id = :first LIMIT 1',
         'database' => 'SELECT id FROM site_databases WHERE name = :first AND username = :second LIMIT 1',
+        'database-name' => 'SELECT id FROM site_databases WHERE name = :first LIMIT 1',
         'aliases' => "SELECT domain FROM domains WHERE site_id = :first AND type = 'alias'",
         'engine' => 'SELECT 1 FROM sites WHERE web_server = :first LIMIT 1',
     ];

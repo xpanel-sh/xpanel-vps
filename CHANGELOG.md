@@ -2,7 +2,24 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y versionado semántico.
 
-## [Unreleased]
+## [0.2.0-beta.1] - En preparación
+
+Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. Agrupa los cambios de esta entrega; publicar los tres repositorios y probar en Linux real antes de etiquetarla.
+
+### Añadido
+
+- El instalador prepara cuotas de usuario en ext4, muestra y guarda las credenciales iniciales antes de ofrecer un reinicio opcional y comprueba la activación al arrancar mediante un servicio de una sola vez. El estado y las credenciales root-only se consultan con `xpanel-install-status.sh` tras reconectar.
+- Inventario de espacio por cuenta (`xpanel-account-storage.sh`): distingue hogar, datos de instancia, bases MariaDB, correo y copias sin sumarlos dos veces. Es medición, no una cuota dura única.
+- El broker permite medir recursos únicamente de sitios y bases registrados en la SQLite privada de su propia instancia. Cada cuenta tiene su propia configuración Nginx de velocidad; al superar el umbral mensual, Host solicita 128 KiB/s por petición para sus sitios.
+
+### Cambiado
+
+- La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas. En instalaciones nuevas, el escaneo de cuota intenta remontar la raíz en solo lectura y falla de forma segura si no puede, sin usar `quotacheck -m` ni `-M`.
+- Las copias nuevas de Host administrado usan una ruta bajo la instancia para que el inventario pueda atribuirlas a la cuenta. Se corrige además la validación de UUID completo al reconciliar bases de una cuota por proyecto.
+
+## [0.1.0-alpha.3] - Hito de desarrollo retrospectivo
+
+Las secciones `alpha.2` y `alpha.3` ordenan trabajo previo por etapa; no afirman que existan etiquetas o publicaciones correspondientes en Git.
 
 - Corregido el falso fallo al preparar una release: la limpieza temporal devolvía código 1 después de imprimir el hash. El preparador ahora emite etapas verificables y el estado de cada cuenta se consulta en vivo tanto desde VPS como desde Host, sin llenar el registro de auditoría con cada sondeo.
 
@@ -38,6 +55,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 - Simplified fresh installations to a single non-interactive command with automatic IP detection, generated administrator credentials and permanent `IP:8443` recovery access.
 - Added control-plane domain activation from Administration, including DNS validation, Nginx configuration and automatic Let's Encrypt issuance.
+
+## [0.1.0-alpha.2] - Hito de desarrollo retrospectivo
 
 ### Changed
 

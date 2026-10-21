@@ -323,6 +323,45 @@ class HostBrokerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_resource_snapshot_is_scoped_to_the_registered_site(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $root = '/home/'.$instance->system_user.'/public_html/example.test';
+        $user = 'xps'.substr(str_replace('-', '', $instance->uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
+        $payload = $this->payload($instance, 'resource-snapshot', ['example.test', $root, $user, 'nginx']);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'authorized-staged');
+
+        $database = 'xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_blog';
+        (new PDO('sqlite:'.$instance->database_path))->prepare('INSERT INTO site_databases (name, username) VALUES (?, ?)')
+            ->execute([$database, $database]);
+        $withDatabase = $this->payload($instance, 'resource-snapshot', ['example.test', $root, $user, 'nginx', $database]);
+        $this->postJson(route('api.host-broker'), $withDatabase, ['X-XPanel-Signature' => $this->signature($withDatabase, $secret)])
+            ->assertOk()->assertJsonPath('output', 'authorized-staged');
+
+        $foreign = $this->payload($instance, 'resource-snapshot', ['other.test', $root, $user, 'nginx']);
+        $this->postJson(route('api.host-broker'), $foreign, ['X-XPanel-Signature' => $this->signature($foreign, $secret)])
+            ->assertStatus(422);
+        $foreignDatabase = $this->payload($instance, 'resource-snapshot', ['example.test', $root, $user, 'nginx', 'xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_other']);
+        $this->postJson(route('api.host-broker'), $foreignDatabase, ['X-XPanel-Signature' => $this->signature($foreignDatabase, $secret)])
+            ->assertStatus(422);
+    }
+
+    public function test_only_the_signed_instance_can_set_an_allowed_traffic_rate(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $payload = $this->payload($instance, 'traffic-rate-set', ['reduced']);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'authorized-staged');
+
+        $invalid = $this->payload($instance, 'traffic-rate-set', ['unlimited']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+        $this->assertDatabaseHas('host_broker_operations', [
+            'host_instance_id' => $instance->id, 'action' => 'traffic-rate-set', 'status' => 'staged',
+        ]);
+    }
+
     public function test_signed_host_can_request_its_own_update_without_arguments(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

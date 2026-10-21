@@ -12,7 +12,7 @@
                 <p class="text-sm font-semibold uppercase tracking-[0.25em] text-gray-500">Admin Global</p>
                 <h1 class="mt-2 text-3xl font-black tracking-tight">Planes de Hosting</h1>
                 <p class="mt-2 text-gray-400">Define límites base para clientes: sitios, bases de datos, almacenamiento y correo.</p>
-                <p class="mt-2 text-sm text-amber-300">RAM, CPU, procesos, sitios, bases y buzones se aplican en Host administrado. Almacenamiento e inodos aún no son cuotas de disco; transferencia no tiene corte automático.</p>
+                <p class="mt-2 text-sm text-amber-300">RAM, CPU, procesos, sitios, bases y buzones se aplican en Host administrado. La cuota de archivos requiere cuotas Linux activas; bases, correo y copias aún no integran un total duro. Al superar la transferencia mensual, los sitios siguen disponibles con velocidad reducida.</p>
             </div>
             <a href="{{ route('admin.plans.create') }}" class="rounded-xl bg-white px-5 py-3 text-sm font-bold text-black transition hover:bg-gray-200">
                 Crear plan

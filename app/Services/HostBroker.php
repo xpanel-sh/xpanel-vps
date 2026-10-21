@@ -37,6 +37,34 @@ class HostBroker
                 ], JSON_THROW_ON_ERROR);
         }
 
+        if ($payload['action'] === 'traffic-rate-status') {
+            $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
+            $snippet = '/etc/nginx/snippets/xpanel-traffic-'.$instance->uuid.'.conf';
+            if (! is_file($snippet) || is_link($snippet)) {
+                throw new RuntimeException('Falta la configuración de tráfico de esta cuenta. Actualiza XPanel VPS.');
+            }
+            $contents = trim((string) file_get_contents($snippet));
+
+            return match ($contents) {
+                'limit_rate 0;' => 'normal',
+                'limit_rate 128k;' => 'reduced',
+                default => throw new RuntimeException('La configuración de tráfico de la cuenta es inválida.'),
+            };
+        }
+
+        if ($payload['action'] === 'resource-snapshot') {
+            $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
+            if (! config('xpanel.native_hosting.apply_system_changes')) {
+                return 'authorized-staged';
+            }
+
+            return $this->commands->run(array_merge([
+                'sudo', '-n', config('xpanel.host_instances.broker_helper'), 'execute',
+                $instance->uuid, $instance->system_user, $instance->release_path, $instance->instance_root,
+                'resource-snapshot',
+            ], $payload['arguments']), null, 600);
+        }
+
         $operation = HostBrokerOperation::create([
             'host_instance_id' => $instance->id,
             'request_id' => $payload['request_id'],

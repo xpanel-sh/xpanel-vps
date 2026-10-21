@@ -106,7 +106,7 @@ case "${1:-}" in
     reconcile-databases|check-databases)
         [[ $# -eq 4 ]] || fail "database reconciliation expects UUID, system user and project ID"
         uuid="$2" user="$3" project_id="$4"
-        [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
+        [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
         uuid_hex="${uuid//-/}"
         [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
         [[ "$project_id" =~ ^[0-9]+$ ]] && (( project_id >= 100000 && project_id <= 4294967294 )) || fail "invalid project ID"

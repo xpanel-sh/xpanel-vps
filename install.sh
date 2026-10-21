@@ -475,7 +475,7 @@ if [[ -d "$ROOT/.git" ]]; then
 fi
 write_marker
 install_packages
-install -d -m 0755 /var/lib/xpanel-vps
+install -d -m 0755 /var/lib/xpanel-vps /var/lib/xpanel-vps/instances
 if [[ "$(findmnt -n -o FSTYPE -T /home 2>/dev/null || true)" == ext4 ]] \
   && [[ ",$(findmnt -n -o OPTIONS -T /home 2>/dev/null || true)," == *,prjquota,* ]]; then
   quota_state="$(quotaon -P -p "$(findmnt -n -o TARGET -T /home)" 2>/dev/null || true)"
@@ -483,12 +483,14 @@ if [[ "$(findmnt -n -o FSTYPE -T /home 2>/dev/null || true)" == ext4 ]] \
     quotaon -P "$(findmnt -n -o TARGET -T /home)" || true
   fi
 fi
+quota_setup_prepared=false
 if quota_check="$(bash "$ROOT/scripts/xpanel-project-quota.sh" status 2>&1)"; then
   echo "Cuotas de hosting activas: $quota_check"
 else
   echo "AVISO: las cuotas aún no están activas: $quota_check" >&2
   if bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare; then
-    echo "Inicializa el archivo de cuotas y verifica quotaon antes de crear cuentas Host; el instalador no afirmará que los límites ya funcionan." >&2
+    quota_setup_prepared=true
+    echo "Las cuotas se verificarán al finalizar la instalación." >&2
   else
     echo "El panel seguirá disponible, pero no permitirá aprovisionar cuentas con cuotas hasta corregir el almacenamiento." >&2
   fi
@@ -539,15 +541,70 @@ fi
 sudo -u www-data php "$ROOT/artisan" optimize
 install_cli
 
+install_state_dir=/var/lib/xpanel-vps/install
+[[ ! -L "$install_state_dir" ]] || fail "El directorio de estado de instalación no es seguro."
+install -d -o root -g root -m 0700 "$install_state_dir"
+if [[ "$initial_admin_created" == true ]]; then
+  [[ ! -L "$install_state_dir/credentials" ]] || fail "El archivo de credenciales no es seguro."
+  ( umask 077; printf 'Panel: %s\nAdmin: %s/%s\nCorreo: %s\nContraseña: %s\n' \
+    "$(env_value APP_URL)" "$(env_value APP_URL)" "$(env_value XPANEL_ADMIN_LOGIN_PATH)" \
+    "$initial_admin_email" "$initial_admin_password" > "$install_state_dir/credentials" )
+fi
+[[ ! -L "$install_state_dir/status" ]] || fail "El archivo de estado no es seguro."
+
+quota_final_state=quota-blocked
+if bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
+  quota_final_state=ready
+  if [[ -f "$install_state_dir/quota-firstboot.pending" && ! -L "$install_state_dir/quota-firstboot.pending" ]]; then
+    rm -- "$install_state_dir/quota-firstboot.pending"
+  fi
+elif [[ "$quota_setup_prepared" == true && "$ROOT" == /opt/xpanel-vps \
+  && -d /var/lib/xpanel-vps/instances \
+  && -z "$(find /var/lib/xpanel-vps/instances -mindepth 1 -maxdepth 1 -print -quit)" \
+  && -z "$(find /home -mindepth 1 -maxdepth 1 -name 'xhi*' -print -quit)" ]]; then
+  quota_final_state=quota-pending
+  [[ ! -L "$install_state_dir/quota-firstboot.pending" ]] || fail "El marcador de cuotas no es seguro."
+  printf 'pending\n' > "$install_state_dir/quota-firstboot.pending"
+  install -o root -g root -m 0644 "$ROOT/scripts/xpanel-quota-firstboot.service" \
+    /etc/systemd/system/xpanel-quota-firstboot.service
+  systemctl daemon-reload
+  systemctl enable xpanel-quota-firstboot.service
+fi
+printf '%s\n' "$quota_final_state" > "$install_state_dir/status"
+
 echo
 echo "============================================================"
-echo "XPanel VPS instalado correctamente"
+if [[ "$quota_final_state" == ready ]]; then
+  echo "XPanel VPS instalado correctamente; cuotas de Host verificadas"
+else
+  echo "XPanel VPS instalado; cuotas de Host pendientes ($quota_final_state)"
+fi
 echo "Panel: $(env_value APP_URL)"
 echo "Admin: $(env_value APP_URL)/$(env_value XPANEL_ADMIN_LOGIN_PATH)"
 if [[ "$initial_admin_created" == "true" ]]; then
   echo "Correo: $initial_admin_email"
   echo "Contraseña: $initial_admin_password"
-  echo "Guarda esta contraseña ahora; no volverá a mostrarse."
+  echo "Guarda esta contraseña. También puedes recuperarla como root con:"
+  echo "sudo bash /opt/xpanel-vps/scripts/xpanel-install-status.sh --credentials"
 fi
 echo "CLI global: xpanel"
+echo "Estado tras reconectar: sudo bash /opt/xpanel-vps/scripts/xpanel-install-status.sh"
 echo "============================================================"
+
+if [[ "$quota_final_state" == quota-pending ]]; then
+  echo "Para terminar de activar las cuotas hay que reiniciar. La conexión SSH se cerrará."
+  echo "Al arrancar, XPanel continuará automáticamente la verificación; los accesos ya están guardados arriba."
+  reboot_answer=''
+  if [[ -r /dev/tty ]]; then
+    read -r -p '¿Programar reinicio en 1 minuto? [s/N] ' reboot_answer </dev/tty || true
+  else
+    echo "No hay terminal interactiva: no se reiniciará automáticamente."
+  fi
+  case "${reboot_answer,,}" in
+    s|si|sí|y|yes)
+      shutdown -r +1 'XPanel VPS: activar cuotas de Host'
+      echo "Reinicio programado. Reconecta por SSH y consulta el estado con el comando anterior."
+      ;;
+    *) echo "No se programó reinicio. Cuando decidas reiniciar, la activación continuará al arrancar." ;;
+  esac
+fi

@@ -54,6 +54,8 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('APP_URL="https://panel.customer.test"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_PANEL_DOMAIN="panel.customer.test"', $firstEnvironment);
         $this->assertStringContainsString('DB_DATABASE="'.$first->database_path.'"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_BACKUP_ROOT="'.$first->instance_root.'/backups"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_BACKUP_ROOT="'.$second->instance_root.'/backups"', File::get($secondFiles['environment']));
         $this->assertStringContainsString('XPANEL_SYSTEMD_SLICE="xpanel-instance-'.$first->uuid.'.slice"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_TERMINAL_ENABLED="true"', $firstEnvironment);

@@ -24,10 +24,8 @@ ensure_quota_tools() {
 # system dependencies before putting the panel into maintenance mode.
 ensure_quota_tools
 if ! bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
-  bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare
-  if ! bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
-    echo "Las cuotas de hosting aún no están activas. Inicialízalas y comprueba su estado antes de repetir xpanel update --force; el panel no se puso en mantenimiento." >&2
-    exit 75
+  if ! bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare; then
+    echo "AVISO: no se pudieron activar las cuotas. La actualización del panel continuará, pero el aprovisionamiento Host quedará bloqueado." >&2
   fi
 fi
 
@@ -48,8 +46,12 @@ sudo -u www-data php "$ROOT/artisan" db:seed --class=DefaultDataSeeder --force
 sudo -u www-data php "$ROOT/artisan" optimize
 
 XPANEL_SKIP_PACKAGES=true XPANEL_INSTALL_CLI=no XPANEL_PRESERVE_HOST_RELEASE=true bash "$ROOT/install.sh"
-printf 'Verificando y reconciliando instancias Host existentes...\n'
-sudo -u www-data php "$ROOT/artisan" xpanel:system-reconcile --repair --no-interaction
+if bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
+  printf 'Verificando y reconciliando instancias Host existentes...\n'
+  sudo -u www-data php "$ROOT/artisan" xpanel:system-reconcile --repair --no-interaction
+else
+  echo "AVISO: cuotas inactivas. Se omitió la reconciliación de Host; no se crearán ni modificarán cuentas hasta verificar las cuotas." >&2
+fi
 sudo -u www-data php "$ROOT/artisan" up
 trap - EXIT
 

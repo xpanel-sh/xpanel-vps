@@ -25,6 +25,8 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
 
         $this->assertStringContainsString('xpanel:system-reconcile --repair', $update);
+        $this->assertStringContainsString('Se omitió la reconciliación de Host', $update);
+        $this->assertStringNotContainsString('exit 75', $update);
         $this->assertStringContainsString('ensure_quota_tools', $update);
         $this->assertStringContainsString('apt-get install -y --no-install-recommends quota e2fsprogs', $update);
         $this->assertLessThan(strpos($update, 'php "$ROOT/artisan" down'), strpos($update, 'ensure_quota_tools\n'));
@@ -57,6 +59,25 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertSame(1, preg_match('/\[\[ "\$uuid" =~ (\S+) \]\]/', $userQuota, $uuidValidation));
         $this->assertSame(1, preg_match('~'.$uuidValidation[1].'~', 'da0ae5e1-207b-48ab-a82b-b14d4547963f'));
         $this->assertSame(0, preg_match('~'.$uuidValidation[1].'~', 'da0ae5e1-207b-48ab-b14d4547963f'));
+    }
+
+    public function test_fresh_install_prints_access_before_an_optional_reboot_and_resumes_quota_setup(): void
+    {
+        $installer = file_get_contents(base_path('install.sh'));
+        $firstboot = file_get_contents(base_path('scripts/xpanel-quota-firstboot.sh'));
+        $unit = file_get_contents(base_path('scripts/xpanel-quota-firstboot.service'));
+        $status = file_get_contents(base_path('scripts/xpanel-install-status.sh'));
+
+        $this->assertStringContainsString('install -d -m 0755 /var/lib/xpanel-vps /var/lib/xpanel-vps/instances', $installer);
+        $this->assertLessThan(strpos($installer, 'shutdown -r +1'), strpos($installer, 'echo "Contraseña: $initial_admin_password"'));
+        $this->assertStringContainsString("read -r -p '¿Programar reinicio en 1 minuto? [s/N] '", $installer);
+        $this->assertStringContainsString('ConditionPathExists=/var/lib/xpanel-vps/install/quota-firstboot.pending', $unit);
+        $this->assertStringContainsString('Before=mariadb.service nginx.service', $unit);
+        $this->assertStringContainsString('cron.service php8.3-fpm.service', $unit);
+        $this->assertStringContainsString('quotacheck -cu /', $firstboot);
+        $this->assertStringNotContainsString('quotacheck -cum /', $firstboot);
+        $this->assertStringContainsString('Host accounts already exist; refusing quota bootstrap', $firstboot);
+        $this->assertStringContainsString('--credentials', $status);
     }
 
     private function account(int $inodes = 50000): HostingAccount

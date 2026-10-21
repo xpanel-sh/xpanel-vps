@@ -16,7 +16,7 @@ if [[ "${1:-}" == "inspect" ]]; then
   [[ -d "$INSTANCE_ROOT" && ! -L "$INSTANCE_ROOT" && -d "$INSTANCE_ROOT/database" && ! -L "$INSTANCE_ROOT/database" ]] || fail "instance database directory unavailable"
   DB_PATH="$INSTANCE_ROOT/database/database.sqlite"
   [[ -f "$DB_PATH" && ! -L "$DB_PATH" ]] || fail "instance database unavailable"
-  [[ "$KIND" =~ ^(site|profile|profile-site|database|aliases|engine)$ ]] || fail "inspection query not allowed"
+  [[ "$KIND" =~ ^(site|profile|profile-site|database|database-name|aliases|engine)$ ]] || fail "inspection query not allowed"
   [[ "$FIRST" =~ ^[a-zA-Z0-9_.-]{1,253}$ ]] || fail "invalid inspection key"
   if [[ "$KIND" == "database" ]]; then
     [[ "$SECOND" =~ ^[a-zA-Z0-9_]{1,64}$ ]] || fail "invalid second inspection key"
@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -84,6 +84,17 @@ if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restar
     [[ "${11}" == "system" || "${11}" =~ ^i${INSTANCE_HEX:0:12}-p[1-9][0-9]*$ ]] || fail "invalid PHP profile"
     [[ "${12}" == "-" || "${12}" =~ ^(bcmath|curl|gd|imagick|intl|mbstring|mysql|opcache|pgsql|redis|soap|sqlite3|xml|zip)(,(bcmath|curl|gd|imagick|intl|mbstring|mysql|opcache|pgsql|redis|soap|sqlite3|xml|zip))*$ ]] || fail "invalid PHP extensions"
   fi
+elif [[ "$ACTION" == "resource-snapshot" ]]; then
+  [[ $# -ge 4 ]] || fail "invalid resource snapshot arguments"
+  DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"; ENGINE="$4"
+  [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid resource domain"
+  [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && ! -L "$DOCUMENT_ROOT" ]] || fail "resource root escaped the account"
+  [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "resource user escaped the account"
+  [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ ]] || fail "invalid resource engine"
+  for database in "${@:5}"; do [[ "$database" =~ ^xp_${INSTANCE_HEX:0:6}_[a-z0-9_]+$ ]] || fail "database escaped the account"; done
+elif [[ "$ACTION" == "traffic-rate-set" ]]; then
+  [[ $# -eq 1 && ( "$1" == normal || "$1" == reduced ) ]] || fail "invalid traffic rate"
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-traffic-rate.sh" apply "$UUID" "$1"
 elif [[ "$ACTION" == "site-diagnose" ]]; then
   [[ $# -eq 8 ]] || fail "invalid diagnostic argument count"
   DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"; ENGINE="$4"; TYPE="$5"; PHP_VERSION="$6"; EXPECTED_IP="$7"; RUNTIME_PORT="$8"
