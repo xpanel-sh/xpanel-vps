@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('tenants', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // Nombre empresa
-            $table->string('domain')->unique(); // dominio.com
+            $table->string('domain')->nullable()->unique(); // El dominio pertenece al hosting o sitio.
             $table->string('status')->default('active'); // active, suspended
             $table->foreignId('plan_id')->nullable()->constrained('hosting_plans')->nullOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete(); // Dueño

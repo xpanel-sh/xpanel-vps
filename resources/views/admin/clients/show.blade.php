@@ -34,7 +34,7 @@
                                         <span class="kt-badge kt-badge-sm kt-badge-outline {{ $tenant->status === 'active' ? 'kt-badge-success' : 'kt-badge-destructive' }}">{{ $tenant->status === 'active' ? 'Activo' : 'Suspendido' }}</span>
                                     </div>
                                     <p class="mt-1 text-sm text-secondary-foreground">
-                                        {{ $tenant->domain }} <span class="mx-1">·</span> {{ $tenant->access_ready ? $tenant->user?->email : 'Acceso pendiente del primer hosting' }}
+                                        Cliente {{ $tenant->code }} <span class="mx-1">·</span> {{ $tenant->access_ready ? $tenant->user?->email : 'Acceso pendiente del primer hosting' }}
                                     </p>
                                 </div>
                             </div>
@@ -53,7 +53,7 @@
                         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
                             @foreach([
                                 ['Hostings', $tenant->hostingAccounts->count()],
-                                ['Sitios', $tenant->sites->count()],
+                                ['Sitios', $tenant->sites->count() + $tenant->hostingAccounts->sum(fn ($account) => $account->hostInstance?->brokerResources->count() ?? 0)],
                                 ['Instancias activas', $tenant->hostingAccounts->filter(fn ($account) => $account->hostInstance?->status === 'active')->count()],
                                 ['Acceso general', $tenant->access_ready ? $tenant->user?->name : 'Pendiente'],
                             ] as [$label, $value])
@@ -106,6 +106,9 @@
                                                 @if($instance?->status === 'active')
                                                     <a href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener" class="kt-btn kt-btn-primary kt-btn-sm"><i class="ki-filled ki-exit-right-corner"></i>Abrir panel</a>
                                                 @endif
+                                                @if($instance)
+                                                    <a href="{{ route('admin.instances.show', $instance) }}" class="kt-btn kt-btn-outline kt-btn-sm"><i class="ki-filled ki-chart-line-up"></i>Ver detalle</a>
+                                                @endif
                                                 @if($instance && $instance->ssl_status !== 'active')
                                                     <form action="{{ route('admin.instances.retry-ssl', $instance) }}" method="POST">@csrf<button class="kt-btn kt-btn-outline kt-btn-sm"><i class="ki-filled ki-shield-tick"></i>Reintentar SSL</button></form>
                                                 @endif
@@ -149,7 +152,7 @@
 
                         @if($tenant->sites->isNotEmpty())
                             <div class="kt-card kt-card-grid">
-                                <div class="kt-card-header"><h2 class="kt-card-title">Sitios registrados</h2><span class="kt-badge kt-badge-outline">{{ $tenant->sites->count() }}</span></div>
+                                <div class="kt-card-header"><h2 class="kt-card-title">Sitios nativos registrados</h2><span class="kt-badge kt-badge-outline">{{ $tenant->sites->count() }}</span></div>
                                 <div class="kt-card-table"><div class="kt-scrollable-x-auto"><table class="kt-table kt-table-border min-w-[640px]"><thead><tr><th>Dominio</th><th>Tipo</th><th>PHP</th><th>Estado</th></tr></thead><tbody>
                                     @foreach($tenant->sites as $site)<tr><td class="font-medium text-mono">{{ $site->domain }}</td><td>{{ strtoupper($site->project_type) }}</td><td>{{ $site->php_version }}</td><td><span class="kt-badge kt-badge-sm kt-badge-outline kt-badge-success">{{ strtoupper($site->status ?? 'active') }}</span></td></tr>@endforeach
                                 </tbody></table></div></div>

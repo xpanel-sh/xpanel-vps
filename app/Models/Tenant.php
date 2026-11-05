@@ -62,6 +62,11 @@ class Tenant extends Model
         return $this->hasMany(HostInstance::class);
     }
 
+    public function brokerResources()
+    {
+        return $this->hasManyThrough(HostBrokerResource::class, HostInstance::class);
+    }
+
     public function hostingAccounts()
     {
         return $this->hasMany(HostingAccount::class);

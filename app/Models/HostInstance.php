@@ -33,6 +33,11 @@ class HostInstance extends Model
         return $this->hasMany(HostBrokerOperation::class)->latest();
     }
 
+    public function brokerResources()
+    {
+        return $this->hasMany(HostBrokerResource::class);
+    }
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);

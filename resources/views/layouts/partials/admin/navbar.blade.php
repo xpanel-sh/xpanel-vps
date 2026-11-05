@@ -6,7 +6,7 @@
             'items' => [
                 ['label' => 'Resumen', 'route' => 'admin.dashboard', 'match' => ['admin.dashboard']],
                 ['label' => 'Clientes', 'route' => 'admin.clients.index', 'match' => ['admin.clients.*']],
-                ['label' => 'Sitios', 'route' => 'admin.sites.index', 'match' => ['admin.sites.*']],
+                ['label' => 'Dominios', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*', 'admin.sites.*']],
                 ['label' => 'Operaciones', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*']],
             ],
             'actions' => [
@@ -29,10 +29,11 @@
                 ],
                 [
                     'label' => 'Hosting',
-                    'match' => ['admin.plans.*', 'admin.sites.*'],
+                    'match' => ['admin.plans.*', 'admin.instances.*', 'admin.domains.*'],
                     'children' => [
                         ['label' => 'Planes', 'route' => 'admin.plans.index', 'match' => ['admin.plans.*']],
-                        ['label' => 'Sitios', 'route' => 'admin.sites.index', 'match' => ['admin.sites.*']],
+                        ['label' => 'Hostings', 'route' => 'admin.instances.index', 'match' => ['admin.instances.*']],
+                        ['label' => 'Dominios', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*', 'admin.sites.*']],
                     ],
                 ],
             ],
@@ -40,12 +41,23 @@
                 ['label' => 'Crear', 'route' => 'admin.clients.create', 'icon' => 'ki-plus'],
             ],
         ],
+        'hostings' => [
+            'match' => ['admin.instances.*'],
+            'title' => 'Hostings',
+            'items' => [
+                ['label' => 'Todos los hostings', 'route' => 'admin.instances.index', 'match' => ['admin.instances.*']],
+                ['label' => 'Dominios y sitios', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*']],
+                ['label' => 'Planes', 'route' => 'admin.plans.index', 'match' => ['admin.plans.*']],
+                ['label' => 'Pagos', 'route' => 'admin.orders.index', 'match' => ['admin.orders.*']],
+            ],
+            'actions' => [],
+        ],
         'plans' => [
             'match' => ['admin.plans.*', 'admin.orders.*'],
             'title' => 'Planes',
             'items' => [
                 ['label' => 'Paquetes', 'route' => 'admin.plans.index', 'match' => ['admin.plans.index']],
-                ['label' => 'Contrataciones', 'route' => 'admin.orders.index', 'match' => ['admin.orders.*']],
+                ['label' => 'Pagos', 'route' => 'admin.orders.index', 'match' => ['admin.orders.*']],
                 [
                     'label' => 'Gestion',
                     'match' => ['admin.plans.create', 'admin.plans.edit'],
@@ -102,10 +114,10 @@
             ],
         ],
         'sites' => [
-            'match' => ['admin.sites.*', 'admin.files.*'],
-            'title' => 'Sitios',
+            'match' => ['admin.files.*'],
+            'title' => 'Archivos',
             'items' => [
-                ['label' => 'Todos los sitios', 'route' => 'admin.sites.index', 'match' => ['admin.sites.*']],
+                ['label' => 'Todos los dominios', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*']],
                 [
                     'label' => 'Herramientas',
                     'match' => ['admin.files.*'],
@@ -127,10 +139,10 @@
             ],
         ],
         'dns' => [
-            'match' => ['admin.domains.*', 'admin.dns.*'],
+            'match' => ['admin.domains.*', 'admin.sites.*', 'admin.dns.*'],
             'title' => 'Dominios',
             'items' => [
-                ['label' => 'Portafolio', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*']],
+                ['label' => 'Inventario', 'route' => 'admin.domains.index', 'match' => ['admin.domains.*', 'admin.sites.*']],
                 [
                     'label' => 'DNS',
                     'match' => ['admin.dns.*'],

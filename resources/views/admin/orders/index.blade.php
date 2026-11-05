@@ -1,11 +1,31 @@
 @extends('layouts.admin')
 
 @section('content')
-<div class="flex grow rounded-b-xl bg-background border-x border-b border-input lg:mt-(--navbar-height) mx-5 lg:ms-(--sidebar-width) mb-5"><div class="flex flex-col grow kt-scrollable-y pt-7"><main class="grow"><div class="kt-container-fluid">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-7.5"><div><h1 class="text-2xl font-semibold text-mono">Contrataciones</h1><p class="text-sm text-secondary-foreground mt-1">El servicio se habilita al contratar; aquí se controla la boleta por separado.</p></div><div class="flex gap-2"><a class="kt-btn {{ request('payment_status') ? 'kt-btn-outline' : 'kt-btn-primary' }}" href="{{ route('admin.orders.index') }}">Todas</a><a class="kt-btn {{ request('payment_status') === 'pending' ? 'kt-btn-primary' : 'kt-btn-outline' }}" href="{{ route('admin.orders.index', ['payment_status' => 'pending']) }}">Pagos pendientes</a></div></div>
-    <div class="kt-card"><div class="kt-card-table kt-scrollable-x-auto"><table class="kt-table align-middle text-sm"><thead><tr><th>Boleta</th><th>Cliente</th><th>Plan</th><th>Total</th><th>Vence</th><th>Servicio</th><th>Pago</th><th></th></tr></thead><tbody>
-    @forelse($orders as $order)<tr><td class="font-medium text-mono">{{ $order->number }}</td><td><div class="font-medium">{{ $order->tenant->name }}</div><div class="text-xs text-secondary-foreground">{{ $order->tenant->user?->email }}</div></td><td>{{ $order->plan->name }}</td><td>{{ $order->currency }} {{ number_format((float) $order->amount, 2) }}</td><td>{{ $order->payment_due_at->format('d/m/Y') }}</td><td><span class="kt-badge kt-badge-outline {{ $order->status === 'active' ? 'kt-badge-success' : '' }}">{{ ucfirst($order->status) }}</span></td><td><span class="kt-badge kt-badge-outline {{ $order->payment_status === 'paid' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ $order->payment_status === 'paid' ? 'Pagado' : 'Pendiente' }}</span></td><td class="text-right"><a class="kt-btn kt-btn-sm kt-btn-outline" href="{{ route('admin.orders.show', $order) }}">Gestionar</a></td></tr>
-    @empty<tr><td colspan="8" class="py-10 text-center text-secondary-foreground">No hay contrataciones todavía.</td></tr>@endforelse
-    </tbody></table></div></div><div class="mt-5">{{ $orders->links() }}</div>
-</div></main>@include('layouts.partials.admin.footer')</div></div>
+<div class="flex grow rounded-b-xl border-x border-b border-input bg-background mx-5 mb-5 lg:ms-(--sidebar-width) lg:mt-(--navbar-height)">
+    <div class="flex grow flex-col kt-scrollable-y-auto p-5 lg:p-8">
+        <main class="mx-auto flex w-full max-w-7xl grow flex-col gap-5" role="content">
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div><div class="text-sm text-secondary-foreground">Administración / Finanzas</div><h1 class="mt-1 text-2xl font-semibold text-mono">Pagos</h1><p class="mt-1 text-sm text-secondary-foreground">Boletas e historial financiero de todos los hostings.</p></div>
+                <div class="flex gap-2"><a class="kt-btn {{ request('payment_status') ? 'kt-btn-outline' : 'kt-btn-primary' }}" href="{{ route('admin.orders.index') }}">Todos</a><a class="kt-btn {{ request('payment_status') === 'pending' ? 'kt-btn-primary' : 'kt-btn-outline' }}" href="{{ route('admin.orders.index', ['payment_status' => 'pending']) }}">Pendientes</a></div>
+            </div>
+            <div class="kt-card">
+                <div class="kt-card-header"><div><h2 class="kt-card-title">Historial de boletas</h2><p class="mt-1 text-xs text-secondary-foreground">La operación del servicio se administra desde Hostings; aquí solo se controla el pago.</p></div><span class="kt-badge kt-badge-outline">{{ $orders->total() }} registros</span></div>
+                <div class="overflow-x-auto"><table class="kt-table min-w-[980px]"><thead><tr><th>Boleta</th><th>Cliente</th><th>Hosting</th><th>Plan</th><th>Total</th><th>Vence</th><th>Pago</th><th></th></tr></thead><tbody>
+                    @forelse($orders as $order)
+                        <tr>
+                            <td class="font-medium text-mono">{{ $order->number }}</td>
+                            <td><div class="font-medium">{{ $order->tenant->name }}</div><div class="text-xs text-secondary-foreground">{{ $order->tenant->user?->email }}</div></td>
+                            <td>@if($order->hostingAccount?->hostInstance)<a class="font-medium text-primary hover:underline" href="{{ route('admin.instances.show', $order->hostingAccount->hostInstance) }}">{{ $order->hostingAccount->name }}</a>@else<span class="text-secondary-foreground">Sin instancia</span>@endif</td>
+                            <td>{{ $order->plan->name }}</td><td class="font-medium text-mono">{{ $order->currency }} {{ number_format((float) $order->amount, 2) }}</td><td>{{ $order->payment_due_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td><span class="kt-badge kt-badge-outline {{ $order->payment_status === 'paid' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ $order->payment_status === 'paid' ? 'Pagado' : 'Pendiente' }}</span></td>
+                            <td class="text-right"><a class="kt-btn kt-btn-sm kt-btn-outline" href="{{ route('admin.orders.show', $order) }}">Ver boleta</a></td>
+                        </tr>
+                    @empty<tr><td colspan="8" class="py-12 text-center text-secondary-foreground">No hay pagos registrados todavía.</td></tr>@endforelse
+                </tbody></table></div>
+            </div>
+            <div>{{ $orders->links() }}</div>
+        </main>
+        @include('layouts.partials.admin.footer')
+    </div>
+</div>
 @endsection

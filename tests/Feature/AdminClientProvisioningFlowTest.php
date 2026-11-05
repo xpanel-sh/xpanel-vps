@@ -39,20 +39,19 @@ class AdminClientProvisioningFlowTest extends TestCase
 
         $response = $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
             'company_name' => 'Cliente Uno',
-            'domain' => 'cliente.example.com',
         ]);
 
         $tenant = Tenant::sole();
         $response->assertRedirect(route('admin.clients.show', $tenant));
         $this->assertNotNull($tenant->user_id);
         $this->assertFalse($tenant->access_ready);
+        $this->assertNull($tenant->domain);
         $this->assertStringEndsWith('@xpanel.invalid', $tenant->user->email);
         $this->assertDatabaseCount('hosting_accounts', 0);
         $this->assertDatabaseCount('host_instances', 0);
 
         $this->actingAs($admin, 'admin')->put(route('admin.clients.update', $tenant), [
             'company_name' => 'Cliente Uno Editado',
-            'domain' => 'cliente-editado.example.com',
             'status' => 'active',
         ])->assertRedirect(route('admin.clients.show', $tenant));
         $this->assertSame('Cliente Uno Editado', $tenant->fresh()->name);

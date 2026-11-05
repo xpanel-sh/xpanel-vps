@@ -100,6 +100,7 @@ Route::group(['middleware' => ['web']], function () {
         });
 
         Route::get('/admin/instances', [\App\Http\Controllers\Admin\HostInstanceController::class, 'index'])->name('admin.instances.index');
+        Route::get('/admin/instances/{instance}', [\App\Http\Controllers\Admin\HostInstanceController::class, 'show'])->name('admin.instances.show');
         Route::get('/admin/instances/{instance}/access', [\App\Http\Controllers\Admin\HostInstanceController::class, 'access'])->name('admin.instances.access');
         Route::post('/admin/instances/{instance}/apply', [\App\Http\Controllers\Admin\HostInstanceController::class, 'apply'])->name('admin.instances.apply');
         Route::post('/admin/instances/{instance}/update', [\App\Http\Controllers\Admin\HostInstanceController::class, 'update'])->name('admin.instances.update');

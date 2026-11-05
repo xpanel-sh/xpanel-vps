@@ -17,7 +17,16 @@ class TenantController extends Controller
 {
     public function index()
     {
-        $tenants = Tenant::with(['sites', 'user'])->withCount('hostingAccounts')->latest()->paginate(10);
+        $tenants = Tenant::with('user')
+            ->withCount([
+                'hostingAccounts',
+                'sites',
+                'brokerResources as managed_sites_count' => fn ($query) => $query
+                    ->where('type', 'site-domain')
+                    ->where('name', 'not like', '*.%'),
+            ])
+            ->latest()
+            ->paginate(10);
 
         return view('admin.clients.index', compact('tenants'));
     }
@@ -31,7 +40,6 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
-            'domain' => ['required', 'string', 'max:255', 'unique:tenants,domain', 'regex:/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
         ]);
 
         try {
@@ -45,14 +53,14 @@ class TenantController extends Controller
 
                 return Tenant::create([
                     'name' => $validated['company_name'],
-                    'domain' => strtolower($validated['domain']),
+                    'domain' => null,
                     'user_id' => $placeholder->id,
                     'access_ready' => false,
                     'status' => 'active',
                 ]);
             });
         } catch (\Throwable $e) {
-            Log::warning('Tenant creation failed', ['domain' => $request->input('domain'), 'exception' => $e]);
+            Log::warning('Tenant creation failed', ['company' => $request->input('company_name'), 'exception' => $e]);
 
             return back()->withErrors(['error' => 'Error al crear el cliente. Revisa los datos e intenta nuevamente.'])->withInput();
         }
@@ -66,6 +74,9 @@ class TenantController extends Controller
         $tenant->load([
             'user', 'plan', 'hostingAccounts.plan',
             'hostingAccounts.hostInstance.brokerOperations' => fn ($query) => $query->limit(10),
+            'hostingAccounts.hostInstance.brokerResources' => fn ($query) => $query
+                ->where('type', 'site-domain')
+                ->where('name', 'not like', '*.%'),
             'sites' => fn ($query) => $query->latest(),
         ]);
 
@@ -85,7 +96,6 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'company_name' => ['required', 'string', 'max:255'],
-            'domain' => ['required', 'string', 'max:255', 'unique:tenants,domain,'.$tenant->id, 'regex:/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
             'status' => ['required', 'in:active,suspended'],
             'owner_name' => [$tenant->access_ready ? 'required' : 'nullable', 'string', 'max:255'],
             'owner_email' => [$tenant->access_ready ? 'required' : 'nullable', 'email', 'unique:users,email,'.$tenant->user_id],
@@ -97,7 +107,6 @@ class TenantController extends Controller
             $oldStatus = $tenant->status;
             $tenant->update([
                 'name' => $validated['company_name'],
-                'domain' => strtolower($validated['domain']),
             ]);
 
             if ($tenant->access_ready && $tenant->user) {

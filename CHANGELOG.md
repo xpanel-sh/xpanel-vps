@@ -8,12 +8,16 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Ficha unificada por hosting con límites y consumo en vivo, dominios registrados, historial de pagos y actividad técnica reciente.
+- Inventario global de dominios y sitios que reúne recursos de todas las instancias Host, sitios nativos y dominios DNS sin duplicarlos.
 - El instalador prepara cuotas de usuario en ext4, muestra y guarda las credenciales iniciales antes de ofrecer un reinicio opcional y comprueba la activación al arrancar mediante un servicio de una sola vez. El estado y las credenciales root-only se consultan con `xpanel-install-status.sh` tras reconectar.
 - Inventario de espacio por cuenta (`xpanel-account-storage.sh`): distingue hogar, datos de instancia, bases MariaDB, correo y copias sin sumarlos dos veces. Es medición, no una cuota dura única.
 - El broker permite medir recursos únicamente de sitios y bases registrados en la SQLite privada de su propia instancia. Cada cuenta tiene su propia configuración Nginx de velocidad; al superar el umbral mensual, Host solicita 128 KiB/s por petición para sus sitios.
 
 ### Cambiado
 
+- Los clientes comerciales ya no requieren dominio propio. Sitios se integra en Dominios, Instancias pasa a llamarse Hostings y Contrataciones se presenta como el historial financiero de Pagos.
+- Se renovaron las tablas de clientes, hostings, dominios y pagos con jerarquía visual, estados y acciones coherentes con el resto del panel.
 - La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas. En instalaciones nuevas, el escaneo de cuota intenta remontar la raíz en solo lectura y falla de forma segura si no puede, sin usar `quotacheck -m` ni `-M`.
 - Las copias nuevas de Host administrado usan una ruta bajo la instancia para que el inventario pueda atribuirlas a la cuenta. Se corrige además la validación de UUID completo al reconciliar bases de una cuota por proyecto.
 

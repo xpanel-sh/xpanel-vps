@@ -21,12 +21,14 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[760px] text-left text-sm">
+                    <table class="w-full min-w-[960px] text-left text-sm">
                         <thead class="border-b border-border bg-muted/30 text-xs text-secondary-foreground">
                             <tr>
-                                <th class="px-5 py-3 font-medium">Cliente y panel</th>
-                                <th class="px-5 py-3 font-medium">Versión</th>
-                                <th class="px-5 py-3 font-medium">PHP</th>
+                                <th class="px-5 py-3 font-medium">Hosting</th>
+                                <th class="px-5 py-3 font-medium">Cliente</th>
+                                <th class="px-5 py-3 font-medium">Plan</th>
+                                <th class="px-5 py-3 font-medium">Sitios</th>
+                                <th class="px-5 py-3 font-medium">Pago</th>
                                 <th class="px-5 py-3 font-medium">Estado</th>
                                 <th class="px-5 py-3 text-right font-medium">Acciones</th>
                             </tr>
@@ -35,14 +37,13 @@
                             @forelse($instances as $instance)
                                 <tr>
                                     <td class="px-5 py-4">
-                                        <div class="font-semibold text-mono">{{ $instance->tenant->name }}</div>
+                                        <a class="font-semibold text-mono hover:text-primary" href="{{ route('admin.instances.show', $instance) }}">{{ $instance->hostingAccount?->name ?? 'Hosting' }}</a>
                                         <div class="mt-1 truncate text-xs text-secondary-foreground">{{ $instance->hostingAccount?->custom_panel_domain ?: $instance->panel_domain }}</div>
                                     </td>
-                                    <td class="px-5 py-4">
-                                        <div class="text-mono">{{ $instance->version ?: 'Sin versión' }}</div>
-                                        <div class="mt-1 text-xs text-secondary-foreground">{{ $instance->update_channel }}</div>
-                                    </td>
-                                    <td class="px-5 py-4 text-mono">{{ $instance->php_version }}</td>
+                                    <td class="px-5 py-4"><div class="font-medium">{{ $instance->tenant->name }}</div><div class="mt-1 text-xs text-secondary-foreground">{{ $instance->tenant->user?->email }}</div></td>
+                                    <td class="px-5 py-4"><div class="font-medium text-mono">{{ $instance->hostingAccount?->plan?->name ?? 'Sin plan' }}</div><div class="mt-1 text-xs text-secondary-foreground">{{ $instance->version ?: 'Versión pendiente' }}</div></td>
+                                    <td class="px-5 py-4 text-mono">{{ $instance->sites_count }}</td>
+                                    <td class="px-5 py-4"><span class="kt-badge kt-badge-outline {{ $instance->hostingAccount?->order?->payment_status === 'paid' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ $instance->hostingAccount?->order?->payment_status === 'paid' ? 'Pagado' : 'Pendiente' }}</span></td>
                                     <td class="px-5 py-4">
                                         <span class="kt-badge kt-badge-outline {{ $instance->status === 'active' ? 'kt-badge-success' : ($instance->status === 'suspended' ? 'kt-badge-destructive' : 'kt-badge-secondary') }}">
                                             {{ match($instance->status) { 'active' => 'Activo', 'suspended' => 'Suspendido', 'staged' => 'Preparando', default => ucfirst($instance->status) } }}
@@ -50,17 +51,17 @@
                                     </td>
                                     <td class="px-5 py-4">
                                         <div class="flex justify-end gap-2">
+                                            <a class="kt-btn kt-btn-sm kt-btn-outline" href="{{ route('admin.instances.show', $instance) }}"><i class="ki-filled ki-chart-line-up"></i>Detalle</a>
                                             @if($instance->status === 'active')
-                                                <a class="kt-btn kt-btn-sm kt-btn-outline" href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir panel de {{ $instance->tenant->name }} en otra pestaña">
+                                                <a class="kt-btn kt-btn-sm kt-btn-ghost" href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir panel de {{ $instance->tenant->name }} en otra pestaña">
                                                     <i class="ki-filled ki-exit-right-corner"></i>Abrir panel
                                                 </a>
                                             @endif
-                                            <a class="kt-btn kt-btn-sm kt-btn-ghost" href="{{ route('admin.clients.show', $instance->tenant) }}">Gestionar</a>
                                         </div>
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="px-5 py-12 text-center text-sm text-secondary-foreground">Aún no hay hostings. Crea una cuenta desde Clientes.</td></tr>
+                                <tr><td colspan="8" class="px-5 py-12 text-center text-sm text-secondary-foreground">Aún no hay hostings. Crea una cuenta desde Clientes.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

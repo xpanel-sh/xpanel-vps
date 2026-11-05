@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\HostInstance;
 use App\Models\HostingAccount;
+use App\Models\HostInstance;
 use App\Models\Tenant;
-use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
-use App\Services\HostUpdateCoordinator;
+use App\Services\HostInstanceMetrics;
+use App\Services\HostInstanceProvisioner;
 use App\Services\HostSsoLink;
+use App\Services\HostUpdateCoordinator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,9 +22,38 @@ class HostInstanceController extends Controller
 {
     public function index()
     {
-        $instances = HostInstance::with(['tenant.user', 'hostingAccount.plan'])->latest()->paginate(20);
+        $instances = HostInstance::with(['tenant.user', 'hostingAccount.plan', 'hostingAccount.order'])
+            ->withCount(['brokerResources as sites_count' => fn ($query) => $query
+                ->where('type', 'site-domain')
+                ->where('name', 'not like', '*.%')])
+            ->latest()
+            ->paginate(20);
 
         return view('admin.instances.index', compact('instances'));
+    }
+
+    public function show(HostInstance $instance, HostInstanceMetrics $metrics)
+    {
+        $instance->load([
+            'tenant.user',
+            'hostingAccount.plan',
+            'hostingAccount.order',
+            'brokerOperations' => fn ($query) => $query->limit(20),
+            'brokerResources' => fn ($query) => $query
+                ->where('type', 'site-domain')
+                ->where('name', 'not like', '*.%')
+                ->orderBy('name'),
+        ]);
+
+        $orders = $instance->hosting_account_id
+            ? \App\Models\PlanOrder::query()->where('hosting_account_id', $instance->hosting_account_id)->latest()->get()
+            : collect();
+
+        return view('admin.instances.show', [
+            'instance' => $instance,
+            'metrics' => $metrics->for($instance),
+            'orders' => $orders,
+        ]);
     }
 
     public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner)
@@ -113,8 +143,7 @@ class HostInstanceController extends Controller
         HostInstance $instance,
         HostInstanceCertificateProvisioner $certificates,
         HostInstanceProvisioner $provisioner,
-    )
-    {
+    ) {
         $issued = $certificates->issue($instance->load('tenant.user'));
         if ($issued) {
             $provisioner->apply($instance->fresh());

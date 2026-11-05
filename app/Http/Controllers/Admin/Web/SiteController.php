@@ -3,15 +3,12 @@
 namespace App\Http\Controllers\Admin\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\Site;
+use Illuminate\Http\RedirectResponse;
 
 class SiteController extends Controller
 {
-    public function index()
+    public function index(): RedirectResponse
     {
-        // Admin sees ALL sites
-        $sites = Site::with('tenant')->latest()->paginate(20);
-
-        return view('admin.web.index', compact('sites'));
+        return redirect()->route('admin.domains.index');
     }
 }

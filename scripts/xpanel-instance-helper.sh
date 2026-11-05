@@ -74,6 +74,28 @@ if [[ "${1:-}" == "host-update-start" ]]; then
     exit 0
 fi
 
+if [[ "${1:-}" == "instance-metrics" ]]; then
+    [[ $# -eq 3 ]] || fail "instance-metrics expects UUID and system user"
+    uuid="$2"; user="$3"
+    validate_uuid "$uuid"
+    uuid_hex="${uuid//-/}"
+    [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
+    instance_root="/var/lib/xpanel-vps/instances/$uuid"
+    account_home="/home/$user"
+    [[ -d "$instance_root" && ! -L "$instance_root" ]] || fail "instance root is unavailable"
+    [[ -d "$account_home" && ! -L "$account_home" ]] || fail "account home is unavailable"
+    slice="xpanel-instance-$uuid.slice"
+    memory="$(systemctl show "$slice" --property=MemoryCurrent --value 2>/dev/null || true)"
+    tasks="$(systemctl show "$slice" --property=TasksCurrent --value 2>/dev/null || true)"
+    cpu="$(systemctl show "$slice" --property=CPUUsageNSec --value 2>/dev/null || true)"
+    [[ "$memory" =~ ^[0-9]+$ ]] || memory=0
+    [[ "$tasks" =~ ^[0-9]+$ ]] || tasks=0
+    [[ "$cpu" =~ ^[0-9]+$ ]] || cpu=0
+    disk="$(du -sb --one-file-system "$account_home" "$instance_root" 2>/dev/null | awk '{total += $1} END {print total + 0}')"
+    printf 'memory_bytes=%s\ntasks=%s\ncpu_nsec=%s\ndisk_bytes=%s\n' "$memory" "$tasks" "$cpu" "$disk"
+    exit 0
+fi
+
 write_slice_limits() {
     local uuid="$1" memory_high="$2" memory_max="$3" swap_max="$4" cpu_percent="$5" tasks_max="$6"
     validate_uuid "$uuid"

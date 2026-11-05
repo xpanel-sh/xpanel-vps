@@ -11,7 +11,7 @@ class PlanOrderController extends Controller
     public function index(Request $request)
     {
         $orders = PlanOrder::query()
-            ->with(['tenant.user', 'plan', 'activator', 'paymentConfirmer'])
+            ->with(['tenant.user', 'plan', 'activator', 'paymentConfirmer', 'hostingAccount.hostInstance'])
             ->when($request->filled('payment_status'), fn ($query) => $query->where('payment_status', (string) $request->input('payment_status')))
             ->latest()
             ->paginate(15)
@@ -22,7 +22,7 @@ class PlanOrderController extends Controller
 
     public function show(PlanOrder $order)
     {
-        $order->load(['tenant.user', 'plan', 'activator', 'paymentConfirmer']);
+        $order->load(['tenant.user', 'plan', 'activator', 'paymentConfirmer', 'hostingAccount.hostInstance']);
 
         return view('admin.orders.show', compact('order'));
     }

@@ -44,10 +44,6 @@
                         <label class="kt-form-label max-w-56">Empresa</label>
                         <input class="kt-input" type="text" name="company_name" value="{{ old('company_name') }}" placeholder="Mi Cliente S.L." required>
                     </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Dominio de referencia</label>
-                        <input class="kt-input" type="text" name="domain" value="{{ old('domain') }}" placeholder="cliente.com" required>
-                    </div>
                     <div class="flex justify-end gap-2.5">
                         <a href="{{ route('admin.clients.index') }}" class="kt-btn kt-btn-outline">Cancelar</a>
                         <button type="submit" class="kt-btn kt-btn-primary">Crear cliente</button>

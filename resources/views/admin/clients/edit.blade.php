@@ -31,10 +31,6 @@
                         <input class="kt-input" type="text" name="company_name" value="{{ old('company_name', $tenant->name) }}" required>
                     </div>
                     <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Dominio principal</label>
-                        <input class="kt-input" type="text" name="domain" value="{{ old('domain', $tenant->domain) }}" required>
-                    </div>
-                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
                         <label class="kt-form-label max-w-56">Estado</label>
                         <select name="status" class="kt-select">
                             <option value="active" @selected(old('status', $tenant->status) === 'active')>Activo</option>
