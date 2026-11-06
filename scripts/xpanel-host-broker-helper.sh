@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -61,6 +61,11 @@ export XPANEL_INSTANCE_ROOT="$INSTANCE_ROOT"
 export XPANEL_SITE_USER="$PANEL_USER"
 export XPANEL_SITE_GROUP="$PANEL_USER"
 export XPANEL_PROJECT_QUOTA_HELPER="$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh"
+
+if [[ "$ACTION" == "mail-sync" || "$ACTION" == "mail-outbound-sync" ]]; then
+  [[ $# -eq 0 ]] || fail "invalid mail synchronization arguments"
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" "${ACTION#mail-}"
+fi
 
 INSTANCE_HEX="${UUID//-/}"
 if [[ "$ACTION" == "apply" || "$ACTION" == "remove" || "$ACTION" == "site-restart" ]]; then
@@ -167,6 +172,14 @@ if [[ "$ACTION" == "access-stage-prepare" ]]; then
     chown "$PANEL_USER:$PANEL_USER" "$access_path"
     chmod 0750 "$access_path"
   done
+  exit 0
+fi
+
+if [[ "$ACTION" == database-create || "$ACTION" == database-remove ]]; then
+  bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" "$ACTION" "$@"
+  marker_root="/etc/xpanel-vps/instances/$UUID"
+  if [[ -f "$marker_root/project-quota-applied" ]]; then project_id="$(<"$marker_root/project-quota-applied")"; else project_id=100000; fi
+  bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" reconcile-total "$UUID" "$PANEL_USER" "$project_id" >/dev/null
   exit 0
 fi
 

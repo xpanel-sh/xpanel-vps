@@ -20,7 +20,7 @@ for path in "$account_home" "$instance_root"; do
     [[ -d "$path" && ! -L "$path" ]] || fail "missing or unsafe account path: $path"
     [[ "$(stat -c %U -- "$path")" == "$account_user" ]] || fail "unexpected account path owner: $path"
 done
-[[ -f "$catalog" && ! -L "$catalog" ]] || fail "Host database catalog is unavailable"
+[[ ! -e "$catalog" || -f "$catalog" && ! -L "$catalog" ]] || fail "Host database catalog is unsafe"
 
 bytes_for() {
     local path="$1" result
@@ -42,17 +42,24 @@ legacy_backup_bytes="$(bytes_for "$instance_root/storage/app/backups/sites")"
 backup_bytes=$((backup_bytes + legacy_backup_bytes))
 database_bytes=0
 
+database_names=""
+if [[ -f "$catalog" ]]; then
 database_names="$(php -r '
     $db = new PDO("sqlite:".$argv[1], null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
     $db->exec("PRAGMA query_only = ON");
     if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
     foreach ($db->query("SELECT DISTINCT name FROM site_databases WHERE status = \x27active\x27") as $row) echo $row["name"]."\n";
 ' "$catalog")" || fail "could not read Host database catalog"
+fi
 while IFS= read -r database; do
     [[ -n "$database" ]] || continue
     [[ "$database" =~ ^xp_${uuid_hex:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance: $database"
     path="/var/lib/mysql/$database"
-    [[ -d "$path" && ! -L "$path" ]] || fail "database directory is unavailable: $database"
+    [[ ! -L "$path" ]] || fail "database directory is unsafe: $database"
+    # During a successful delete the SQLite row is removed immediately after
+    # the broker returns, so a short interval with no MariaDB directory is
+    # expected and contributes zero bytes.
+    [[ -d "$path" ]] || continue
     value="$(bytes_for "$path")"
     database_bytes=$((database_bytes + value))
 done <<< "$database_names"

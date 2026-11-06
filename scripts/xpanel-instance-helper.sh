@@ -14,6 +14,8 @@ system_revision() {
     sha256sum "$app_root/scripts/xpanel-instance-helper.sh" \
         "$app_root/scripts/xpanel-project-quota.sh" \
         "$app_root/scripts/xpanel-user-quota.sh" \
+        "$app_root/scripts/xpanel-account-storage.sh" \
+        "$app_root/scripts/xpanel-mail-reconcile.sh" \
         "$app_root/scripts/xpanel-traffic-rate.sh" \
         "$app_root/app/Services/HostInstanceConfigGenerator.php" | sha256sum | awk '{print $1}'
 }
@@ -132,7 +134,9 @@ if [[ "${1:-}" == "instance-metrics" ]]; then
     [[ "$memory" =~ ^[0-9]+$ ]] || memory=0
     [[ "$tasks" =~ ^[0-9]+$ ]] || tasks=0
     [[ "$cpu" =~ ^[0-9]+$ ]] || cpu=0
-    disk="$(du -sb --one-file-system "$account_home" "$instance_root" 2>/dev/null | awk '{total += $1} END {print total + 0}')"
+    storage="$(bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-account-storage.sh" usage "$uuid")"
+    disk="$(awk -F= '$1 == "known_total_bytes" { print $2 }' <<< "$storage")"
+    [[ "$disk" =~ ^[0-9]+$ ]] || fail "combined storage measurement is unavailable"
     printf 'memory_bytes=%s\ntasks=%s\ncpu_nsec=%s\ndisk_bytes=%s\n' "$memory" "$tasks" "$cpu" "$disk"
     exit 0
 fi
@@ -188,6 +192,11 @@ fi
 if [[ "$ACTION" == "set-disk-quota" ]]; then
     [[ $# -eq 5 ]] || fail "set-disk-quota expects 5 arguments"
     exec "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" apply "$@"
+fi
+
+if [[ "$ACTION" == "reconcile-disk-quota" ]]; then
+    [[ $# -eq 3 ]] || fail "reconcile-disk-quota expects UUID, system user and project ID"
+    exec "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" reconcile-total "$@"
 fi
 
 if [[ "$ACTION" == "set-status" ]]; then
@@ -490,6 +499,9 @@ if [[ "$ACTION" == "purge" ]]; then
     rm -f -- "/var/lib/xpanel-vps/restored/$UUID"
     printf 'uuid=%s\narchive_sha256=%s\npurged_at=%s\n' "$UUID" "$ARCHIVE_SHA256" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$COMPLETED_MARKER"
     chmod 0600 "$COMPLETED_MARKER"
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" sync
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" outbound-sync
+    sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:mail-sync --mark-active --no-interaction
     rm -rf -- "$PURGE_STATE"
     printf 'purged=%s\n' "$UUID"
     exit 0
@@ -660,6 +672,9 @@ if [[ "$ACTION" == "restore-sync" ]]; then
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:sites-sync --no-interaction
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:access-sync --no-interaction
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:ssl-sync --no-interaction
+    sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:mail-sync --stage-only --no-interaction
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" sync
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" outbound-sync
     printf 'synchronized=%s\n' "$UUID"
     exit 0
 fi

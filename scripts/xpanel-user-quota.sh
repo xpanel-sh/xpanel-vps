@@ -30,6 +30,28 @@ quota_mount() {
 
 marker_for() { printf '/etc/xpanel-vps/instances/%s/user-quota-applied\n' "$1"; }
 
+reconcile_total() {
+    local uuid="$1" user="$2" marker storage_mib inode_limit mountpoint usage external_bytes hard_kib
+    validate_account "$uuid" "$user"
+    marker="$(marker_for "$uuid")"
+    [[ -f "$marker" && ! -L "$marker" ]] || fail "user quota has not been applied"
+    IFS=: read -r marker_user storage_mib inode_limit < "$marker"
+    [[ "$marker_user" == "$user" && "$storage_mib" =~ ^[0-9]+$ && "$inode_limit" =~ ^[0-9]+$ ]] || fail "invalid user quota marker"
+    usage="$(bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-account-storage.sh" usage "$uuid")"
+    external_bytes="$(awk -F= '/^(database_bytes|mail_bytes)=/ { total += $2 } END { print total + 0 }' <<< "$usage")"
+    [[ "$external_bytes" =~ ^[0-9]+$ ]] || fail "invalid external storage measurement"
+    # User quotas account for files owned by the hosting UID. MariaDB and
+    # Dovecot deliberately use mysql/vmail, so reserve their measured bytes
+    # from the plan before setting the UID hard limit. If they consume the
+    # whole plan, a 1 KiB ceiling leaves the UID immediately over quota.
+    hard_kib=$((storage_mib * 1024 - (external_bytes + 1023) / 1024))
+    (( hard_kib >= 1 )) || hard_kib=1
+    mountpoint="$(quota_mount)"
+    setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit" "$mountpoint"
+    printf 'mode=user-controlled\nplan_bytes=%s\nexternal_bytes=%s\nuser_hard_kib=%s\n' \
+        "$((storage_mib * 1024 * 1024))" "$external_bytes" "$hard_kib"
+}
+
 case "${1:-}" in
     status)
         [[ $# -eq 1 ]] || fail "status takes no arguments"
@@ -57,6 +79,7 @@ case "${1:-}" in
         setquota -u "$user" 0 "$hard_kib" 0 "$inode_limit" "$mountpoint"
         printf '%s:%s:%s\n' "$user" "$storage_mib" "$inode_limit" > "$marker"
         chmod 0600 "$marker"
+        reconcile_total "$uuid" "$user" >/dev/null
         echo user-quota-applied
         ;;
     verify)
@@ -84,6 +107,10 @@ case "${1:-}" in
         [[ ! -L "$marker" ]] || fail "unsafe user quota marker"
         rm -f -- "$marker"
         echo user-quota-removed
+        ;;
+    reconcile-total)
+        [[ $# -eq 4 ]] || fail "reconcile-total expects UUID, system user and project ID"
+        reconcile_total "$2" "$3"
         ;;
     tag-database|check-databases|reconcile-databases)
         if [[ "$1" == tag-database ]]; then

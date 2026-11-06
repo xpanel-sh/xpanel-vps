@@ -35,6 +35,7 @@ class HostBrokerActionPolicy
             'access-remove' => $this->accessRemoval($instance, $arguments),
             'access-stage-prepare' => $this->accessRemoval($instance, $arguments),
             'access-sync' => $this->accessSync($instance, $arguments),
+            'mail-sync', 'mail-outbound-sync' => $this->noArguments($arguments, 'La sincronización de correo'),
             'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
@@ -45,6 +46,14 @@ class HostBrokerActionPolicy
     {
         if ($arguments !== []) {
             throw new RuntimeException('La actualización de Host no acepta argumentos.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function noArguments(array $arguments, string $label): void
+    {
+        if ($arguments !== []) {
+            throw new RuntimeException($label.' no acepta argumentos.');
         }
     }
 

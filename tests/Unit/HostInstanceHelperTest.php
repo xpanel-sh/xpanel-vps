@@ -67,5 +67,21 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString('CREATE OR REPLACE USER', $helper);
         $this->assertStringContainsString('RESTORED_ROOT="/var/lib/xpanel-vps/restored"', $helper);
         $this->assertStringContainsString('restore-complete', $helper);
+        $this->assertStringContainsString('xpanel:mail-sync --stage-only', $helper);
+        $this->assertStringContainsString('xpanel-mail-reconcile.sh" sync', $helper);
+        $this->assertStringContainsString('xpanel-mail-reconcile.sh" outbound-sync', $helper);
+    }
+
+    public function test_managed_mail_reconciliation_aggregates_all_instance_maps(): void
+    {
+        $reconciler = file_get_contents(base_path('scripts/xpanel-mail-reconcile.sh'));
+        $broker = file_get_contents(base_path('scripts/xpanel-host-broker-helper.sh'));
+
+        $this->assertStringContainsString('for root in "$instances"/*', $reconciler);
+        $this->assertStringContainsString('mail domain $domain belongs to more than one instance', $reconciler);
+        $this->assertStringContainsString('mailbox path escaped instance $uuid', $reconciler);
+        $this->assertStringContainsString('duplicate identity in aggregated $map map', $reconciler);
+        $this->assertStringContainsString('XPANEL_MANAGED_MAIL_SYNC=1', $reconciler);
+        $this->assertStringContainsString('mail-sync|mail-outbound-sync', $broker);
     }
 }

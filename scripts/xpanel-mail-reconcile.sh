@@ -21,7 +21,7 @@ shopt -s nullglob
 for root in "$instances"/*; do
   uuid="${root##*/}"
   [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || continue
-  [[ ! -f "/var/lib/xpanel-vps/purged/$uuid" ]] || continue
+  [[ ! -f "/var/lib/xpanel-vps/purged/$uuid" || -f "/var/lib/xpanel-vps/restore-state/$uuid/extracted" ]] || continue
   source="$root/storage/app/mail"
   [[ -d "$source" && ! -L "$source" ]] || continue
   user="xhi${uuid//-/}"; user="${user:0:15}"
@@ -31,6 +31,11 @@ for root in "$instances"/*; do
     [[ -f "$source/$name" && ! -L "$source/$name" ]] || fail "instance $uuid is missing staged mail file $name"
     cat -- "$source/$name" >> "$stage/$name"
   done
+  while IFS=: read -r email _ _ _ _ home _; do
+    [[ "$email" =~ ^[A-Za-z0-9._-]+@[a-z0-9.-]+$ ]] || fail "invalid mailbox identity in instance $uuid"
+    [[ "$home" == "/home/$user/mail/"* && "$home" != *".."* && "$home" != *'\\'* ]] \
+      || fail "mailbox path escaped instance $uuid"
+  done < "$source/users"
   for name in sender-transport dedicated-ips; do
     [[ ! -e "$source/$name" || -f "$source/$name" && ! -L "$source/$name" ]] || fail "unsafe outbound mail stage for $uuid"
     [[ -f "$source/$name" ]] && cat -- "$source/$name" >> "$stage/$name"
@@ -49,6 +54,11 @@ for root in "$instances"/*; do
   done < "$source/domains"
 done
 
+for map in domains mailboxes users sender-login; do
+  duplicate="$(sed '/^[[:space:]]*$/d' "$stage/$map" | cut -d' ' -f1 | cut -d: -f1 | sort | uniq -d | head -n1)"
+  [[ -z "$duplicate" ]] || fail "duplicate identity in aggregated $map map: $duplicate"
+done
+
 # An empty catalog is valid after the last account is purged. The helper only
 # needs an existing service identity; managed mode validates every mailbox
 # against its own xhi account instead of this bootstrap identity.
@@ -57,5 +67,24 @@ if [[ "$1" == sync ]]; then action=mail-sync; else action=mail-outbound-sync; fi
 env XPANEL_INSTANCE_ROOT="$release" XPANEL_SITE_USER="$bootstrap_user" XPANEL_SITE_GROUP="$bootstrap_user" \
   XPANEL_MANAGED_MAIL_SYNC=1 XPANEL_MAIL_STAGE_ROOT="$stage" \
   bash "$helper" "$action"
+
+# Mail is owned by vmail. Recalculate every compatible UID budget immediately
+# instead of waiting for the periodic reconciler; project quotas need no
+# adjustment but are verified by the same dispatcher action.
+for root in "$instances"/*; do
+  uuid="${root##*/}"
+  [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || continue
+  [[ ! -f "/var/lib/xpanel-vps/purged/$uuid" || -f "/var/lib/xpanel-vps/restore-state/$uuid/extracted" ]] || continue
+  user="xhi${uuid//-/}"; user="${user:0:15}"
+  marker_root="/etc/xpanel-vps/instances/$uuid"
+  if [[ -f "$marker_root/project-quota-applied" ]]; then
+    project_id="$(<"$marker_root/project-quota-applied")"
+  elif [[ -f "$marker_root/user-quota-applied" ]]; then
+    project_id=100000
+  else
+    continue
+  fi
+  bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" reconcile-total "$uuid" "$user" "$project_id" >/dev/null
+done
 
 echo mail-reconciled

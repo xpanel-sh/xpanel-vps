@@ -13,7 +13,7 @@ if [[ "$action" == status && "${XPANEL_PROJECT_ONLY:-}" != 1 ]]; then
     if bash "$user_helper" status >/dev/null 2>&1; then
         exec bash "$user_helper" status
     fi
-elif [[ "$action" == apply || "$action" == remove || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases ]]; then
+elif [[ "$action" == apply || "$action" == remove || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases || "$action" == reconcile-total ]]; then
     uuid="${2:-}"
     if [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; then
         if [[ -f "/etc/xpanel-vps/instances/$uuid/user-quota-applied" ]]; then
@@ -59,6 +59,17 @@ case "${1:-}" in
         [[ $# -eq 1 ]] || fail "status takes no arguments"
         quota_mount >/dev/null
         echo ready
+        ;;
+    reconcile-total)
+        [[ $# -eq 4 ]] || fail "reconcile-total expects UUID, system user and project ID"
+        uuid="$2"; user="$3"; project_id="$4"
+        [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
+        uuid_hex="${uuid//-/}"
+        [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid instance user"
+        marker="/etc/xpanel-vps/instances/$uuid/project-quota-applied"
+        [[ -f "$marker" && ! -L "$marker" && "$(<"$marker")" == "$project_id" ]] || fail "instance project quota is unavailable"
+        "$0" check-databases "$uuid" "$user" "$project_id" >/dev/null
+        echo mode=project-physical
         ;;
     apply)
         [[ $# -eq 6 ]] || fail "apply expects UUID, system user, project ID, MiB and inode limit"
