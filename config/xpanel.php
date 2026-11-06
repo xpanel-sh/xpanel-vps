@@ -9,6 +9,9 @@ return [
     'home_enabled' => (bool) env('XPANEL_HOME_ENABLED', false),
     'server_ip' => env('XPANEL_SERVER_IP', ''),
     'panel_port' => (int) env('XPANEL_PANEL_PORT', 8443),
+    'telemetry' => [
+        'endpoint' => env('XPANEL_TELEMETRY_ENDPOINT', 'https://xpanel.sh/get/v1/heartbeats'),
+    ],
     'control_plane_helper' => env('XPANEL_CONTROL_PLANE_HELPER', base_path('scripts/xpanel-control-plane-helper.sh')),
 
     'native_hosting' => [

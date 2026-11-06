@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Métricas anónimas configurables por categoría hacia el futuro receptor de `xpanel.sh/get`: versión, modo, salud, Linux, CPU/RAM, disco, GPU y carga agregada. Se activan inicialmente, pueden deshabilitarse sin afectar funciones y nunca incluyen IP, dominios, correos ni datos de clientes.
 - Centro de notificaciones persistente para clientes, con avisos de contrataciones, pagos, cambios de plan, cancelaciones, suspensiones y restauraciones; cada aviso queda aislado por cliente y puede marcarse individualmente o en conjunto. El administrador puede replicarlos por correo y un fallo SMTP queda registrado sin bloquear la operación principal.
 - Al vencer la retención, el hosting pasa a «Pendiente de depuración» y genera un aviso, pero permanece intacto y suspendido hasta una revisión administrativa explícita.
 - Pago manual verificable: el administrador define método e instrucciones, el cliente registra una referencia y la boleta aparece en la cola «Por revisar» hasta su confirmación.

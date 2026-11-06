@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
 use App\Services\HostInstanceDomainMigrator;
 use App\Services\ServerCommandRunner;
+use App\Services\TelemetryReporter;
 use Illuminate\Http\Request;
 use RuntimeException;
 
 class SettingsController extends Controller
 {
-    public function index()
+    public function index(TelemetryReporter $telemetry)
     {
         $appName = SystemSetting::get('app_name', 'XPanel');
         $hostName = SystemSetting::get('host_name', $appName.' Hosting');
@@ -24,10 +25,12 @@ class SettingsController extends Controller
         $notificationEmailEnabled = SystemSetting::get('notification_email_enabled', '0') === '1';
         $paymentMethodName = SystemSetting::get('payment_method_name', 'Transferencia bancaria');
         $paymentInstructions = SystemSetting::get('payment_instructions', 'Solicita los datos de pago al administrador.');
-        return view('admin.settings.index', compact('appName', 'hostName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl', 'graceDays', 'retentionDays', 'notificationEmailEnabled', 'paymentMethodName', 'paymentInstructions'));
+        $telemetryPreferences = $telemetry->preferences();
+
+        return view('admin.settings.index', compact('appName', 'hostName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl', 'graceDays', 'retentionDays', 'notificationEmailEnabled', 'paymentMethodName', 'paymentInstructions', 'telemetryPreferences'));
     }
 
-    public function update(Request $request, ServerCommandRunner $commands, HostInstanceDomainMigrator $instances)
+    public function update(Request $request, ServerCommandRunner $commands, HostInstanceDomainMigrator $instances, TelemetryReporter $telemetry)
     {
         $data = $request->validate([
             'app_name' => 'required|string|max:80',
@@ -38,6 +41,9 @@ class SettingsController extends Controller
             'payment_method_name' => ['sometimes', 'required', 'string', 'max:100'],
             'payment_instructions' => ['sometimes', 'required', 'string', 'max:2000'],
             'panel_domain' => ['nullable', 'string', 'max:253', 'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
+            'telemetry_enabled' => ['sometimes', 'boolean'],
+            'telemetry_categories' => ['sometimes', 'array'],
+            'telemetry_categories.*' => ['string', 'in:'.implode(',', TelemetryReporter::CATEGORIES)],
         ]);
 
         $currentDomain = SystemSetting::get('panel_domain', (string) env('XPANEL_PANEL_DOMAIN', ''));
@@ -72,12 +78,25 @@ class SettingsController extends Controller
         }
 
         SystemSetting::set('app_name', trim($data['app_name']));
-        if (array_key_exists('host_name', $data)) SystemSetting::set('host_name', trim($data['host_name']));
-        if (array_key_exists('service_grace_days', $data)) SystemSetting::set('service_grace_days', (string) $data['service_grace_days']);
-        if (array_key_exists('cancelled_data_retention_days', $data)) SystemSetting::set('cancelled_data_retention_days', (string) $data['cancelled_data_retention_days']);
+        if (array_key_exists('host_name', $data)) {
+            SystemSetting::set('host_name', trim($data['host_name']));
+        }
+        if (array_key_exists('service_grace_days', $data)) {
+            SystemSetting::set('service_grace_days', (string) $data['service_grace_days']);
+        }
+        if (array_key_exists('cancelled_data_retention_days', $data)) {
+            SystemSetting::set('cancelled_data_retention_days', (string) $data['cancelled_data_retention_days']);
+        }
         SystemSetting::set('notification_email_enabled', $request->boolean('notification_email_enabled') ? '1' : '0');
-        if (array_key_exists('payment_method_name', $data)) SystemSetting::set('payment_method_name', trim($data['payment_method_name']));
-        if (array_key_exists('payment_instructions', $data)) SystemSetting::set('payment_instructions', trim($data['payment_instructions']));
+        if (array_key_exists('payment_method_name', $data)) {
+            SystemSetting::set('payment_method_name', trim($data['payment_method_name']));
+        }
+        if (array_key_exists('payment_instructions', $data)) {
+            SystemSetting::set('payment_instructions', trim($data['payment_instructions']));
+        }
+        if ($request->has('telemetry_enabled')) {
+            $telemetry->save($request->boolean('telemetry_enabled'), $data['telemetry_categories'] ?? []);
+        }
 
         return back()->with('status', $panelDomain !== '' && $panelDomain !== $currentDomain
             ? 'Dominio configurado y '.$migration['migrated'].' instancia(s) técnica(s) actualizada(s).'

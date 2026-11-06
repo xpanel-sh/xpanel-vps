@@ -96,6 +96,24 @@
                     </div>
                 </div>
 
+                @php($telemetrySelected = old('telemetry_categories', $telemetryPreferences['categories']))
+                <div class="grid gap-4 border-t border-border pt-5 md:grid-cols-2">
+                    <div class="md:col-span-2"><h3 class="font-semibold text-mono">Métricas anónimas para xpanel.sh</h3><p class="mt-1 text-xs text-secondary-foreground">Ayudan a conocer instalaciones activas y compatibilidad de servidores. Nunca incluyen IP, dominios, correos, nombres ni archivos.</p></div>
+                    <label class="flex items-start gap-3 rounded-xl border border-border p-4 md:col-span-2"><input type="hidden" name="telemetry_enabled" value="0"><input class="kt-switch mt-0.5" type="checkbox" name="telemetry_enabled" value="1" @checked(old('telemetry_enabled', $telemetryPreferences['enabled']))><span><strong class="block text-sm text-mono">Enviar métricas anónimas</strong><span class="mt-1 block text-xs text-secondary-foreground">Se envía como máximo dos veces al día a set.xpanel.sh. Desactivarlo no limita el panel ni sus actualizaciones.</span></span></label>
+                    @foreach([
+                        'version' => ['Producto y versión', 'Revisión instalada y versión de PHP.'],
+                        'deployment' => ['Tipo de instalación', 'VPS, Host independiente o instancia administrada.'],
+                        'health' => ['Estado general', 'Tiempo encendido y carga media del sistema.'],
+                        'os' => ['Sistema Linux', 'Distribución, versión, kernel y arquitectura.'],
+                        'compute' => ['CPU y memoria', 'Modelo de CPU, núcleos lógicos y memoria total/disponible.'],
+                        'storage' => ['Disco', 'Capacidad y espacio libre del sistema raíz.'],
+                        'gpu' => ['GPU', 'Cantidad e identificadores de fabricante/dispositivo, si existen.'],
+                        'workload' => ['Uso de XPanel', 'Cantidad total y activa de instancias Host administradas.'],
+                    ] as $key => [$title, $description])
+                        <label class="flex items-start gap-3 rounded-xl border border-border p-4"><input class="kt-checkbox mt-0.5" type="checkbox" name="telemetry_categories[]" value="{{ $key }}" @checked(in_array($key, $telemetrySelected, true))><span><strong class="block text-sm text-mono">{{ $title }}</strong><span class="mt-1 block text-xs text-secondary-foreground">{{ $description }}</span></span></label>
+                    @endforeach
+                </div>
+
                 <div class="grid gap-4 border-t border-border pt-5 md:grid-cols-2">
                     <label class="grid gap-1.5"><span class="kt-form-label">Días de gracia</span><input class="kt-input" type="number" min="0" max="90" name="service_grace_days" value="{{ old('service_grace_days', $graceDays) }}" required><span class="text-xs text-muted-foreground">Tiempo adicional antes de suspender un servicio vencido.</span></label>
                     <label class="grid gap-1.5"><span class="kt-form-label">Retención después de cancelar</span><input class="kt-input" type="number" min="0" max="365" name="cancelled_data_retention_days" value="{{ old('cancelled_data_retention_days', $retentionDays) }}" required><span class="text-xs text-muted-foreground">Días durante los que una cuenta suspendida puede restaurarse.</span></label>
