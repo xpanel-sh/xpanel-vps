@@ -14,6 +14,7 @@ use App\Services\HostSsoLink;
 use App\Services\HostUpdateCoordinator;
 use App\Services\HostingPlanChanger;
 use App\Services\AccountNotifier;
+use App\Services\HostingAccountArchiveManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -101,6 +102,20 @@ class HostInstanceController extends Controller
         );
 
         return back()->with('success', 'Hosting restaurado y cancelación anulada.');
+    }
+
+    public function archive(HostInstance $instance, HostingAccountArchiveManager $archives)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+
+        try {
+            $archives->start($account);
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['archive' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'La copia integral comenzó en segundo plano. Puedes volver a esta ficha para consultar el resultado.');
     }
 
     public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner)

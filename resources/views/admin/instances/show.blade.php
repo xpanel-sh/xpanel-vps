@@ -14,11 +14,13 @@
     $diskPercent = $percent((int) $metrics['disk_bytes'], (int) $metrics['storage_limit_bytes']);
     $memoryPercent = $percent((int) $metrics['memory_bytes'], (int) $metrics['memory_limit_bytes']);
     $tasksPercent = $percent((int) $metrics['tasks'], (int) $metrics['tasks_limit']);
+    $archiveIsRunning = $account?->purge_archive_status === 'preparing' && $account->purge_archive_requested_at?->isAfter(now()->subHours(2));
 @endphp
 <div class="flex grow rounded-b-xl border-x border-b border-input bg-background mx-5 mb-5 lg:ms-(--sidebar-width) lg:mt-(--navbar-height)">
     <div class="flex grow flex-col kt-scrollable-y-auto p-5 lg:p-8">
         <main class="mx-auto flex w-full max-w-7xl grow flex-col gap-5" role="content">
             @if(session('success'))<div class="kt-alert kt-alert-success"><i class="ki-filled ki-check-circle"></i>{{ session('success') }}</div>@endif
+            @if($errors->has('archive'))<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-cross-circle"></i>{{ $errors->first('archive') }}</div>@endif
             @if($account?->status === 'purge_pending')<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i><div><strong>Retención finalizada: revisión administrativa requerida.</strong><p class="mt-1 text-xs">La instancia continúa suspendida e intacta. Verifica copias, bases y correo antes de cualquier eliminación manual.</p></div></div>@endif
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex min-w-0 items-start gap-3">
@@ -57,6 +59,23 @@
             </div>
 
             @if($metrics['error'])<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i>No se pudieron leer todas las métricas en vivo. Los límites del plan siguen aplicados.</div>@endif
+
+            @if($account?->status === 'purge_pending')
+                <section class="kt-card border-warning/40">
+                    <div class="kt-card-header"><div><h2 class="kt-card-title">Copia integral de retención</h2><p class="mt-1 text-xs text-secondary-foreground">Incluye archivos y correo del hogar, estado privado de Host y volcados independientes de MariaDB.</p></div><span class="kt-badge kt-badge-outline {{ $account->purge_archive_status === 'ready' ? 'kt-badge-success' : ($account->purge_archive_status === 'failed' || ($account->purge_archive_status === 'preparing' && ! $archiveIsRunning) ? 'kt-badge-destructive' : 'kt-badge-warning') }}">{{ $account->purge_archive_status === 'ready' ? 'Verificada' : ($archiveIsRunning ? 'Preparando' : ($account->purge_archive_status ? 'Requiere atención' : 'Pendiente')) }}</span></div>
+                    <div class="kt-card-content grid gap-4 p-5">
+                        @if($account->purge_archive_status === 'ready')
+                            <div class="grid gap-3 md:grid-cols-2"><div><span class="text-xs text-secondary-foreground">Generada</span><strong class="mt-1 block text-sm text-mono">{{ $account->purge_archived_at?->format('d/m/Y H:i') }}</strong></div><div class="min-w-0"><span class="text-xs text-secondary-foreground">SHA-256</span><strong class="mt-1 block truncate text-sm text-mono" title="{{ $account->purge_archive_sha256 }}">{{ $account->purge_archive_sha256 }}</strong></div></div>
+                            <div class="kt-alert kt-alert-success"><i class="ki-filled ki-shield-tick"></i>La copia fue creada fuera de la cuota del cliente y quedó identificada para una recuperación administrativa. Todavía no se eliminó ningún dato.</div>
+                        @elseif($archiveIsRunning)
+                            <div class="kt-alert kt-alert-info"><i class="ki-filled ki-loading"></i>La copia se ejecuta en segundo plano. En cuentas grandes puede tardar varios minutos.</div>
+                        @else
+                            @if($account->purge_archive_error)<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-information-2"></i>{{ $account->purge_archive_error }}</div>@endif
+                            <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-sm text-secondary-foreground">Se comprobará espacio libre, suspensión de la instancia y pertenencia de cada base antes de copiar.</p><form method="post" action="{{ route('admin.instances.archive', $instance) }}">@csrf<button class="kt-btn kt-btn-warning" type="submit"><i class="ki-filled ki-archive"></i>{{ in_array($account->purge_archive_status, ['failed', 'preparing'], true) ? 'Reintentar copia' : 'Preparar copia integral' }}</button></form></div>
+                        @endif
+                    </div>
+                </section>
+            @endif
 
             <div class="grid gap-5 xl:grid-cols-3">
                 <section class="kt-card xl:col-span-2">

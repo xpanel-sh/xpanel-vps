@@ -74,6 +74,19 @@ if [[ "${1:-}" == "host-update-start" ]]; then
     exit 0
 fi
 
+if [[ "${1:-}" == "archive-start" ]]; then
+    [[ $# -eq 2 ]] || fail "archive-start expects an instance UUID"
+    validate_uuid "$2"
+    app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    [[ -f "$app_root/artisan" ]] || fail "VPS artisan is unavailable"
+    unit="xpanel-hosting-archive-${2//-/}-$(date +%s)"
+    systemd-run --quiet --collect --unit="$unit" \
+        --property=User=root --property="WorkingDirectory=$app_root" \
+        /usr/bin/php "$app_root/artisan" xpanel:hosting-archive "$2"
+    printf 'started=%s\n' "$unit"
+    exit 0
+fi
+
 if [[ "${1:-}" == "instance-metrics" ]]; then
     [[ $# -eq 3 ]] || fail "instance-metrics expects UUID and system user"
     uuid="$2"; user="$3"
@@ -173,6 +186,80 @@ if [[ "$ACTION" == "set-status" ]]; then
     nginx -t
     systemctl reload nginx
     echo "$STATUS"
+    exit 0
+fi
+
+if [[ "$ACTION" == "archive" ]]; then
+    [[ $# -eq 2 ]] || fail "archive expects an instance UUID and system user"
+    UUID="$1"
+    SYSTEM_USER="$2"
+    validate_uuid "$UUID"
+    UUID_HEX="${UUID//-/}"
+    [[ "$SYSTEM_USER" == "xhi${UUID_HEX:0:12}" ]] || fail "invalid instance user"
+
+    INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+    ACCOUNT_HOME="/home/$SYSTEM_USER"
+    DATABASE_FILE="$INSTANCE_ROOT/database/database.sqlite"
+    [[ -d "$INSTANCE_ROOT" && ! -L "$INSTANCE_ROOT" ]] || fail "instance root is unavailable or unsafe"
+    [[ -d "$ACCOUNT_HOME" && ! -L "$ACCOUNT_HOME" ]] || fail "account home is unavailable or unsafe"
+    [[ -f "$DATABASE_FILE" && ! -L "$DATABASE_FILE" ]] || fail "instance database catalog is unavailable"
+    ! systemctl is-active --quiet "xpanel-instance-$UUID-fpm.service" || fail "instance must remain suspended while it is archived"
+
+    ARCHIVE_ROOT="/var/backups/xpanel/hosting-retention/$UUID"
+    STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+    WORK_DIR="$ARCHIVE_ROOT/.$STAMP.tmp"
+    FINAL_ARCHIVE="$ARCHIVE_ROOT/$STAMP.tar.gz"
+    install -d -o root -g root -m 0700 "$ARCHIVE_ROOT"
+    [[ ! -e "$WORK_DIR" && ! -e "$FINAL_ARCHIVE" ]] || fail "retention archive target already exists"
+    install -d -o root -g root -m 0700 "$WORK_DIR" "$WORK_DIR/databases"
+    cleanup_archive() { rm -rf -- "$WORK_DIR" "$FINAL_ARCHIVE.tmp"; }
+    trap cleanup_archive ERR INT TERM
+
+    DATABASE_LIST="$(php -r '
+        $db = new PDO("sqlite:".$argv[1]);
+        if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
+        foreach ($db->query("SELECT DISTINCT name FROM site_databases WHERE status = \x27active\x27 ORDER BY name") as $row) echo $row["name"]."\n";
+    ' "$DATABASE_FILE")" || fail "could not read the instance database catalog"
+    DATABASES=()
+    while IFS= read -r DATABASE; do
+        [[ -n "$DATABASE" ]] && DATABASES+=("$DATABASE")
+    done <<< "$DATABASE_LIST"
+
+    SOURCE_BYTES="$(du -sb --one-file-system "$ACCOUNT_HOME" "$INSTANCE_ROOT" | awk '{total += $1} END {print total + 0}')"
+    for DATABASE in "${DATABASES[@]}"; do
+        [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance: $DATABASE"
+        DATABASE_PATH="/var/lib/mysql/$DATABASE"
+        [[ -d "$DATABASE_PATH" && ! -L "$DATABASE_PATH" ]] || fail "database directory is missing or unsafe: $DATABASE"
+        SOURCE_BYTES=$((SOURCE_BYTES + $(du -sb --one-file-system "$DATABASE_PATH" | awk '{print $1}')))
+    done
+    AVAILABLE_BYTES="$(df -PB1 --output=avail "$ARCHIVE_ROOT" | tail -n 1 | tr -d ' ')"
+    [[ "$AVAILABLE_BYTES" =~ ^[0-9]+$ ]] || fail "could not inspect free archive space"
+    (( AVAILABLE_BYTES > SOURCE_BYTES + 536870912 )) || fail "insufficient free space to create a safe retention archive"
+
+    tar --one-file-system --numeric-owner -C /home -czf "$WORK_DIR/account-home.tar.gz" "$SYSTEM_USER"
+    tar --one-file-system --numeric-owner -C /var/lib/xpanel-vps/instances -czf "$WORK_DIR/instance-state.tar.gz" "$UUID"
+    for DATABASE in "${DATABASES[@]}"; do
+        mariadb-dump --protocol=socket --single-transaction --routines --events --triggers --databases "$DATABASE" \
+            | gzip -9 > "$WORK_DIR/databases/$DATABASE.sql.gz"
+    done
+    {
+        printf 'uuid=%s\n' "$UUID"
+        printf 'system_user=%s\n' "$SYSTEM_USER"
+        printf 'created_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf 'database_count=%s\n' "${#DATABASES[@]}"
+    } > "$WORK_DIR/metadata.txt"
+    (
+        cd "$WORK_DIR"
+        find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+        sha256sum --check SHA256SUMS >/dev/null
+    )
+    tar -C "$WORK_DIR" -czf "$FINAL_ARCHIVE.tmp" .
+    ARCHIVE_SHA256="$(sha256sum "$FINAL_ARCHIVE.tmp" | awk '{print $1}')"
+    mv "$FINAL_ARCHIVE.tmp" "$FINAL_ARCHIVE"
+    chmod 0600 "$FINAL_ARCHIVE"
+    rm -rf -- "$WORK_DIR"
+    trap - ERR INT TERM
+    printf 'archive_path=%s\narchive_sha256=%s\ndatabase_count=%s\n' "$FINAL_ARCHIVE" "$ARCHIVE_SHA256" "${#DATABASES[@]}"
     exit 0
 fi
 
