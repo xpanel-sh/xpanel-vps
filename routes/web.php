@@ -106,6 +106,8 @@ Route::group(['middleware' => ['web']], function () {
         Route::post('/admin/instances/{instance}/update', [\App\Http\Controllers\Admin\HostInstanceController::class, 'update'])->name('admin.instances.update');
         Route::get('/admin/instances/{instance}/update-status', [\App\Http\Controllers\Admin\HostInstanceController::class, 'updateStatus'])->middleware('throttle:30,1')->name('admin.instances.update-status');
         Route::post('/admin/instances/{instance}/retry-ssl', [\App\Http\Controllers\Admin\HostInstanceController::class, 'retrySsl'])->name('admin.instances.retry-ssl');
+        Route::post('/admin/instances/{instance}/plan', [\App\Http\Controllers\Admin\HostInstanceController::class, 'changePlan'])->name('admin.instances.plan');
+        Route::post('/admin/instances/{instance}/restore', [\App\Http\Controllers\Admin\HostInstanceController::class, 'restore'])->name('admin.instances.restore');
 
         Route::get('/admin/servers', [\App\Http\Controllers\Admin\ServerNodeController::class, 'index'])->name('admin.servers.index');
         Route::get('/admin/servers/create', [\App\Http\Controllers\Admin\ServerNodeController::class, 'create'])->name('admin.servers.create');
@@ -254,6 +256,9 @@ Route::group(['middleware' => ['web']], function () {
         Route::get('/hosting/{hostingAccount}', [\App\Http\Controllers\Client\HostAccessController::class, 'account'])->name('client.host.account');
         Route::post('/hosting/{hostingAccount}/access', [\App\Http\Controllers\Client\HostAccessController::class, 'access'])->name('client.host.access');
         Route::put('/hosting/{hostingAccount}/domain', [\App\Http\Controllers\Client\HostAccessController::class, 'updateDomain'])->name('client.host.domain');
+        Route::post('/hosting/{hostingAccount}/plan', [\App\Http\Controllers\Client\HostAccessController::class, 'changePlan'])->name('client.host.plan');
+        Route::post('/hosting/{hostingAccount}/cancel', [\App\Http\Controllers\Client\HostAccessController::class, 'cancel'])->name('client.host.cancel');
+        Route::post('/hosting/{hostingAccount}/restore', [\App\Http\Controllers\Client\HostAccessController::class, 'restore'])->name('client.host.restore');
         Route::get('/plans', [\App\Http\Controllers\Client\PlanController::class, 'index'])->name('client.plans.index');
         Route::post('/plans/{plan}/contract', [\App\Http\Controllers\Client\PlanOrderController::class, 'store'])->name('client.plans.contract');
         Route::get('/orders', [\App\Http\Controllers\Client\PlanOrderController::class, 'index'])->name('client.orders.index');

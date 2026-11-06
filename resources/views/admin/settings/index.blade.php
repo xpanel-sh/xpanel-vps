@@ -54,6 +54,13 @@
                     </p>
                 </div>
 
+                <div class="flex flex-col gap-1.5">
+                    <label class="kt-form-label font-normal text-mono" for="host_name">Nombre inicial de los hostings</label>
+                    <input id="host_name" class="kt-input @error('host_name') border-danger @enderror" name="host_name" value="{{ old('host_name', $hostName) }}" maxlength="80" required>
+                    @error('host_name')<p class="text-xs text-danger">{{ $message }}</p>@enderror
+                    <p class="text-xs text-muted-foreground">Se entrega como identidad inicial a cada Host nuevo. Después, el propietario podrá personalizar su propia instancia.</p>
+                </div>
+
                 <div class="grid gap-4 border-t border-border pt-5 md:grid-cols-2">
                     <div class="flex flex-col gap-1.5">
                         <label class="kt-form-label font-normal text-mono" for="panel_domain">
@@ -87,6 +94,12 @@
                             Estado del dominio: <span class="font-medium text-mono">{{ match($panelDomainStatus) { 'active' => 'Activo', 'staged' => 'Preparado', default => 'Sin configurar' } }}</span>
                         </div>
                     </div>
+                </div>
+
+                <div class="grid gap-4 border-t border-border pt-5 md:grid-cols-2">
+                    <label class="grid gap-1.5"><span class="kt-form-label">Días de gracia</span><input class="kt-input" type="number" min="0" max="90" name="service_grace_days" value="{{ old('service_grace_days', $graceDays) }}" required><span class="text-xs text-muted-foreground">Tiempo adicional antes de suspender un servicio vencido.</span></label>
+                    <label class="grid gap-1.5"><span class="kt-form-label">Retención después de cancelar</span><input class="kt-input" type="number" min="0" max="365" name="cancelled_data_retention_days" value="{{ old('cancelled_data_retention_days', $retentionDays) }}" required><span class="text-xs text-muted-foreground">Días durante los que una cuenta suspendida puede restaurarse.</span></label>
+                    <div class="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm md:col-span-2"><strong class="text-mono">El borrado definitivo siempre requiere confirmación administrativa.</strong><p class="mt-1 text-xs text-secondary-foreground">Al terminar la retención la cuenta quedará marcada para eliminar, pero ninguna tarea automática destruirá archivos, bases o correos.</p></div>
                 </div>
 
                 <div class="flex justify-end">

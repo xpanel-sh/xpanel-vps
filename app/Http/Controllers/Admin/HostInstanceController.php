@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
 use App\Models\HostInstance;
+use App\Models\PlanOrder;
 use App\Models\Tenant;
 use App\Services\HostInstanceCertificateProvisioner;
 use App\Services\HostInstanceMetrics;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostSsoLink;
 use App\Services\HostUpdateCoordinator;
+use App\Services\HostingPlanChanger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -53,7 +55,44 @@ class HostInstanceController extends Controller
             'instance' => $instance,
             'metrics' => $metrics->for($instance),
             'orders' => $orders,
+            'plans' => \App\Models\HostingPlan::query()->where('is_active', true)->orderBy('monthly_price')->get(),
         ]);
+    }
+
+    public function changePlan(Request $request, HostInstance $instance, HostingPlanChanger $changer)
+    {
+        $data = $request->validate(['plan_id' => ['required', 'integer', 'exists:hosting_plans,id']]);
+        abort_unless($instance->hostingAccount, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+        try {
+            $changer->change($instance->hostingAccount, \App\Models\HostingPlan::findOrFail($data['plan_id']));
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['plan' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'Plan actualizado y límites reaplicados a la instancia.');
+    }
+
+    public function restore(HostInstance $instance, HostInstanceProvisioner $provisioner)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+        abort_unless(in_array($account->status, ['cancellation_pending', 'suspended', 'suspended_overdue'], true), 409, 'El hosting no está suspendido ni tiene una cancelación pendiente.');
+        abort_if($account->purge_after?->isPast(), 410, 'El periodo de retención terminó. Revisa los datos antes de restaurar manualmente.');
+
+        if ($instance->status === 'suspended') {
+            $provisioner->setSuspended($instance, false);
+        }
+
+        $account->order?->update(['status' => PlanOrder::STATUS_ACTIVE]);
+        $account->update([
+            'status' => 'active',
+            'cancellation_requested_at' => null,
+            'suspend_at' => null,
+            'suspended_at' => null,
+            'purge_after' => null,
+        ]);
+
+        return back()->with('success', 'Hosting restaurado y cancelación anulada.');
     }
 
     public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner)

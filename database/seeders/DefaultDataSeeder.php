@@ -52,6 +52,9 @@ class DefaultDataSeeder extends Seeder
             ['key' => 'app_name'],
             ['value' => 'XPanel']
         );
+        SystemSetting::firstOrCreate(['key' => 'host_name'], ['value' => 'XPanel Hosting']);
+        SystemSetting::firstOrCreate(['key' => 'service_grace_days'], ['value' => '7']);
+        SystemSetting::firstOrCreate(['key' => 'cancelled_data_retention_days'], ['value' => '30']);
 
         NameserverSetting::firstOrCreate(
             ['name' => 'default'],

@@ -14,17 +14,23 @@ class SettingsController extends Controller
     public function index()
     {
         $appName = SystemSetting::get('app_name', 'XPanel');
+        $hostName = SystemSetting::get('host_name', $appName.' Hosting');
         $panelDomain = SystemSetting::get('panel_domain', (string) env('XPANEL_PANEL_DOMAIN', ''));
         $panelDomainStatus = SystemSetting::get('panel_domain_status', $panelDomain ? 'active' : 'not_configured');
         $recoveryUrl = 'https://'.config('xpanel.server_ip').':'.config('xpanel.panel_port');
 
-        return view('admin.settings.index', compact('appName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl'));
+        $graceDays = (int) SystemSetting::get('service_grace_days', '7');
+        $retentionDays = (int) SystemSetting::get('cancelled_data_retention_days', '30');
+        return view('admin.settings.index', compact('appName', 'hostName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl', 'graceDays', 'retentionDays'));
     }
 
     public function update(Request $request, ServerCommandRunner $commands, HostInstanceDomainMigrator $instances)
     {
         $data = $request->validate([
             'app_name' => 'required|string|max:80',
+            'host_name' => ['sometimes', 'required', 'string', 'max:80', 'regex:/^[^\r\n]+$/u'],
+            'service_grace_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:90'],
+            'cancelled_data_retention_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:365'],
             'panel_domain' => ['nullable', 'string', 'max:253', 'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
         ]);
 
@@ -60,6 +66,9 @@ class SettingsController extends Controller
         }
 
         SystemSetting::set('app_name', trim($data['app_name']));
+        if (array_key_exists('host_name', $data)) SystemSetting::set('host_name', trim($data['host_name']));
+        if (array_key_exists('service_grace_days', $data)) SystemSetting::set('service_grace_days', (string) $data['service_grace_days']);
+        if (array_key_exists('cancelled_data_retention_days', $data)) SystemSetting::set('cancelled_data_retention_days', (string) $data['cancelled_data_retention_days']);
 
         return back()->with('status', $panelDomain !== '' && $panelDomain !== $currentDomain
             ? 'Dominio configurado y '.$migration['migrated'].' instancia(s) técnica(s) actualizada(s).'

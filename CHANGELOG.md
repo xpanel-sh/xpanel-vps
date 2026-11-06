@@ -8,6 +8,10 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Identidad de dos niveles: Cloud define su nombre visual y el nombre inicial de nuevas instancias Host; cada Host puede reemplazar después su propia marca sin perderla durante actualizaciones o reaplicaciones.
+- Cambio real de plan desde el portal del cliente y desde la ficha administrativa. Conserva la misma instancia, valida sitios, bases, buzones y disco antes de una bajada, registra una nueva boleta y reaplica los límites del servidor con reversión si falla.
+- Ciclo de cancelación configurable: conserva el servicio hasta finalizar el periodo contratado, lo suspende mediante el scheduler y retiene sus datos durante el plazo definido. Cliente y administrador pueden revertir la cancelación mientras siga retenido.
+- Días de gracia para pagos vencidos. El scheduler suspende la cuenta después del plazo y la confirmación administrativa del pago restaura la misma instancia; la eliminación definitiva permanece manual y nunca se ejecuta a ciegas.
 - Ficha unificada por hosting con límites y consumo en vivo, dominios registrados, historial de pagos y actividad técnica reciente.
 - Inventario global de dominios y sitios que reúne recursos de todas las instancias Host, sitios nativos y dominios DNS sin duplicarlos.
 - El instalador prepara cuotas de usuario en ext4, muestra y guarda las credenciales iniciales antes de ofrecer un reinicio opcional y comprueba la activación al arrancar mediante un servicio de una sola vez. El estado y las credenciales root-only se consultan con `xpanel-install-status.sh` tras reconectar.

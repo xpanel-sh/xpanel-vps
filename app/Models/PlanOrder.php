@@ -12,11 +12,13 @@ class PlanOrder extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACTIVE = 'active';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_CANCELLATION_PENDING = 'cancellation_pending';
+    public const STATUS_SUPERSEDED = 'superseded';
     public const PAYMENT_PENDING = 'pending';
     public const PAYMENT_PAID = 'paid';
 
     protected $fillable = [
-        'number', 'tenant_id', 'hosting_account_id', 'hosting_plan_id', 'status', 'payment_status', 'amount', 'currency',
+        'number', 'kind', 'tenant_id', 'hosting_account_id', 'hosting_plan_id', 'previous_hosting_plan_id', 'status', 'payment_status', 'amount', 'currency',
         'billing_period_months', 'payment_due_at', 'payment_method',
         'payment_reference', 'paid_at', 'marked_paid_by', 'activated_at', 'service_ends_at', 'activated_by',
     ];
@@ -37,6 +39,11 @@ class PlanOrder extends Model
     public function plan()
     {
         return $this->belongsTo(HostingPlan::class, 'hosting_plan_id');
+    }
+
+    public function previousPlan()
+    {
+        return $this->belongsTo(HostingPlan::class, 'previous_hosting_plan_id');
     }
 
     public function hostingAccount()

@@ -20,7 +20,7 @@ class HostBrokerActionPolicy
         }
 
         match ($action) {
-            'apply' => $this->site($instance, $arguments, 12, $action),
+            'apply' => $this->site($instance, $arguments, in_array(count($arguments), [12, 13], true) ? count($arguments) : 13, $action),
             'resource-snapshot' => $this->resourceSnapshot($instance, $arguments),
             'traffic-rate-status', 'traffic-rate-set' => $this->trafficRate($arguments, $action),
             'remove', 'site-restart' => $this->site($instance, $arguments, 6, $action),
@@ -269,7 +269,7 @@ class HostBrokerActionPolicy
             || $site['document_root'] !== $documentRoot || $site['system_user'] !== $systemUser) {
             throw new RuntimeException('El sitio solicitado no coincide con el registro de la instancia.');
         }
-        if ($count === 12) {
+        if (in_array($count, [12, 13], true)) {
             $public = trim((string) ($site['public_path'] ?? ''), '/');
             $webRoot = $public === '' ? $documentRoot : $documentRoot.'/'.$public;
             if ($arguments[6] !== $webRoot) {
@@ -285,6 +285,10 @@ class HostBrokerActionPolicy
             }
             $profileKey = $arguments[10];
             $extensions = $arguments[11];
+            $displayName = $arguments[12] ?? 'XPanel Host';
+            if ($displayName === '' || mb_strlen($displayName) > 80 || str_contains($displayName, "\n") || str_contains($displayName, "\r")) {
+                throw new RuntimeException('El nombre visual del hosting no es válido.');
+            }
             if ($site['php_profile_id'] === null) {
                 if ($profileKey !== 'system' || $extensions !== '-') {
                     throw new RuntimeException('El sitio no utiliza un perfil PHP aislado.');
@@ -303,12 +307,12 @@ class HostBrokerActionPolicy
             $this->assertDomainIsNotOwnedByAnotherInstance($instance, $domain);
         }
         $this->claimDomain($instance, $domain);
-        if ($count === 12) {
+        if (in_array($count, [12, 13], true)) {
             foreach ($this->siteAliases($instance, (int) $site['id']) as $alias) {
                 $this->claimDomain($instance, $alias);
             }
         }
-        if ($count === 12 && $type === 'node') {
+        if (in_array($count, [12, 13], true) && $type === 'node') {
             $portClaim = HostBrokerResource::firstOrCreate(
                 ['type' => 'runtime-port', 'name' => (string) $site['runtime_port']],
                 ['host_instance_id' => $instance->id],
@@ -317,7 +321,7 @@ class HostBrokerActionPolicy
                 throw new RuntimeException('El puerto interno está reservado por otra instancia.');
             }
         }
-        if ($count === 12 && (bool) $site['wildcard_domain']) {
+        if (in_array($count, [12, 13], true) && (bool) $site['wildcard_domain']) {
             $wildcard = '*.'.$domain;
             $conflict = HostBrokerResource::query()
                 ->where('type', 'site-domain')

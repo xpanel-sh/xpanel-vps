@@ -66,6 +66,19 @@ class HostBrokerTest extends TestCase
         HostInstanceDatabaseReader::inspectPath($instance->database_path, 'arbitrary-sql', 'example.test');
     }
 
+    public function test_inspector_returns_only_safe_plan_usage_counts(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        $pdo = new PDO('sqlite:'.$instance->database_path);
+        $pdo->exec("INSERT INTO mail_accounts (email) VALUES ('owner@example.test')");
+
+        $counts = HostInstanceDatabaseReader::inspectPath($instance->database_path, 'usage-counts', 'all');
+
+        $this->assertSame(1, (int) $counts['sites']);
+        $this->assertSame(0, (int) $counts['databases']);
+        $this->assertSame(1, (int) $counts['mail_accounts']);
+    }
+
     public function test_a_signed_instance_can_stage_an_authorized_site_operation(): void
     {
         [$instance, $secret] = $this->instanceWithSite();
@@ -462,6 +475,7 @@ class HostBrokerTest extends TestCase
         $pdo->exec('CREATE TABLE php_profiles (id INTEGER PRIMARY KEY, php_version TEXT, extensions TEXT)');
         $pdo->exec("CREATE TABLE sites (id INTEGER PRIMARY KEY, domain TEXT, web_server TEXT, type TEXT, php_version TEXT, php_profile_id INTEGER, document_root TEXT, system_user TEXT, public_path TEXT, node_version TEXT, runtime_port INTEGER, wildcard_domain INTEGER DEFAULT 0, status TEXT DEFAULT 'active')");
         $pdo->exec('CREATE TABLE site_databases (id INTEGER PRIMARY KEY, name TEXT, username TEXT)');
+        $pdo->exec('CREATE TABLE mail_accounts (id INTEGER PRIMARY KEY, email TEXT)');
         $siteUser = 'xps'.substr(str_replace('-', '', $uuid), 0, 6).'1'.substr(hash('sha256', 'example.test'), 0, 8);
         $statement = $pdo->prepare('INSERT INTO sites (domain, web_server, type, php_version, document_root, system_user, public_path) VALUES (?, ?, ?, ?, ?, ?, ?)');
         $statement->execute(['example.test', 'nginx', 'php', '8.3', '/home/xhi0123456789ab/public_html/example.test', $siteUser, 'public']);

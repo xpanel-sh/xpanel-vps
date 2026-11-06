@@ -4,6 +4,11 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
+use App\Models\HostingPlan;
+use App\Models\PlanOrder;
+use App\Models\SystemSetting;
+use App\Services\HostingPlanChanger;
+use App\Services\HostInstanceProvisioner;
 use App\Services\HostSsoLink;
 use App\Services\HostInstancePanelDomainManager;
 use Illuminate\Http\Request;
@@ -22,9 +27,53 @@ class HostAccessController extends Controller
     public function account(Request $request, HostingAccount $hostingAccount)
     {
         $this->authorizeAccount($request, $hostingAccount);
-        $hostingAccount->load(['plan', 'hostInstance']);
+        $hostingAccount->load(['plan', 'hostInstance', 'order']);
+        $plans = HostingPlan::query()->where('is_active', true)->orderBy('monthly_price')->get();
 
-        return view('client.host.account', compact('hostingAccount'));
+        return view('client.host.account', compact('hostingAccount', 'plans'));
+    }
+
+    public function changePlan(Request $request, HostingAccount $hostingAccount, HostingPlanChanger $changer)
+    {
+        $this->authorizeAccount($request, $hostingAccount);
+        $data = $request->validate(['plan_id' => ['required', 'integer', 'exists:hosting_plans,id']]);
+        try {
+            $order = $changer->change($hostingAccount, HostingPlan::findOrFail($data['plan_id']));
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['plan' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('client.orders.show', $order)->with('success', 'El nuevo plan fue aplicado a la misma instancia.');
+    }
+
+    public function cancel(Request $request, HostingAccount $hostingAccount)
+    {
+        $this->authorizeAccount($request, $hostingAccount);
+        abort_unless($hostingAccount->status === 'active', 409, 'El hosting no está activo.');
+        $order = $hostingAccount->order;
+        $suspendAt = $order?->service_ends_at?->isFuture() ? $order->service_ends_at : now();
+        $retention = (int) SystemSetting::get('cancelled_data_retention_days', '30');
+        $hostingAccount->update([
+            'status' => 'cancellation_pending',
+            'cancellation_requested_at' => now(),
+            'suspend_at' => $suspendAt,
+            'purge_after' => $suspendAt->copy()->addDays($retention),
+        ]);
+        $order?->update(['status' => PlanOrder::STATUS_CANCELLATION_PENDING]);
+
+        return back()->with('info', 'Cancelación programada. El servicio funcionará hasta '.$suspendAt->format('d/m/Y H:i').'.');
+    }
+
+    public function restore(Request $request, HostingAccount $hostingAccount, HostInstanceProvisioner $provisioner)
+    {
+        $this->authorizeAccount($request, $hostingAccount);
+        abort_unless(in_array($hostingAccount->status, ['cancellation_pending', 'suspended'], true), 409, 'El hosting no tiene una cancelación reversible.');
+        if ($hostingAccount->purge_after?->isPast()) abort(410, 'El periodo de retención terminó. Contacta al administrador.');
+        if ($hostingAccount->hostInstance?->status === 'suspended') $provisioner->setSuspended($hostingAccount->hostInstance, false);
+        $hostingAccount->order?->update(['status' => PlanOrder::STATUS_ACTIVE]);
+        $hostingAccount->update(['status' => 'active', 'cancellation_requested_at' => null, 'suspend_at' => null, 'suspended_at' => null, 'purge_after' => null]);
+
+        return back()->with('success', 'Cancelación retirada y hosting restaurado.');
     }
 
     public function access(Request $request, HostingAccount $hostingAccount, HostSsoLink $sso)

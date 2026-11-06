@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\HostInstance;
+use App\Models\SystemSetting;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 
@@ -60,7 +61,7 @@ class HostInstanceConfigGenerator
         $panelDomain = parse_url($panelUrl, PHP_URL_HOST) ?: $instance->panel_domain;
 
         return [
-            'APP_NAME' => 'XPanel Host',
+            'APP_NAME' => $this->hostName(),
             'APP_ENV' => 'production',
             'APP_KEY' => $existingKey ?: 'base64:'.base64_encode(random_bytes(32)),
             'APP_DEBUG' => 'false',
@@ -120,6 +121,15 @@ class HostInstanceConfigGenerator
             'XPANEL_APACHE_SERVICE' => 'xpanel-instance-'.$instance->uuid.'-apache.service',
             'XPANEL_PHP_PROFILE_ROOT' => '/etc/xpanel-vps/instances/'.$instance->uuid.'/php-profiles',
         ];
+    }
+
+    private function hostName(): string
+    {
+        try {
+            return SystemSetting::get('host_name', 'XPanel Host') ?: 'XPanel Host';
+        } catch (\Throwable) {
+            return 'XPanel Host';
+        }
     }
 
     private function assertSafe(HostInstance $instance): void

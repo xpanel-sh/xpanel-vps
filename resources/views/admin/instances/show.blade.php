@@ -33,6 +33,9 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <a class="kt-btn kt-btn-outline" href="{{ route('admin.clients.show', $instance->tenant) }}"><i class="ki-filled ki-user"></i>Cliente</a>
+                    @if($account && in_array($account->status, ['cancellation_pending', 'suspended', 'suspended_overdue'], true) && (!$account->purge_after || $account->purge_after->isFuture()))
+                        <form method="post" action="{{ route('admin.instances.restore', $instance) }}">@csrf<button class="kt-btn kt-btn-outline" type="submit"><i class="ki-filled ki-arrows-circle"></i>Restaurar hosting</button></form>
+                    @endif
                     @if($instance->status === 'active')<a class="kt-btn kt-btn-primary" href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener"><i class="ki-filled ki-exit-right-corner"></i>Abrir panel</a>@endif
                 </div>
             </div>
@@ -74,6 +77,7 @@
                             ['Versión Host', $instance->version ?: 'No detectada'],
                         ] as [$label, $value])<div class="flex items-center justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0"><span class="text-secondary-foreground">{{ $label }}</span><strong class="text-right text-mono">{{ $value }}</strong></div>@endforeach
                     </div>
+                    @if($account)<form method="post" action="{{ route('admin.instances.plan', $instance) }}" class="grid gap-3 border-t border-border p-5">@csrf<label class="grid gap-1"><span class="text-xs text-secondary-foreground">Cambiar plan</span><select class="kt-select" name="plan_id">@foreach($plans as $availablePlan)<option value="{{ $availablePlan->id }}" @selected($availablePlan->id === $account->hosting_plan_id)>{{ $availablePlan->name }}</option>@endforeach</select></label><button class="kt-btn kt-btn-outline justify-center" type="submit">Validar y aplicar</button></form>@endif
                 </aside>
             </div>
 

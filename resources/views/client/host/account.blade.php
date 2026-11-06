@@ -3,7 +3,10 @@
 @section('content')
 @php($instance = $hostingAccount->hostInstance)
 <div class="kt-container-fixed max-w-[980px]">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-7.5"><div><a class="kt-link text-xs" href="{{ route('client.host.show') }}">← Mis hostings</a><h1 class="text-xl font-medium text-mono mt-2">{{ $hostingAccount->name }}</h1><p class="text-sm text-secondary-foreground mt-1">{{ $hostingAccount->plan?->name ?? 'Plan no asignado' }} · instancia independiente</p></div><a class="kt-btn kt-btn-outline" href="{{ route('client.orders.index') }}">Ver boletas</a></div>
+    @if(session('success'))<div class="kt-alert kt-alert-success mb-5">{{ session('success') }}</div>@endif
+    @if(session('info'))<div class="kt-alert kt-alert-info mb-5">{{ session('info') }}</div>@endif
+    @if($errors->any())<div class="kt-alert kt-alert-danger mb-5">{{ $errors->first() }}</div>@endif
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-7.5"><div><a class="kt-link text-xs" href="{{ route('client.host.show') }}">← Mis hostings</a><h1 class="text-xl font-medium text-mono mt-2">{{ $hostingAccount->name }}</h1><p class="text-sm text-secondary-foreground mt-1">{{ $hostingAccount->plan?->name ?? 'Plan no asignado' }} · instancia de hosting</p></div><a class="kt-btn kt-btn-outline" href="{{ route('client.orders.index') }}">Ver boletas</a></div>
     <div class="grid lg:grid-cols-3 gap-5 lg:gap-7.5">
         <div class="kt-card lg:col-span-2"><div class="kt-card-header"><h3 class="kt-card-title">Estado del hosting</h3>@if($instance)<span class="kt-badge kt-badge-outline {{ $instance->status === 'active' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ ucfirst($instance->status) }}</span>@endif</div><div class="kt-card-content p-7.5">
             @if(!$instance)
@@ -29,5 +32,22 @@
         <p class="text-xs text-secondary-foreground mt-3">Crea un registro A hacia {{ config('xpanel.server_ip') ?: 'la IP de este servidor' }} o un CNAME hacia {{ $instance?->panel_domain ?? 'la dirección incluida' }}. La dirección incluida nunca se elimina.</p>
         @if($hostingAccount->custom_domain_last_error)<p class="text-sm text-danger mt-3">{{ $hostingAccount->custom_domain_last_error }}</p>@endif
     </div></div>
+    <div class="grid gap-5 mt-5 lg:mt-7.5 lg:grid-cols-2">
+        <section class="kt-card"><div class="kt-card-header"><div><h3 class="kt-card-title">Cambiar plan</h3><p class="mt-1 text-xs text-secondary-foreground">Conserva esta instancia y aplica sus nuevos límites.</p></div></div><div class="kt-card-content p-7.5">
+            <form method="post" action="{{ route('client.host.plan', $hostingAccount) }}" class="grid gap-4">@csrf
+                <label class="grid gap-2"><span class="text-sm font-medium text-mono">Plan disponible</span><select class="kt-select" name="plan_id" required>@foreach($plans as $plan)<option value="{{ $plan->id }}" @selected($hostingAccount->hosting_plan_id === $plan->id)>{{ $plan->name }} · {{ $plan->max_sites }} sitios · {{ number_format($plan->storage_mb / 1024, 1) }} GB · ${{ number_format((float)$plan->monthly_price, 2) }}</option>@endforeach</select></label>
+                <p class="text-xs text-secondary-foreground">Una bajada se rechazará si el consumo actual no cabe en el nuevo plan.</p><div><button class="kt-btn kt-btn-primary" type="submit">Aplicar nuevo plan</button></div>
+            </form>
+        </div></section>
+        <section class="kt-card"><div class="kt-card-header"><div><h3 class="kt-card-title">Ciclo del servicio</h3><p class="mt-1 text-xs text-secondary-foreground">Cancelación reversible durante el periodo de retención.</p></div></div><div class="kt-card-content p-7.5">
+            @if($hostingAccount->status === 'active')
+                <p class="text-sm text-secondary-foreground">El hosting seguirá operativo hasta terminar el periodo contratado. Después se suspenderá sin borrar sus datos.</p>
+                <form class="mt-5" method="post" action="{{ route('client.host.cancel', $hostingAccount) }}" onsubmit="return confirm('¿Programar la cancelación de este hosting?')">@csrf<button class="kt-btn kt-btn-outline text-destructive" type="submit">Programar cancelación</button></form>
+            @elseif(in_array($hostingAccount->status, ['cancellation_pending','suspended'], true))
+                <div class="grid gap-2 text-sm"><div><span class="text-secondary-foreground">Estado:</span> {{ $hostingAccount->status === 'suspended' ? 'Suspendido' : 'Cancelación programada' }}</div>@if($hostingAccount->suspend_at)<div><span class="text-secondary-foreground">Suspensión:</span> {{ $hostingAccount->suspend_at->format('d/m/Y H:i') }}</div>@endif @if($hostingAccount->purge_after)<div><span class="text-secondary-foreground">Retención hasta:</span> {{ $hostingAccount->purge_after->format('d/m/Y H:i') }}</div>@endif</div>
+                <form class="mt-5" method="post" action="{{ route('client.host.restore', $hostingAccount) }}">@csrf<button class="kt-btn kt-btn-primary" type="submit">Conservar y restaurar hosting</button></form>
+            @else<p class="text-sm text-secondary-foreground">El servicio está {{ $hostingAccount->status }}.</p>@endif
+        </div></section>
+    </div>
 </div>
 @endsection

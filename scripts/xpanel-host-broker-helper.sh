@@ -16,7 +16,7 @@ if [[ "${1:-}" == "inspect" ]]; then
   [[ -d "$INSTANCE_ROOT" && ! -L "$INSTANCE_ROOT" && -d "$INSTANCE_ROOT/database" && ! -L "$INSTANCE_ROOT/database" ]] || fail "instance database directory unavailable"
   DB_PATH="$INSTANCE_ROOT/database/database.sqlite"
   [[ -f "$DB_PATH" && ! -L "$DB_PATH" ]] || fail "instance database unavailable"
-  [[ "$KIND" =~ ^(site|profile|profile-site|database|database-name|aliases|engine)$ ]] || fail "inspection query not allowed"
+  [[ "$KIND" =~ ^(site|profile|profile-site|database|database-name|aliases|engine|usage-counts)$ ]] || fail "inspection query not allowed"
   [[ "$FIRST" =~ ^[a-zA-Z0-9_.-]{1,253}$ ]] || fail "invalid inspection key"
   if [[ "$KIND" == "database" ]]; then
     [[ "$SECOND" =~ ^[a-zA-Z0-9_]{1,64}$ ]] || fail "invalid second inspection key"

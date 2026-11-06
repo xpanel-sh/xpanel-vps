@@ -26,11 +26,17 @@ class AdminSettingsTest extends TestCase
         $this->actingAs($admin, 'admin')
             ->put(route('admin.settings.update'), [
                 'app_name' => 'Doolpool Cloud',
+                'host_name' => 'Doolpool Hosting',
+                'service_grace_days' => 5,
+                'cancelled_data_retention_days' => 45,
                 'panel_domain' => 'cloud.doolpool.com',
             ])
             ->assertRedirect();
 
         $this->assertSame('Doolpool Cloud', SystemSetting::get('app_name'));
+        $this->assertSame('Doolpool Hosting', SystemSetting::get('host_name'));
+        $this->assertSame('5', SystemSetting::get('service_grace_days'));
+        $this->assertSame('45', SystemSetting::get('cancelled_data_retention_days'));
         $this->assertSame('cloud.doolpool.com', SystemSetting::get('panel_domain'));
         $this->assertSame('staged', SystemSetting::get('panel_domain_status'));
 

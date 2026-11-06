@@ -16,6 +16,7 @@ class HostInstanceDatabaseReader
         'database-name' => 'SELECT id FROM site_databases WHERE name = :first LIMIT 1',
         'aliases' => "SELECT domain FROM domains WHERE site_id = :first AND type = 'alias'",
         'engine' => 'SELECT 1 FROM sites WHERE web_server = :first LIMIT 1',
+        'usage-counts' => 'SELECT (SELECT COUNT(*) FROM sites) AS sites, (SELECT COUNT(*) FROM site_databases) AS databases, (SELECT COUNT(*) FROM mail_accounts) AS mail_accounts',
     ];
 
     public function query(HostInstance $instance, string $kind, string $first, string $second = ''): array|null
@@ -58,7 +59,7 @@ class HostInstanceDatabaseReader
         $pdo->exec('PRAGMA query_only = ON');
         try {
             $statement = $pdo->prepare(self::QUERIES[$kind]);
-            $parameters = ['first' => $first];
+            $parameters = $kind === 'usage-counts' ? [] : ['first' => $first];
             if ($kind === 'database') {
                 $parameters['second'] = $second;
             }
@@ -78,6 +79,7 @@ class HostInstanceDatabaseReader
         if (! array_key_exists($kind, self::QUERIES)
             || strlen($first) > 253 || strlen($second) > 64
             || ! preg_match('/^[a-zA-Z0-9_.-]+$/D', $first)
+            || ($kind === 'usage-counts' && $first !== 'all')
             || ($kind === 'database' ? ! preg_match('/^[a-zA-Z0-9_]+$/D', $second) : $second !== '')) {
             throw new RuntimeException('Consulta SQLite no permitida.');
         }
