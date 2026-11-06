@@ -21,6 +21,8 @@
         <main class="mx-auto flex w-full max-w-7xl grow flex-col gap-5" role="content">
             @if(session('success'))<div class="kt-alert kt-alert-success"><i class="ki-filled ki-check-circle"></i>{{ session('success') }}</div>@endif
             @if($errors->has('archive'))<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-cross-circle"></i>{{ $errors->first('archive') }}</div>@endif
+            @if($errors->has('purge'))<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-cross-circle"></i>{{ $errors->first('purge') }}</div>@endif
+            @if($errors->has('restore_archive'))<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-cross-circle"></i>{{ $errors->first('restore_archive') }}</div>@endif
             @if($account?->status === 'purge_pending')<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i><div><strong>Retención finalizada: revisión administrativa requerida.</strong><p class="mt-1 text-xs">La instancia continúa suspendida e intacta. Verifica copias, bases y correo antes de cualquier eliminación manual.</p></div></div>@endif
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex min-w-0 items-start gap-3">
@@ -60,13 +62,14 @@
 
             @if($metrics['error'])<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i>No se pudieron leer todas las métricas en vivo. Los límites del plan siguen aplicados.</div>@endif
 
-            @if($account?->status === 'purge_pending')
+            @if($account && in_array($account->status, ['purge_pending', 'purging', 'purge_failed', 'purged', 'restoring', 'restore_failed'], true))
                 <section class="kt-card border-warning/40">
                     <div class="kt-card-header"><div><h2 class="kt-card-title">Copia integral de retención</h2><p class="mt-1 text-xs text-secondary-foreground">Incluye archivos y correo del hogar, estado privado de Host y volcados independientes de MariaDB.</p></div><span class="kt-badge kt-badge-outline {{ $account->purge_archive_status === 'ready' ? 'kt-badge-success' : ($account->purge_archive_status === 'failed' || ($account->purge_archive_status === 'preparing' && ! $archiveIsRunning) ? 'kt-badge-destructive' : 'kt-badge-warning') }}">{{ $account->purge_archive_status === 'ready' ? 'Verificada' : ($archiveIsRunning ? 'Preparando' : ($account->purge_archive_status ? 'Requiere atención' : 'Pendiente')) }}</span></div>
                     <div class="kt-card-content grid gap-4 p-5">
                         @if($account->purge_archive_status === 'ready')
-                            <div class="grid gap-3 md:grid-cols-2"><div><span class="text-xs text-secondary-foreground">Generada</span><strong class="mt-1 block text-sm text-mono">{{ $account->purge_archived_at?->format('d/m/Y H:i') }}</strong></div><div class="min-w-0"><span class="text-xs text-secondary-foreground">SHA-256</span><strong class="mt-1 block truncate text-sm text-mono" title="{{ $account->purge_archive_sha256 }}">{{ $account->purge_archive_sha256 }}</strong></div></div>
+                            <div class="grid gap-3 md:grid-cols-3"><div><span class="text-xs text-secondary-foreground">Generada</span><strong class="mt-1 block text-sm text-mono">{{ $account->purge_archived_at?->format('d/m/Y H:i') }}</strong></div><div><span class="text-xs text-secondary-foreground">Última verificación</span><strong class="mt-1 block text-sm text-mono">{{ $account->purge_archive_verified_at?->format('d/m/Y H:i') ?? 'Pendiente' }}</strong></div><div class="min-w-0"><span class="text-xs text-secondary-foreground">SHA-256</span><strong class="mt-1 block truncate text-sm text-mono" title="{{ $account->purge_archive_sha256 }}">{{ $account->purge_archive_sha256 }}</strong></div></div>
                             <div class="kt-alert kt-alert-success"><i class="ki-filled ki-shield-tick"></i>La copia fue creada fuera de la cuota del cliente y quedó identificada para una recuperación administrativa. Todavía no se eliminó ningún dato.</div>
+                            <div class="flex flex-wrap justify-end gap-2"><form method="post" action="{{ route('admin.instances.archive.verify', $instance) }}">@csrf<button class="kt-btn kt-btn-outline" type="submit" @disabled(in_array($account->status, ['purging', 'restoring'], true))><i class="ki-filled ki-shield-search"></i>Verificar nuevamente</button></form></div>
                         @elseif($archiveIsRunning)
                             <div class="kt-alert kt-alert-info"><i class="ki-filled ki-loading"></i>La copia se ejecuta en segundo plano. En cuentas grandes puede tardar varios minutos.</div>
                         @else
@@ -75,6 +78,30 @@
                         @endif
                     </div>
                 </section>
+                @if($account->purge_archive_status === 'ready')
+                    <section class="kt-card border-destructive/40">
+                        <div class="kt-card-header"><div><h2 class="kt-card-title text-destructive">Depuración técnica definitiva</h2><p class="mt-1 text-xs text-secondary-foreground">Conserva el archivo integral, la boleta y el historial comercial, pero retira servicios y datos activos del servidor.</p></div><span class="kt-badge kt-badge-outline {{ $account->status === 'purged' ? 'kt-badge-success' : (in_array($account->status, ['purge_failed', 'restore_failed'], true) ? 'kt-badge-destructive' : 'kt-badge-warning') }}">{{ match($account->status) { 'purging' => 'Depurando', 'purge_failed' => 'Depuración fallida', 'purged' => 'Depurado', 'restoring' => 'Restaurando', 'restore_failed' => 'Restauración fallida', default => 'Bloqueado' } }}</span></div>
+                        <div class="kt-card-content grid gap-4 p-5">
+                            @if($account->status === 'purged')
+                                <div class="kt-alert kt-alert-success"><i class="ki-filled ki-check-circle"></i>Los recursos técnicos fueron retirados el {{ $account->purged_at?->format('d/m/Y H:i') }}. La copia verificada y el registro comercial permanecen.</div>
+                                @php($restorePhrase = 'RESTAURAR '.strtoupper(substr(str_replace('-', '', $account->uuid), -8)))
+                                <form method="post" action="{{ route('admin.instances.archive.restore', $instance) }}" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">@csrf<label class="grid gap-1.5"><span class="kt-form-label">Para recuperar escribe <strong class="text-mono">{{ $restorePhrase }}</strong></span><input class="kt-input" name="confirmation" autocomplete="off" required></label><button class="kt-btn kt-btn-outline" type="submit"><i class="ki-filled ki-arrows-circle"></i>Recuperar datos</button></form>
+                            @elseif($account->status === 'purging')
+                                <div class="kt-alert kt-alert-info"><i class="ki-filled ki-loading"></i>Se están retirando vhosts, procesos, accesos, bases y espacio de la cuenta. No cierres ni reinicies el servidor durante esta operación.</div>
+                            @elseif($account->status === 'restoring')
+                                <div class="kt-alert kt-alert-info"><i class="ki-filled ki-loading"></i>Se están reconstruyendo archivos, bases, límites y configuraciones. El servicio permanecerá suspendido al finalizar.</div>
+                            @elseif($account->status === 'restore_failed')
+                                <div class="kt-alert kt-alert-danger"><i class="ki-filled ki-information-2"></i>{{ $account->restore_error ?: 'La recuperación no terminó.' }}</div>
+                                @php($restorePhrase = 'RESTAURAR '.strtoupper(substr(str_replace('-', '', $account->uuid), -8)))
+                                <form method="post" action="{{ route('admin.instances.archive.restore', $instance) }}" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">@csrf<label class="grid gap-1.5"><span class="kt-form-label">Para reintentar escribe <strong class="text-mono">{{ $restorePhrase }}</strong></span><input class="kt-input" name="confirmation" autocomplete="off" required></label><button class="kt-btn kt-btn-outline" type="submit"><i class="ki-filled ki-arrows-circle"></i>Reintentar recuperación</button></form>
+                            @else
+                                @if($account->purge_error)<div class="kt-alert kt-alert-danger"><i class="ki-filled ki-information-2"></i>{{ $account->purge_error }}</div>@endif
+                                @php($purgePhrase = 'ELIMINAR '.strtoupper(substr(str_replace('-', '', $account->uuid), -8)))
+                                <form method="post" action="{{ route('admin.instances.purge', $instance) }}" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">@csrf<label class="grid gap-1.5"><span class="kt-form-label">Escribe <strong class="text-mono">{{ $purgePhrase }}</strong></span><input class="kt-input" name="confirmation" autocomplete="off" required></label><button class="kt-btn kt-btn-destructive" type="submit"><i class="ki-filled ki-trash"></i>{{ $account->status === 'purge_failed' ? 'Reintentar depuración' : 'Depurar recursos' }}</button></form>
+                            @endif
+                        </div>
+                    </section>
+                @endif
             @endif
 
             <div class="grid gap-5 xl:grid-cols-3">

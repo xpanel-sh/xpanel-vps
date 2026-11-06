@@ -109,6 +109,9 @@ Route::group(['middleware' => ['web']], function () {
         Route::post('/admin/instances/{instance}/plan', [\App\Http\Controllers\Admin\HostInstanceController::class, 'changePlan'])->name('admin.instances.plan');
         Route::post('/admin/instances/{instance}/restore', [\App\Http\Controllers\Admin\HostInstanceController::class, 'restore'])->name('admin.instances.restore');
         Route::post('/admin/instances/{instance}/archive', [\App\Http\Controllers\Admin\HostInstanceController::class, 'archive'])->name('admin.instances.archive');
+        Route::post('/admin/instances/{instance}/archive/verify', [\App\Http\Controllers\Admin\HostInstanceController::class, 'verifyArchive'])->name('admin.instances.archive.verify');
+        Route::post('/admin/instances/{instance}/purge', [\App\Http\Controllers\Admin\HostInstanceController::class, 'purge'])->name('admin.instances.purge');
+        Route::post('/admin/instances/{instance}/archive/restore', [\App\Http\Controllers\Admin\HostInstanceController::class, 'restoreArchive'])->name('admin.instances.archive.restore');
 
         Route::get('/admin/servers', [\App\Http\Controllers\Admin\ServerNodeController::class, 'index'])->name('admin.servers.index');
         Route::get('/admin/servers/create', [\App\Http\Controllers\Admin\ServerNodeController::class, 'create'])->name('admin.servers.create');

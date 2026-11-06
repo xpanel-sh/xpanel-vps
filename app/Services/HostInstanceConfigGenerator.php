@@ -49,8 +49,11 @@ class HostInstanceConfigGenerator
     private function environmentValues(HostInstance $instance, string $environmentPath): array
     {
         $existingKey = null;
-        if (File::exists($environmentPath) && preg_match('/^APP_KEY=(.+)$/m', File::get($environmentPath), $match)) {
-            $existingKey = trim($match[1], " \t\n\r\0\x0B\"");
+        foreach ([$environmentPath, $instance->instance_root.'/.env'] as $candidate) {
+            if (File::isFile($candidate) && preg_match('/^APP_KEY=(.+)$/m', File::get($candidate), $match)) {
+                $existingKey = trim($match[1], " \t\n\r\0\x0B\"");
+                break;
+            }
         }
 
         $cache = $instance->instance_root.'/storage/framework/cache';
@@ -151,7 +154,7 @@ class HostInstanceConfigGenerator
 
     private function dotenv(array $values): string
     {
-        return collect($values)->map(fn ($value, $key) => $key.'="'.addcslashes((string) $value, "\\\"").'"')->implode("\n")."\n";
+        return collect($values)->map(fn ($value, $key) => $key.'="'.addcslashes((string) $value, '\\"').'"')->implode("\n")."\n";
     }
 
     private function shellEnvironment(array $values): string
@@ -165,7 +168,7 @@ class HostInstanceConfigGenerator
     {
         $pool = 'xpanel-instance-'.$instance->uuid;
         $socket = '/run/php/php'.$instance->php_version.'-fpm-'.$pool.'.sock';
-        $environment = collect($values)->map(fn ($value, $key) => 'env['.$key.'] = "'.addcslashes((string) $value, "\\\"").'"')->implode("\n");
+        $environment = collect($values)->map(fn ($value, $key) => 'env['.$key.'] = "'.addcslashes((string) $value, '\\"').'"')->implode("\n");
 
         return "[{$pool}]\nuser = {$instance->system_user}\ngroup = {$instance->system_user}\nlisten = {$socket}\nlisten.owner = www-data\nlisten.group = www-data\nlisten.mode = 0660\npm = ondemand\npm.max_children = 8\npm.process_idle_timeout = 20s\nchdir = {$instance->release_path}\nclear_env = yes\n{$environment}\n";
     }

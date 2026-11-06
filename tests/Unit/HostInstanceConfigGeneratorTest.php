@@ -2,9 +2,9 @@
 
 namespace Tests\Unit;
 
-use App\Models\HostInstance;
 use App\Models\HostingAccount;
 use App\Models\HostingPlan;
+use App\Models\HostInstance;
 use App\Services\HostInstanceConfigGenerator;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -95,9 +95,24 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertSame($firstKey[1], $secondKey[1]);
     }
 
-    private function makeInstance(string $uuid, string $domain): HostInstance
+    public function test_recovery_preserves_the_application_key_from_the_restored_instance(): void
     {
-        $root = '/var/lib/xpanel-vps/instances/'.$uuid;
+        $instanceRootBase = $this->stagingRoot.'/restored-instances';
+        config()->set('xpanel.host_instances.root', $instanceRootBase);
+        $uuid = '01234567-89ab-cdef-0123-456789abcdef';
+        $instanceRoot = $instanceRootBase.'/'.$uuid;
+        File::ensureDirectoryExists($instanceRoot);
+        File::put($instanceRoot.'/.env', "APP_NAME=Old\nAPP_KEY=base64:restored-key-value\n");
+        $instance = $this->makeInstance($uuid, 'panel.one.test', $instanceRoot);
+
+        $environment = File::get(app(HostInstanceConfigGenerator::class)->generate($instance)['environment']);
+
+        $this->assertStringContainsString('APP_KEY="base64:restored-key-value"', $environment);
+    }
+
+    private function makeInstance(string $uuid, string $domain, ?string $root = null): HostInstance
+    {
+        $root ??= '/var/lib/xpanel-vps/instances/'.$uuid;
 
         return new HostInstance([
             'uuid' => $uuid,

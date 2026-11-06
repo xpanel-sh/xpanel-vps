@@ -13,7 +13,7 @@ if [[ "$action" == status && "${XPANEL_PROJECT_ONLY:-}" != 1 ]]; then
     if bash "$user_helper" status >/dev/null 2>&1; then
         exec bash "$user_helper" status
     fi
-elif [[ "$action" == apply || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases ]]; then
+elif [[ "$action" == apply || "$action" == remove || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases ]]; then
     uuid="${2:-}"
     if [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; then
         if [[ -f "/etc/xpanel-vps/instances/$uuid/user-quota-applied" ]]; then
@@ -102,6 +102,24 @@ case "${1:-}" in
         # Host SQLite catalog, not a short name prefix, identifies ownership.
         "$0" reconcile-databases "$uuid" "$user" "$project_id"
         echo "quota-applied"
+        ;;
+    remove)
+        [[ $# -eq 4 ]] || fail "remove expects UUID, system user and project ID"
+        uuid="$2" user="$3" project_id="$4"
+        [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid UUID"
+        uuid_hex="${uuid//-/}"
+        [[ "$user" == "xhi${uuid_hex:0:12}" ]] || fail "invalid system user"
+        [[ "$project_id" =~ ^[0-9]+$ ]] && (( project_id >= 100000 && project_id <= 4294967294 )) || fail "invalid project ID"
+        marker="/etc/xpanel-vps/instances/$uuid/project-quota-applied"
+        if [[ ! -e "$marker" ]]; then
+            echo project-quota-already-removed
+            exit 0
+        fi
+        [[ -f "$marker" && ! -L "$marker" && "$(<"$marker")" == "$project_id" ]] || fail "instance project quota marker is unavailable"
+        mountpoint="$(quota_mount)"
+        setquota -P "$project_id" 0 0 0 0 "$mountpoint"
+        rm -f -- "$marker"
+        echo project-quota-removed
         ;;
     reconcile-databases|check-databases)
         [[ $# -eq 4 ]] || fail "database reconciliation expects UUID, system user and project ID"

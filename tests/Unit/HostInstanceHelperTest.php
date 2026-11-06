@@ -56,4 +56,16 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString("alias diff='diff --color=auto'", $installer);
         $this->assertStringContainsString('grep -q \'XPANEL_TERMINAL_STYLE_V2\' "$jail_profile"', $installer);
     }
+
+    public function test_retention_restore_validates_archives_and_keeps_idempotent_lifecycle_markers(): void
+    {
+        $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
+
+        $this->assertStringContainsString('python3 - "$inner_archive" "$expected_root"', $helper);
+        $this->assertStringContainsString('member.isfile() or member.isdir() or member.issym()', $helper);
+        $this->assertStringContainsString('retention component contains a symbolic link outside its root', $helper);
+        $this->assertStringContainsString('CREATE OR REPLACE USER', $helper);
+        $this->assertStringContainsString('RESTORED_ROOT="/var/lib/xpanel-vps/restored"', $helper);
+        $this->assertStringContainsString('restore-complete', $helper);
+    }
 }

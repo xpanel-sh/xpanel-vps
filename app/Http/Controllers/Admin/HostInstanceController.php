@@ -15,6 +15,8 @@ use App\Services\HostUpdateCoordinator;
 use App\Services\HostingPlanChanger;
 use App\Services\AccountNotifier;
 use App\Services\HostingAccountArchiveManager;
+use App\Services\HostingAccountPurgeManager;
+use App\Services\HostingAccountRestoreManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -116,6 +118,49 @@ class HostInstanceController extends Controller
         }
 
         return back()->with('success', 'La copia integral comenzó en segundo plano. Puedes volver a esta ficha para consultar el resultado.');
+    }
+
+    public function verifyArchive(HostInstance $instance, HostingAccountArchiveManager $archives)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+
+        try {
+            $archives->verify($account);
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['archive' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'La copia y todos sus componentes superaron nuevamente la verificación de integridad.');
+    }
+
+    public function purge(Request $request, HostInstance $instance, HostingAccountPurgeManager $purges)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+        $data = $request->validate(['confirmation' => ['required', 'string', 'max:40']]);
+
+        try {
+            $purges->start($account, $data['confirmation']);
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['purge' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'La depuración técnica comenzó en segundo plano. El archivo y el historial comercial no se eliminarán.');
+    }
+
+    public function restoreArchive(Request $request, HostInstance $instance, HostingAccountRestoreManager $restores)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
+        $data = $request->validate(['confirmation' => ['required', 'string', 'max:40']]);
+        try {
+            $restores->start($account, $data['confirmation']);
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['restore_archive' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'La recuperación comenzó en segundo plano. El hosting quedará suspendido al terminar para que puedas revisarlo.');
     }
 
     public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner)

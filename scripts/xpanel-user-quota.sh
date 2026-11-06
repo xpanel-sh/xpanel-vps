@@ -69,6 +69,22 @@ case "${1:-}" in
         quota_mount >/dev/null
         echo user-quota-verified
         ;;
+    remove)
+        [[ $# -eq 4 ]] || fail "remove expects UUID, system user and project ID"
+        uuid="$2" user="$3"
+        validate_account "$uuid" "$user"
+        if ! id "$user" >/dev/null 2>&1; then
+            [[ ! -e "$(marker_for "$uuid")" ]] || fail "quota marker remains after the instance user disappeared"
+            echo user-quota-already-removed
+            exit 0
+        fi
+        mountpoint="$(quota_mount)"
+        setquota -u "$user" 0 0 0 0 "$mountpoint"
+        marker="$(marker_for "$uuid")"
+        [[ ! -L "$marker" ]] || fail "unsafe user quota marker"
+        rm -f -- "$marker"
+        echo user-quota-removed
+        ;;
     tag-database|check-databases|reconcile-databases)
         if [[ "$1" == tag-database ]]; then
             [[ $# -eq 5 ]] || fail "tag-database expects UUID, system user, project ID and database name"

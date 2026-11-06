@@ -87,6 +87,34 @@ if [[ "${1:-}" == "archive-start" ]]; then
     exit 0
 fi
 
+if [[ "${1:-}" == "purge-start" ]]; then
+    [[ $# -eq 3 ]] || fail "purge-start expects an instance UUID and project ID"
+    validate_uuid "$2"
+    [[ "$3" =~ ^[0-9]+$ ]] && (( "$3" >= 100000 && "$3" <= 4294967294 )) || fail "invalid purge project ID"
+    app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    [[ -f "$app_root/artisan" ]] || fail "VPS artisan is unavailable"
+    unit="xpanel-hosting-purge-${2//-/}-$(date +%s)"
+    systemd-run --quiet --collect --unit="$unit" \
+        --property=User=root --property="WorkingDirectory=$app_root" \
+        /usr/bin/php "$app_root/artisan" xpanel:hosting-purge "$2"
+    printf 'started=%s\n' "$unit"
+    exit 0
+fi
+
+if [[ "${1:-}" == "restore-start" ]]; then
+    [[ $# -eq 3 ]] || fail "restore-start expects an instance UUID and project ID"
+    validate_uuid "$2"
+    [[ "$3" =~ ^[0-9]+$ ]] && (( "$3" >= 100000 && "$3" <= 4294967294 )) || fail "invalid restore project ID"
+    app_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    [[ -f "$app_root/artisan" ]] || fail "VPS artisan is unavailable"
+    unit="xpanel-hosting-restore-${2//-/}-$(date +%s)"
+    systemd-run --quiet --collect --unit="$unit" \
+        --property=User=root --property="WorkingDirectory=$app_root" \
+        /usr/bin/php "$app_root/artisan" xpanel:hosting-restore "$2"
+    printf 'started=%s\n' "$unit"
+    exit 0
+fi
+
 if [[ "${1:-}" == "instance-metrics" ]]; then
     [[ $# -eq 3 ]] || fail "instance-metrics expects UUID and system user"
     uuid="$2"; user="$3"
@@ -218,11 +246,15 @@ if [[ "$ACTION" == "archive" ]]; then
     DATABASE_LIST="$(php -r '
         $db = new PDO("sqlite:".$argv[1]);
         if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
-        foreach ($db->query("SELECT DISTINCT name FROM site_databases WHERE status = \x27active\x27 ORDER BY name") as $row) echo $row["name"]."\n";
+        foreach ($db->query("SELECT DISTINCT name, username FROM site_databases WHERE status = \x27active\x27 ORDER BY name") as $row) echo $row["name"]."\t".$row["username"]."\n";
     ' "$DATABASE_FILE")" || fail "could not read the instance database catalog"
     DATABASES=()
-    while IFS= read -r DATABASE; do
-        [[ -n "$DATABASE" ]] && DATABASES+=("$DATABASE")
+    DATABASE_USERS=()
+    while IFS=$'\t' read -r DATABASE DB_USER; do
+        if [[ -n "$DATABASE" ]]; then
+            DATABASES+=("$DATABASE")
+            DATABASE_USERS+=("$DB_USER")
+        fi
     done <<< "$DATABASE_LIST"
 
     SOURCE_BYTES="$(du -sb --one-file-system "$ACCOUNT_HOME" "$INSTANCE_ROOT" | awk '{total += $1} END {print total + 0}')"
@@ -242,7 +274,19 @@ if [[ "$ACTION" == "archive" ]]; then
         mariadb-dump --protocol=socket --single-transaction --routines --events --triggers --databases "$DATABASE" \
             | gzip -9 > "$WORK_DIR/databases/$DATABASE.sql.gz"
     done
+    : > "$WORK_DIR/database-users.sql"
+    for DB_USER in "${DATABASE_USERS[@]}"; do
+        [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ ]] || fail "database user escaped the instance: $DB_USER"
+        while IFS= read -r DB_HOST; do
+            [[ -n "$DB_HOST" ]] || continue
+            [[ "$DB_HOST" =~ ^[A-Za-z0-9.%:_-]+$ ]] || fail "unsafe MariaDB host for instance user"
+            mariadb --protocol=socket --batch --skip-column-names -e "SHOW CREATE USER '$DB_USER'@'$DB_HOST'" | cut -f2- | sed 's/^CREATE USER /CREATE OR REPLACE USER /; s/;[[:space:]]*$//; s/$/;/' >> "$WORK_DIR/database-users.sql"
+            mariadb --protocol=socket --batch --skip-column-names -e "SHOW GRANTS FOR '$DB_USER'@'$DB_HOST'" | sed 's/;[[:space:]]*$//; s/$/;/' >> "$WORK_DIR/database-users.sql"
+        done < <(mariadb --protocol=socket --batch --skip-column-names -e "SELECT Host FROM mysql.user WHERE User='$DB_USER' ORDER BY Host")
+    done
+    gzip -9 "$WORK_DIR/database-users.sql"
     {
+        printf 'format=2\n'
         printf 'uuid=%s\n' "$UUID"
         printf 'system_user=%s\n' "$SYSTEM_USER"
         printf 'created_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -260,6 +304,393 @@ if [[ "$ACTION" == "archive" ]]; then
     rm -rf -- "$WORK_DIR"
     trap - ERR INT TERM
     printf 'archive_path=%s\narchive_sha256=%s\ndatabase_count=%s\n' "$FINAL_ARCHIVE" "$ARCHIVE_SHA256" "${#DATABASES[@]}"
+    exit 0
+fi
+
+if [[ "$ACTION" == "archive-verify" ]]; then
+    [[ $# -eq 3 ]] || fail "archive-verify expects instance UUID, archive path and SHA-256"
+    UUID="$1"
+    ARCHIVE_PATH="$2"
+    EXPECTED_SHA256="$3"
+    validate_uuid "$UUID"
+    [[ "$EXPECTED_SHA256" =~ ^[a-f0-9]{64}$ ]] || fail "invalid archive SHA-256"
+    ARCHIVE_ROOT="/var/backups/xpanel/hosting-retention/$UUID"
+    [[ "$ARCHIVE_PATH" =~ ^$ARCHIVE_ROOT/[0-9]{8}T[0-9]{6}Z\.tar\.gz$ ]] || fail "archive path escaped its retention directory"
+    [[ -f "$ARCHIVE_PATH" && ! -L "$ARCHIVE_PATH" ]] || fail "retention archive is missing or unsafe"
+    [[ "$(stat -c %U:%G -- "$ARCHIVE_PATH")" == root:root ]] || fail "retention archive has an unexpected owner"
+    ACTUAL_SHA256="$(sha256sum "$ARCHIVE_PATH" | awk '{print $1}')"
+    [[ "$ACTUAL_SHA256" == "$EXPECTED_SHA256" ]] || fail "retention archive SHA-256 mismatch"
+
+    VERIFY_DIR="$(mktemp -d "$ARCHIVE_ROOT/.verify.XXXXXX")"
+    cleanup_verify() { rm -rf -- "$VERIFY_DIR"; }
+    trap cleanup_verify EXIT INT TERM
+    tar --quoting-style=literal -tzf "$ARCHIVE_PATH" | awk '
+        {
+            name=$0; sub(/^\.\//, "", name)
+            if (name == "" || name == "databases/") next
+            if (name == "account-home.tar.gz" || name == "instance-state.tar.gz" || name == "database-users.sql.gz" || name == "metadata.txt" || name == "SHA256SUMS") next
+            if (name ~ /^databases\/xp_[a-f0-9]{6}_[a-z0-9_]{1,54}\.sql\.gz$/) next
+            bad=1
+        }
+        END { exit bad ? 1 : 0 }
+    ' || fail "retention archive contains an unexpected path"
+    tar -tvzf "$ARCHIVE_PATH" | awk '$1 !~ /^[d-]/ { bad=1 } END { exit bad ? 1 : 0 }' \
+        || fail "retention archive contains links or special files"
+    tar --no-same-owner --no-same-permissions -C "$VERIFY_DIR" -xzf "$ARCHIVE_PATH"
+    [[ -f "$VERIFY_DIR/account-home.tar.gz" && -f "$VERIFY_DIR/instance-state.tar.gz" && -f "$VERIFY_DIR/database-users.sql.gz" ]] || fail "retention archive is incomplete"
+    [[ -f "$VERIFY_DIR/metadata.txt" && -f "$VERIFY_DIR/SHA256SUMS" ]] || fail "retention archive metadata is missing"
+    grep -qxF "uuid=$UUID" "$VERIFY_DIR/metadata.txt" || fail "retention archive belongs to another instance"
+    grep -qxF "format=2" "$VERIFY_DIR/metadata.txt" || fail "retention archive format cannot restore database identities"
+    (
+        cd "$VERIFY_DIR"
+        sha256sum --check SHA256SUMS >/dev/null
+    ) || fail "an internal retention component failed its checksum"
+    gzip -t "$VERIFY_DIR/account-home.tar.gz" "$VERIFY_DIR/instance-state.tar.gz" "$VERIFY_DIR/database-users.sql.gz"
+    while IFS= read -r -d '' DATABASE_DUMP; do gzip -t "$DATABASE_DUMP"; done < <(find "$VERIFY_DIR/databases" -type f -name '*.sql.gz' -print0)
+    printf 'verified=%s\n' "$ACTUAL_SHA256"
+    exit 0
+fi
+
+if [[ "$ACTION" == "purge" ]]; then
+    [[ $# -eq 5 ]] || fail "purge expects UUID, system user, project ID, archive path and SHA-256"
+    UUID="$1"; SYSTEM_USER="$2"; PROJECT_ID="$3"; ARCHIVE_PATH="$4"; ARCHIVE_SHA256="$5"
+    validate_uuid "$UUID"
+    UUID_HEX="${UUID//-/}"
+    [[ "$SYSTEM_USER" == "xhi${UUID_HEX:0:12}" ]] || fail "invalid instance user"
+    [[ "$PROJECT_ID" =~ ^[0-9]+$ ]] && (( PROJECT_ID >= 100000 && PROJECT_ID <= 4294967294 )) || fail "invalid project ID"
+    [[ "$ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]] || fail "invalid archive SHA-256"
+    COMPLETED_ROOT="/var/lib/xpanel-vps/purged"
+    COMPLETED_MARKER="$COMPLETED_ROOT/$UUID"
+    if [[ -f "$COMPLETED_MARKER" && ! -L "$COMPLETED_MARKER" ]]; then
+        grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$COMPLETED_MARKER" || fail "purge marker belongs to a different archive"
+        printf 'purged=%s\n' "$UUID"
+        exit 0
+    fi
+
+    "$0" archive-verify "$UUID" "$ARCHIVE_PATH" "$ARCHIVE_SHA256" >/dev/null
+    INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+    ACCOUNT_HOME="/home/$SYSTEM_USER"
+    DATABASE_FILE="$INSTANCE_ROOT/database/database.sqlite"
+    PURGE_STATE="/var/lib/xpanel-vps/purge-state/$UUID"
+    install -d -o root -g root -m 0700 /var/lib/xpanel-vps/purge-state "$PURGE_STATE"
+
+    if [[ ! -f "$PURGE_STATE/prepared" ]]; then
+        [[ -d "$INSTANCE_ROOT" && ! -L "$INSTANCE_ROOT" ]] || fail "instance root is unavailable before purge preparation"
+        [[ -f "$DATABASE_FILE" && ! -L "$DATABASE_FILE" ]] || fail "instance database catalog is unavailable before purge"
+        [[ -f "$INSTANCE_ROOT/runtime.sh" && ! -L "$INSTANCE_ROOT/runtime.sh" ]] || fail "instance runtime is unavailable before purge"
+        install -o root -g root -m 0600 "$INSTANCE_ROOT/runtime.sh" "$PURGE_STATE/runtime.sh"
+        php -r '
+            $db = new PDO("sqlite:".$argv[1]);
+            if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27sites\x27")->fetchColumn()) exit(0);
+            foreach ($db->query("SELECT domain, web_server, type, php_version, document_root, system_user FROM sites ORDER BY id DESC") as $row) {
+                echo implode("\t", array_map("base64_encode", [$row["domain"], $row["web_server"], $row["type"], $row["php_version"], $row["document_root"], $row["system_user"]]))."\n";
+            }
+        ' "$DATABASE_FILE" > "$PURGE_STATE/sites.tsv" || fail "could not inventory instance sites"
+        php -r '
+            $db = new PDO("sqlite:".$argv[1]);
+            if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
+            foreach ($db->query("SELECT name, username FROM site_databases ORDER BY id") as $row) {
+                echo base64_encode($row["name"])."\t".base64_encode($row["username"])."\n";
+            }
+        ' "$DATABASE_FILE" > "$PURGE_STATE/databases.tsv" || fail "could not inventory instance databases"
+        chmod 0600 "$PURGE_STATE/runtime.sh" "$PURGE_STATE/sites.tsv" "$PURGE_STATE/databases.tsv"
+        printf 'uuid=%s\nsystem_user=%s\nproject_id=%s\narchive_sha256=%s\n' "$UUID" "$SYSTEM_USER" "$PROJECT_ID" "$ARCHIVE_SHA256" > "$PURGE_STATE/prepared"
+        chmod 0600 "$PURGE_STATE/prepared"
+    else
+        grep -qxF "uuid=$UUID" "$PURGE_STATE/prepared" || fail "purge state belongs to another instance"
+        grep -qxF "system_user=$SYSTEM_USER" "$PURGE_STATE/prepared" || fail "purge state has another system user"
+        grep -qxF "project_id=$PROJECT_ID" "$PURGE_STATE/prepared" || fail "purge state has another project ID"
+        grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$PURGE_STATE/prepared" || fail "purge state belongs to another archive"
+    fi
+
+    # shellcheck disable=SC1090
+    source "$PURGE_STATE/runtime.sh"
+    [[ "${XPANEL_INSTANCE_ID:-}" == "$UUID" && "${XPANEL_ACCOUNT_USER:-}" == "$SYSTEM_USER" && "${XPANEL_ACCOUNT_HOME:-}" == "$ACCOUNT_HOME" ]] \
+        || fail "purge runtime does not belong to this instance"
+    HOST_HELPER="/opt/xpanel-host/current/scripts/xpanel-site-helper.sh"
+    [[ -f "$HOST_HELPER" && ! -L "$HOST_HELPER" ]] || fail "current Host helper is unavailable"
+
+    while IFS=$'\t' read -r B_DOMAIN B_ENGINE B_TYPE B_PHP B_ROOT B_USER; do
+        [[ -n "$B_DOMAIN" ]] || continue
+        DOMAIN="$(printf %s "$B_DOMAIN" | base64 -d)"
+        ENGINE="$(printf %s "$B_ENGINE" | base64 -d)"
+        TYPE="$(printf %s "$B_TYPE" | base64 -d)"
+        PHP_VERSION="$(printf %s "$B_PHP" | base64 -d)"
+        DOCUMENT_ROOT="$(printf %s "$B_ROOT" | base64 -d)"
+        SITE_USER="$(printf %s "$B_USER" | base64 -d)"
+        [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ && "$DOMAIN" == *.* && "$DOMAIN" != *..* ]] || fail "unsafe site domain in purge state"
+        [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ && "$TYPE" =~ ^(php|static|node)$ && "$PHP_VERSION" =~ ^8\.[1-4]$ ]] || fail "unsafe site runtime in purge state"
+        [[ "$DOCUMENT_ROOT" == "$ACCOUNT_HOME/public_html/"* && "$DOCUMENT_ROOT" != *".."* ]] || fail "site root escaped the account during purge"
+        [[ "$SITE_USER" =~ ^xps${UUID_HEX:0:6}[a-z0-9]{9,23}$ ]] || fail "site identity escaped the instance during purge"
+        bash "$HOST_HELPER" remove "$DOMAIN" "$ENGINE" "$TYPE" "$PHP_VERSION" "$DOCUMENT_ROOT" "$SITE_USER"
+        bash "$HOST_HELPER" access-remove "$SITE_USER" "$DOCUMENT_ROOT"
+        if [[ -f "/etc/letsencrypt/renewal/$DOMAIN.conf" && ! -L "/etc/letsencrypt/renewal/$DOMAIN.conf" ]]; then
+            certbot delete --non-interactive --cert-name "$DOMAIN" >/dev/null
+        fi
+        rm -f -- "/var/log/nginx/$DOMAIN-access.log" "/var/log/nginx/$DOMAIN-error.log"
+    done < "$PURGE_STATE/sites.tsv"
+
+    while IFS=$'\t' read -r B_DATABASE B_USERNAME; do
+        [[ -n "$B_DATABASE" ]] || continue
+        DATABASE="$(printf %s "$B_DATABASE" | base64 -d)"
+        DB_USER="$(printf %s "$B_USERNAME" | base64 -d)"
+        [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance during purge"
+        [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ ]] || fail "database user escaped the instance during purge"
+        mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`$DATABASE\`;"
+        while IFS= read -r DB_HOST; do
+            [[ -n "$DB_HOST" ]] || continue
+            [[ "$DB_HOST" =~ ^[A-Za-z0-9.%:_-]+$ ]] || fail "unsafe MariaDB host for instance user"
+            mariadb --protocol=socket -e "DROP USER IF EXISTS '$DB_USER'@'$DB_HOST';"
+        done < <(mariadb --protocol=socket --batch --skip-column-names -e "SELECT Host FROM mysql.user WHERE User='$DB_USER'")
+    done < "$PURGE_STATE/databases.tsv"
+
+    for UNIT in "xpanel-instance-$UUID-scheduler.timer" "xpanel-instance-$UUID-scheduler.service" "xpanel-instance-$UUID-apache.service" "xpanel-instance-$UUID-fpm.service"; do
+        systemctl disable --now "$UNIT" >/dev/null 2>&1 || true
+        rm -f -- "/etc/systemd/system/$UNIT"
+    done
+    TLS_SNIPPET="/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf"
+    if [[ -f "$TLS_SNIPPET" && ! -L "$TLS_SNIPPET" ]]; then
+        PANEL_CERT_NAME="$(sed -n 's#^[[:space:]]*ssl_certificate /etc/letsencrypt/live/\([^/]*\)/fullchain\.pem;[[:space:]]*$#\1#p' "$TLS_SNIPPET" | head -n1)"
+        if [[ -n "$PANEL_CERT_NAME" ]]; then
+            [[ "$PANEL_CERT_NAME" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ && "$PANEL_CERT_NAME" == *.* && "$PANEL_CERT_NAME" != *..* ]] || fail "unsafe panel certificate name"
+            [[ ! -f "/etc/letsencrypt/renewal/$PANEL_CERT_NAME.conf" ]] || certbot delete --non-interactive --cert-name "$PANEL_CERT_NAME" >/dev/null
+        fi
+    fi
+    rm -f -- "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf" "/etc/nginx/sites-available/xpanel-instance-$UUID.conf" "/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf" "/etc/nginx/snippets/xpanel-traffic-$UUID.conf"
+    rm -rf -- "/etc/systemd/system/xpanel-instance-$UUID.slice.d"
+
+    ACCOUNT_JAIL="/var/lib/xpanel-host/jails/$SYSTEM_USER"
+    ACCOUNT_JAIL_UNIT="xpanel-host-jail-$SYSTEM_USER.service"
+    systemctl stop "$ACCOUNT_JAIL_UNIT" >/dev/null 2>&1 || true
+    if [[ -f "/opt/xpanel-host/current/scripts/xpanel-jail-unmount.sh" ]]; then bash "/opt/xpanel-host/current/scripts/xpanel-jail-unmount.sh" "$ACCOUNT_JAIL"; fi
+    systemctl disable "$ACCOUNT_JAIL_UNIT" >/dev/null 2>&1 || true
+    rm -f -- "/etc/systemd/system/$ACCOUNT_JAIL_UNIT" "/etc/ssh/sshd_config.d/90-xpanel-$SYSTEM_USER.conf"
+    if [[ -d "$ACCOUNT_JAIL" ]]; then
+        while IFS= read -r MOUNT_TARGET; do
+            [[ "$MOUNT_TARGET" != "$ACCOUNT_JAIL" && "$MOUNT_TARGET" != "$ACCOUNT_JAIL/"* ]] || fail "account jail still has live mounts"
+        done < <(findmnt -n -o TARGET 2>/dev/null)
+    fi
+    rm -rf -- "/var/lib/xpanel-host/ssh/$SYSTEM_USER" "$ACCOUNT_JAIL"
+    if [[ -f /etc/xpanel-host/ftp-users ]]; then
+        grep -vxF "$SYSTEM_USER" /etc/xpanel-host/ftp-users > /etc/xpanel-host/ftp-users.tmp || true
+        mv /etc/xpanel-host/ftp-users.tmp /etc/xpanel-host/ftp-users
+        chmod 0600 /etc/xpanel-host/ftp-users
+    fi
+
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" remove "$UUID" "$SYSTEM_USER" "$PROJECT_ID"
+    rm -rf -- "$ACCOUNT_HOME" "$INSTANCE_ROOT" "/etc/xpanel-vps/instances/$UUID" "/var/lib/xpanel-vps/metrics/$UUID" "/var/www/xpanel-instances/$UUID"
+    id "$SYSTEM_USER" >/dev/null 2>&1 && userdel "$SYSTEM_USER"
+    getent group "$SYSTEM_USER" >/dev/null 2>&1 && groupdel "$SYSTEM_USER"
+    systemctl daemon-reload
+    nginx -t
+    systemctl reload nginx
+    sshd -t
+    systemctl reload ssh 2>/dev/null || systemctl reload sshd
+    install -d -o root -g root -m 0700 "$COMPLETED_ROOT"
+    rm -f -- "/var/lib/xpanel-vps/restored/$UUID"
+    printf 'uuid=%s\narchive_sha256=%s\npurged_at=%s\n' "$UUID" "$ARCHIVE_SHA256" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$COMPLETED_MARKER"
+    chmod 0600 "$COMPLETED_MARKER"
+    rm -rf -- "$PURGE_STATE"
+    printf 'purged=%s\n' "$UUID"
+    exit 0
+fi
+
+if [[ "$ACTION" == "restore" ]]; then
+    [[ $# -eq 5 ]] || fail "restore expects UUID, system user, project ID, archive path and SHA-256"
+    UUID="$1"; SYSTEM_USER="$2"; PROJECT_ID="$3"; ARCHIVE_PATH="$4"; ARCHIVE_SHA256="$5"
+    validate_uuid "$UUID"
+    UUID_HEX="${UUID//-/}"
+    [[ "$SYSTEM_USER" == "xhi${UUID_HEX:0:12}" ]] || fail "invalid instance user"
+    [[ "$PROJECT_ID" =~ ^[0-9]+$ ]] && (( PROJECT_ID >= 100000 && PROJECT_ID <= 4294967294 )) || fail "invalid project ID"
+    [[ "$ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]] || fail "invalid archive SHA-256"
+
+    COMPLETED_MARKER="/var/lib/xpanel-vps/purged/$UUID"
+    RESTORED_MARKER="/var/lib/xpanel-vps/restored/$UUID"
+    if [[ -f "$RESTORED_MARKER" && ! -L "$RESTORED_MARKER" ]]; then
+        grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$RESTORED_MARKER" || fail "restore marker belongs to a different archive"
+        printf 'restored=%s\n' "$UUID"
+        exit 0
+    fi
+    [[ -f "$COMPLETED_MARKER" && ! -L "$COMPLETED_MARKER" ]] || fail "the instance has no completed purge marker"
+    grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$COMPLETED_MARKER" || fail "purge marker belongs to a different archive"
+    "$0" archive-verify "$UUID" "$ARCHIVE_PATH" "$ARCHIVE_SHA256" >/dev/null
+
+    INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+    ACCOUNT_HOME="/home/$SYSTEM_USER"
+    RESTORE_ROOT="/var/lib/xpanel-vps/restore-state"
+    RESTORE_STATE="$RESTORE_ROOT/$UUID"
+    install -d -o root -g root -m 0700 "$RESTORE_ROOT" "$RESTORE_STATE"
+    if [[ -f "$RESTORE_STATE/extracted" && ! -L "$RESTORE_STATE/extracted" ]]; then
+        grep -qxF "uuid=$UUID" "$RESTORE_STATE/extracted" || fail "restore state belongs to another instance"
+        grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$RESTORE_STATE/extracted" || fail "restore state belongs to another archive"
+        printf 'restored=%s\n' "$UUID"
+        exit 0
+    fi
+
+    # A failed extraction may leave only these exact, validated identities.
+    # Remove them before retrying; never follow paths supplied by archive data.
+    rm -rf -- "$ACCOUNT_HOME" "$INSTANCE_ROOT"
+    if id "$SYSTEM_USER" >/dev/null 2>&1; then
+        pkill -KILL -u "$SYSTEM_USER" >/dev/null 2>&1 || true
+        userdel "$SYSTEM_USER" >/dev/null 2>&1 || true
+    fi
+    getent group "$SYSTEM_USER" >/dev/null 2>&1 && groupdel "$SYSTEM_USER" >/dev/null 2>&1 || true
+
+    WORK_DIR="$(mktemp -d "$RESTORE_STATE/.work.XXXXXX")"
+    HOME_STAGE="$WORK_DIR/home"
+    INSTANCE_STAGE="$WORK_DIR/instance"
+    OUTER_STAGE="$WORK_DIR/archive"
+    install -d -o root -g root -m 0700 "$HOME_STAGE" "$INSTANCE_STAGE" "$OUTER_STAGE"
+    cleanup_restore_work() { rm -rf -- "$WORK_DIR"; }
+    trap cleanup_restore_work EXIT INT TERM
+    tar --no-same-owner --no-same-permissions -C "$OUTER_STAGE" -xzf "$ARCHIVE_PATH"
+
+    validate_inner_archive() {
+        local inner_archive="$1" expected_root="$2"
+        python3 - "$inner_archive" "$expected_root" <<'PY' || fail "retention component contains an unsafe path, link or file type"
+import posixpath
+import sys
+import tarfile
+
+archive, expected_root = sys.argv[1:]
+with tarfile.open(archive, "r:gz") as bundle:
+    for member in bundle.getmembers():
+        name = member.name
+        while name.startswith("./"):
+            name = name[2:]
+        name = name.rstrip("/")
+        if (not name or name.startswith("/") or ".." in name.split("/")):
+            raise SystemExit(1)
+        if name != expected_root and not name.startswith(expected_root + "/"):
+            raise SystemExit(1)
+        if not (member.isfile() or member.isdir() or member.issym()):
+            raise SystemExit(1)
+        if member.issym():
+            target = member.linkname
+            if not target or target.startswith("/"):
+                raise SystemExit(1)
+            resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
+            if resolved != expected_root and not resolved.startswith(expected_root + "/"):
+                raise SystemExit(1)
+PY
+    }
+    validate_inner_archive "$OUTER_STAGE/account-home.tar.gz" "$SYSTEM_USER"
+    validate_inner_archive "$OUTER_STAGE/instance-state.tar.gz" "$UUID"
+    tar --no-same-owner --no-same-permissions --delay-directory-restore -C "$HOME_STAGE" -xzf "$OUTER_STAGE/account-home.tar.gz"
+    tar --no-same-owner --no-same-permissions --delay-directory-restore -C "$INSTANCE_STAGE" -xzf "$OUTER_STAGE/instance-state.tar.gz"
+
+    [[ -d "$HOME_STAGE/$SYSTEM_USER" && ! -L "$HOME_STAGE/$SYSTEM_USER" ]] || fail "restored account home is unavailable or unsafe"
+    [[ -d "$INSTANCE_STAGE/$UUID" && ! -L "$INSTANCE_STAGE/$UUID" ]] || fail "restored instance root is unavailable or unsafe"
+    while IFS= read -r -d '' RESTORED_LINK; do
+        LINK_ROOT="$HOME_STAGE/$SYSTEM_USER"
+        [[ "$RESTORED_LINK" == "$INSTANCE_STAGE/$UUID/"* ]] && LINK_ROOT="$INSTANCE_STAGE/$UUID"
+        LINK_TARGET="$(readlink -- "$RESTORED_LINK")"
+        [[ "$LINK_TARGET" != /* ]] || fail "retention component contains an absolute symbolic link"
+        RESOLVED_TARGET="$(realpath -m -- "$(dirname -- "$RESTORED_LINK")/$LINK_TARGET")"
+        [[ "$RESOLVED_TARGET" == "$LINK_ROOT" || "$RESOLVED_TARGET" == "$LINK_ROOT/"* ]] \
+            || fail "retention component contains a symbolic link outside its root"
+    done < <(find -P "$HOME_STAGE/$SYSTEM_USER" "$INSTANCE_STAGE/$UUID" -xdev -type l -print0)
+
+    if ! getent group "$SYSTEM_USER" >/dev/null 2>&1; then
+        groupadd --system "$SYSTEM_USER"
+    fi
+    if ! id "$SYSTEM_USER" >/dev/null 2>&1; then
+        useradd --system --home-dir "$INSTANCE_ROOT" --shell /usr/sbin/nologin --gid "$SYSTEM_USER" "$SYSTEM_USER"
+    fi
+    mv -- "$HOME_STAGE/$SYSTEM_USER" "$ACCOUNT_HOME"
+    mv -- "$INSTANCE_STAGE/$UUID" "$INSTANCE_ROOT"
+    chown -R "$SYSTEM_USER:$SYSTEM_USER" "$ACCOUNT_HOME" "$INSTANCE_ROOT"
+    chmod 0750 "$ACCOUNT_HOME" "$INSTANCE_ROOT"
+
+    # Database names are derived from the trusted archive layout and constrained
+    # to this UUID namespace. Drop first so retries never merge partial data.
+    while IFS= read -r -d '' DATABASE_DUMP; do
+        DATABASE="$(basename -- "$DATABASE_DUMP" .sql.gz)"
+        [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance during restore"
+        mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`$DATABASE\`;"
+        gzip -dc -- "$DATABASE_DUMP" | mariadb --protocol=socket
+    done < <(find "$OUTER_STAGE/databases" -maxdepth 1 -type f -name '*.sql.gz' -print0 | sort -z)
+
+    DATABASE_USERS_SQL="$WORK_DIR/database-users.sql"
+    gzip -dc -- "$OUTER_STAGE/database-users.sql.gz" > "$DATABASE_USERS_SQL"
+    awk '
+        /^[[:space:]]*$/ { next }
+        /^CREATE OR REPLACE USER / { next }
+        /^GRANT / { next }
+        { bad=1 }
+        END { exit bad ? 1 : 0 }
+    ' "$DATABASE_USERS_SQL" || fail "database identity archive contains an unexpected statement"
+    [[ ! -s "$DATABASE_USERS_SQL" ]] || mariadb --protocol=socket < "$DATABASE_USERS_SQL"
+
+    if [[ -d "$ACCOUNT_HOME/mail" ]] && id vmail >/dev/null 2>&1; then
+        chown -R vmail:vmail "$ACCOUNT_HOME/mail"
+        setfacl -R -m "u:$SYSTEM_USER:rwX" "$ACCOUNT_HOME/mail"
+        find -P "$ACCOUNT_HOME/mail" -xdev -type d -exec setfacl -m "m::rwx,d:u:$SYSTEM_USER:rwx,d:m::rwx" {} +
+    fi
+    printf 'uuid=%s\narchive_sha256=%s\nextracted_at=%s\n' "$UUID" "$ARCHIVE_SHA256" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESTORE_STATE/extracted"
+    chmod 0600 "$RESTORE_STATE/extracted"
+    printf 'restored=%s\n' "$UUID"
+    exit 0
+fi
+
+if [[ "$ACTION" == "restore-sync" ]]; then
+    [[ $# -eq 4 ]] || fail "restore-sync expects UUID, system user, release path and PHP version"
+    UUID="$1"; SYSTEM_USER="$2"; RELEASE_PATH="$3"; PHP_VERSION="$4"
+    validate_uuid "$UUID"
+    UUID_HEX="${UUID//-/}"
+    [[ "$SYSTEM_USER" == "xhi${UUID_HEX:0:12}" ]] || fail "invalid instance user"
+    [[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/(current|releases/[A-Za-z0-9._-]+)$ ]] || fail "invalid release path"
+    [[ "$PHP_VERSION" =~ ^8\.[2-4]$ ]] || fail "unsupported PHP version"
+    PHP_BIN="/usr/bin/php$PHP_VERSION"
+    INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+    [[ -x "$PHP_BIN" && -f "$RELEASE_PATH/artisan" ]] || fail "Host runtime is unavailable"
+    [[ -f "$INSTANCE_ROOT/runtime.sh" && ! -L "$INSTANCE_ROOT/runtime.sh" ]] || fail "restored instance runtime is unavailable"
+    if [[ -f "/var/lib/xpanel-vps/restored/$UUID" && ! -L "/var/lib/xpanel-vps/restored/$UUID" ]]; then
+        printf 'synchronized=%s\n' "$UUID"
+        exit 0
+    fi
+    [[ -f "/var/lib/xpanel-vps/restore-state/$UUID/extracted" ]] || fail "instance extraction has not completed"
+    [[ -f "/var/lib/xpanel-vps/purged/$UUID" || -f "/var/lib/xpanel-vps/restored/$UUID" ]] \
+        || fail "lifecycle marker disappeared before synchronization"
+    # shellcheck disable=SC1090
+    source "$INSTANCE_ROOT/runtime.sh"
+    [[ "${XPANEL_INSTANCE_ID:-}" == "$UUID" && "${XPANEL_ACCOUNT_USER:-}" == "$SYSTEM_USER" ]] \
+        || fail "restored runtime does not belong to this instance"
+
+    sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:sites-sync --no-interaction
+    sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:access-sync --no-interaction
+    sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:ssl-sync --no-interaction
+    printf 'synchronized=%s\n' "$UUID"
+    exit 0
+fi
+
+if [[ "$ACTION" == "restore-complete" ]]; then
+    [[ $# -eq 2 ]] || fail "restore-complete expects UUID and archive SHA-256"
+    UUID="$1"; ARCHIVE_SHA256="$2"
+    validate_uuid "$UUID"
+    [[ "$ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]] || fail "invalid archive SHA-256"
+    COMPLETED_MARKER="/var/lib/xpanel-vps/purged/$UUID"
+    RESTORE_MARKER="/var/lib/xpanel-vps/restore-state/$UUID/extracted"
+    RESTORED_ROOT="/var/lib/xpanel-vps/restored"
+    RESTORED_MARKER="$RESTORED_ROOT/$UUID"
+    if [[ -f "$RESTORED_MARKER" && ! -L "$RESTORED_MARKER" ]]; then
+        grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$RESTORED_MARKER" || fail "restore marker belongs to another archive"
+        printf 'completed=%s\n' "$UUID"
+        exit 0
+    fi
+    [[ -f "$COMPLETED_MARKER" && ! -L "$COMPLETED_MARKER" ]] || fail "purge marker is unavailable"
+    [[ -f "$RESTORE_MARKER" && ! -L "$RESTORE_MARKER" ]] || fail "restore marker is unavailable"
+    grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$COMPLETED_MARKER" || fail "purge marker belongs to another archive"
+    grep -qxF "archive_sha256=$ARCHIVE_SHA256" "$RESTORE_MARKER" || fail "restore marker belongs to another archive"
+    install -d -o root -g root -m 0700 "$RESTORED_ROOT"
+    {
+        printf 'uuid=%s\narchive_sha256=%s\nrestored_at=%s\n' "$UUID" "$ARCHIVE_SHA256" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$RESTORED_MARKER.tmp"
+    chmod 0600 "$RESTORED_MARKER.tmp"
+    mv -f -- "$RESTORED_MARKER.tmp" "$RESTORED_MARKER"
+    rm -f -- "$COMPLETED_MARKER"
+    rm -rf -- "/var/lib/xpanel-vps/restore-state/$UUID"
+    printf 'completed=%s\n' "$UUID"
     exit 0
 fi
 

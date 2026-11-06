@@ -65,12 +65,42 @@ class HostingAccountArchiveManager
                     'purge_archive_sha256' => $result['archive_sha256'],
                     'purge_archive_error' => null,
                     'purge_archived_at' => now(),
+                    'purge_archive_verified_at' => now(),
                 ]);
             } catch (Throwable $exception) {
                 $account->update(['purge_archive_status' => 'failed', 'purge_archive_error' => $exception->getMessage()]);
                 throw $exception;
             }
         });
+    }
+
+    public function verify(HostingAccount $account): void
+    {
+        $account->loadMissing('hostInstance');
+        $instance = $account->hostInstance;
+        if (! in_array($account->status, ['purge_pending', 'purging', 'purged', 'restore_failed', 'restoring'], true)
+            || $account->purge_archive_status !== 'ready' || ! $instance) {
+            throw new RuntimeException('La cuenta no tiene una copia de retención preparada para verificar.');
+        }
+        $archive = $this->parse("archive_path={$account->purge_archive_path}\narchive_sha256={$account->purge_archive_sha256}", $instance->uuid);
+
+        try {
+            $output = $this->commands->run([
+                'sudo', '-n', (string) config('xpanel.host_instances.helper'),
+                'archive-verify', $instance->uuid, $archive['archive_path'], $archive['archive_sha256'],
+            ], timeout: 7200);
+            if (! str_contains($output, 'verified='.$archive['archive_sha256'])) {
+                throw new RuntimeException('El helper no confirmó la integridad completa del archivo.');
+            }
+            $account->update(['purge_archive_verified_at' => now(), 'purge_archive_error' => null]);
+        } catch (Throwable $exception) {
+            $account->update([
+                'purge_archive_status' => 'failed',
+                'purge_archive_verified_at' => null,
+                'purge_archive_error' => $exception->getMessage(),
+            ]);
+            throw $exception;
+        }
     }
 
     /** @return array{archive_path:string,archive_sha256:string} */
