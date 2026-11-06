@@ -14,18 +14,37 @@ INSTALL_APACHE="${XPANEL_INSTALL_APACHE:-true}"
 SKIP_PACKAGES="${XPANEL_SKIP_PACKAGES:-false}"
 
 source "$ROOT/scripts/xpanel-system.sh"
+XPANEL_RELEASE_VERSION="$VERSION"
 
 fail() { echo "$1" >&2; exit 1; }
 
 [[ "$(id -u)" == "0" ]] || fail "Ejecuta el instalador con root: sudo bash install.sh"
 [[ -f /etc/os-release ]] || fail "No se pudo identificar el sistema operativo."
 source /etc/os-release
+OS_VERSION="$VERSION"
+VERSION="$XPANEL_RELEASE_VERSION"
 [[ "${ID:-}" == "ubuntu" || "${ID:-}" == "debian" ]] || fail "XPanel VPS soporta inicialmente Ubuntu y Debian."
 command -v apt-get >/dev/null 2>&1 || fail "apt-get es obligatorio."
 [[ -f /sys/fs/cgroup/cgroup.controllers ]] || fail "XPanel VPS requiere systemd con cgroups v2 para aislar los recursos de las instancias."
 [[ "$CLI_DIR" =~ ^/[^/]+/[^/]+ ]] || fail "XPANEL_CLI_DIR no es una ruta segura."
 [[ "$(basename "$CLI_DIR")" == "xpanel-cli" && "$CLI_DIR" != "$ROOT" ]] || fail "XPANEL_CLI_DIR no es válido."
 [[ "$PANEL_PORT" =~ ^[0-9]{2,5}$ ]] && (( PANEL_PORT >= 1024 && PANEL_PORT <= 65535 )) || fail "XPANEL_PANEL_PORT debe estar entre 1024 y 65535."
+
+# Laravel must remain traversable by www-data. A checkout below /root works
+# for root during Composer, but later fails as soon as Artisan runs as the web
+# user. Relocate a fresh source tree before changing the server.
+if [[ "$ROOT" == /root/* && "$ROOT" != /opt/xpanel-vps ]]; then
+  target=/opt/xpanel-vps
+  [[ ! -e "$target" ]] || fail "$target ya existe; ejecuta su install.sh o retira la instalación incompleta de forma explícita."
+  install -d -o root -g root -m 0755 /opt
+  if [[ -d "$ROOT/.git" ]]; then
+    git clone --local --no-hardlinks "$ROOT" "$target"
+  else
+    cp -a -- "$ROOT" "$target"
+  fi
+  echo "Código trasladado a $target para que PHP-FPM pueda acceder de forma segura."
+  exec bash "$target/install.sh" "$@"
+fi
 
 PANEL_DOMAIN="${PANEL_DOMAIN,,}"
 PANEL_DOMAIN="${PANEL_DOMAIN%.}"
@@ -74,22 +93,16 @@ detect_server_ip() {
   printf '%s' "$candidate"
 }
 
-write_marker() {
-  cat > "$ROOT/xpanel" <<EOF
-SYSTEM="$SYSTEM"
-REPO="$REPO"
-VERSION="$VERSION"
-XPANEL_FILE_LANGUAGE="${XPANEL_LANG:-$XPANEL_FILE_LANGUAGE}"
-EOF
-}
-
 install_packages() {
   [[ "$SKIP_PACKAGES" != "true" ]] || return 0
 
   apt-get update -y
+  echo "postfix postfix/mailname string ${XPANEL_MAIL_HOSTNAME:-$(hostname -f 2>/dev/null || hostname)}" | debconf-set-selections
+  echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw quota e2fsprogs \
-    nginx mariadb-server composer nodejs npm golang-go openssh-server \
+    nginx mariadb-server composer nodejs npm golang-go openssh-server nftables \
+    postfix dovecot-core dovecot-imapd dovecot-lmtpd opendkim opendkim-tools ssl-cert swaks \
     php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd
 
   if [[ "$INSTALL_APACHE" == "true" ]]; then
@@ -434,7 +447,11 @@ install_host_release() {
   php_bin="/usr/bin/php${XPANEL_HOST_PHP_VERSION:-8.3}"
   [[ -x "$php_bin" ]] || fail "XPanel Host requiere PHP ${XPANEL_HOST_PHP_VERSION:-8.3}."
   "$php_bin" "$(command -v composer)" --working-dir="$target" install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-  npm --prefix "$target" install --ignore-scripts --no-audit --no-fund
+  if [[ -f "$target/package-lock.json" ]]; then
+    npm --prefix "$target" ci --ignore-scripts --no-audit --no-fund
+  else
+    npm --prefix "$target" install --ignore-scripts --no-audit --no-fund --package-lock=false
+  fi
   npm --prefix "$target" run build
   chown -R root:root "$target"
   chmod -R a+rX,go-w "$target"
@@ -473,9 +490,11 @@ echo "Instalando XPanel VPS de forma nativa..."
 if [[ -d "$ROOT/.git" ]]; then
   git -C "$ROOT" config core.fileMode false
 fi
-write_marker
 install_packages
-install -d -m 0755 /var/lib/xpanel-vps /var/lib/xpanel-vps/instances
+install -d -o root -g root -m 0755 /var/lib/xpanel-vps
+printf '%s\n' "${XPANEL_LANG:-$XPANEL_FILE_LANGUAGE}" > /var/lib/xpanel-vps/language
+chmod 0644 /var/lib/xpanel-vps/language
+install -d -m 0755 /var/lib/xpanel-vps/instances
 if [[ "$(findmnt -n -o FSTYPE -T /home 2>/dev/null || true)" == ext4 ]] \
   && [[ ",$(findmnt -n -o OPTIONS -T /home 2>/dev/null || true)," == *,prjquota,* ]]; then
   quota_state="$(quotaon -P -p "$(findmnt -n -o TARGET -T /home)" 2>/dev/null || true)"
@@ -508,7 +527,7 @@ node_token="$(env_value XPANEL_NODE_TOKEN)"
 [[ -n "$node_token" ]] || set_env_var XPANEL_NODE_TOKEN "$(openssl rand -hex 32)"
 
 composer --working-dir="$ROOT" install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-npm --prefix "$ROOT" install --ignore-scripts --no-audit --no-fund
+npm --prefix "$ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$ROOT" run build
 configure_application_permissions
 
@@ -516,6 +535,7 @@ detect_php_versions
 configure_apache
 configure_database
 install_host_release
+bash "$ROOT/scripts/configure-managed-mail.sh"
 configure_host_terminal
 
 [[ -n "$(env_value APP_KEY)" ]] || php "$ROOT/artisan" key:generate --force
