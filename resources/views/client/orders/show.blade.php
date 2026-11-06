@@ -2,6 +2,8 @@
 
 @section('content')
 <div class="kt-container-fixed max-w-[980px]">
+    @if(session('success'))<div class="kt-alert kt-alert-success mb-5">{{ session('success') }}</div>@endif
+    @if($errors->any())<div class="kt-alert kt-alert-danger mb-5">{{ $errors->first() }}</div>@endif
     <div class="flex flex-wrap items-center justify-between gap-3 mb-7.5">
         <div><a class="kt-link text-sm" href="{{ route('client.orders.index') }}">Volver a contrataciones</a><h1 class="text-xl font-medium text-mono mt-2">Boleta {{ $order->number }}</h1></div>
         <div class="flex gap-2"><span class="kt-badge kt-badge-outline {{ $order->status === 'active' ? 'kt-badge-success' : '' }}">Servicio {{ $order->status === 'active' ? 'activo' : 'cancelado' }}</span><span class="kt-badge kt-badge-outline {{ $order->payment_status === 'paid' ? 'kt-badge-success' : 'kt-badge-warning' }}">Pago {{ $order->payment_status === 'paid' ? 'confirmado' : 'pendiente' }}</span></div>
@@ -24,7 +26,11 @@
         <div class="kt-card content-start">
             <div class="kt-card-content p-7.5">
                 <div class="text-sm text-secondary-foreground">Total</div><div class="text-3xl text-mono font-semibold mt-2">{{ $order->currency }} {{ number_format((float) $order->amount, 2) }}</div>
-                @if($order->payment_status === 'pending')<p class="text-sm text-secondary-foreground leading-6 mt-5">Tu hosting ya está habilitado. Por ahora no hay métodos de pago conectados; el administrador confirmará el pago sin modificar tu acceso.</p>@endif
+                @if($order->payment_status === 'pending')
+                    <div class="mt-5 rounded-xl border border-border bg-muted/20 p-4"><div class="text-xs text-secondary-foreground">Método disponible</div><div class="mt-1 font-semibold text-mono">{{ $paymentMethodName }}</div><p class="mt-3 whitespace-pre-line text-sm leading-6 text-secondary-foreground">{{ $paymentInstructions }}</p></div>
+                    @if($order->payment_submitted_at)<div class="kt-alert kt-alert-info mt-4"><i class="ki-filled ki-time"></i><div><strong>Pago enviado para revisión</strong><p class="mt-1 text-xs">Referencia {{ $order->payment_reference }} · {{ $order->payment_submitted_at->format('d/m/Y H:i') }}</p></div></div>@endif
+                    <form method="post" action="{{ route('client.orders.payment', $order) }}" class="mt-5 grid gap-3">@csrf<label class="grid gap-1"><span class="text-sm font-medium">Referencia o número de operación</span><input class="kt-input" name="payment_reference" maxlength="150" value="{{ old('payment_reference', $order->payment_reference) }}" required></label><label class="grid gap-1"><span class="text-sm font-medium">Nota opcional</span><textarea class="kt-textarea" name="payment_note" maxlength="1000">{{ old('payment_note', $order->payment_note) }}</textarea></label><div><button class="kt-btn kt-btn-primary" type="submit">{{ $order->payment_submitted_at ? 'Actualizar referencia' : 'Enviar para revisión' }}</button></div></form>
+                @endif
                 <a class="kt-btn kt-btn-primary justify-center w-full mt-6" href="{{ $order->hostingAccount ? route('client.host.account', $order->hostingAccount) : route('client.host.show') }}">Ir a este hosting</a>
                 <a class="kt-btn kt-btn-outline justify-center w-full mt-2" href="mailto:{{ \App\Support\PublicPageRegistry::content('home')['sales_email'] }}?subject=Boleta {{ $order->number }}">Contactar sobre esta boleta</a>
             </div>

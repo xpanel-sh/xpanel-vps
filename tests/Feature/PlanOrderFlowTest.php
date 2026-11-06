@@ -65,7 +65,7 @@ class PlanOrderFlowTest extends TestCase
         $this->get(route('client.orders.show', $order))
             ->assertOk()
             ->assertSee($order->number)
-            ->assertSee('Pendiente de integración');
+            ->assertSee('Transferencia bancaria');
     }
 
     public function test_client_can_contract_multiple_independent_hostings(): void
@@ -126,6 +126,37 @@ class PlanOrderFlowTest extends TestCase
         ]);
 
         $this->actingAs($firstUser)->get(route('client.orders.show', $order))->assertNotFound();
+    }
+
+    public function test_client_can_submit_a_payment_reference_for_admin_review(): void
+    {
+        $plan = $this->plan();
+        [$user, $tenant] = $this->client($plan);
+        $order = PlanOrder::create([
+            'number' => 'XP-PAYMENT-REVIEW', 'tenant_id' => $tenant->id,
+            'hosting_plan_id' => $plan->id, 'amount' => 9.99, 'currency' => 'USD',
+            'billing_period_months' => 1, 'payment_due_at' => now()->addWeek(),
+            'status' => PlanOrder::STATUS_ACTIVE, 'payment_status' => PlanOrder::PAYMENT_PENDING,
+        ]);
+
+        $this->actingAs($user)->post(route('client.orders.payment', $order), [
+            'payment_reference' => 'BANK-12345',
+            'payment_note' => 'Transferencia realizada hoy.',
+        ])->assertRedirect();
+
+        $order->refresh();
+        $this->assertSame('BANK-12345', $order->payment_reference);
+        $this->assertSame('Transferencia realizada hoy.', $order->payment_note);
+        $this->assertNotNull($order->payment_submitted_at);
+        $this->assertDatabaseHas('account_notifications', ['tenant_id' => $tenant->id, 'type' => 'payment.submitted']);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin, 'admin')->get(route('admin.orders.index', ['submitted' => 1]))
+            ->assertOk()->assertSee('XP-PAYMENT-REVIEW')->assertSee('Por revisar');
+        $this->actingAs($admin, 'admin')->post(route('admin.orders.paid', $order), [
+            'payment_method' => '', 'payment_reference' => '',
+        ])->assertRedirect();
+        $this->assertSame('BANK-12345', $order->fresh()->payment_reference);
     }
 
     public function test_public_plan_selection_is_preserved_after_client_login(): void

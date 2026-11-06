@@ -19,6 +19,7 @@
     <div class="flex grow flex-col kt-scrollable-y-auto p-5 lg:p-8">
         <main class="mx-auto flex w-full max-w-7xl grow flex-col gap-5" role="content">
             @if(session('success'))<div class="kt-alert kt-alert-success"><i class="ki-filled ki-check-circle"></i>{{ session('success') }}</div>@endif
+            @if($account?->status === 'purge_pending')<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i><div><strong>Retención finalizada: revisión administrativa requerida.</strong><p class="mt-1 text-xs">La instancia continúa suspendida e intacta. Verifica copias, bases y correo antes de cualquier eliminación manual.</p></div></div>@endif
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex min-w-0 items-start gap-3">
                     <a class="kt-btn kt-btn-sm kt-btn-icon kt-btn-ghost" href="{{ route('admin.instances.index') }}" aria-label="Volver"><i class="ki-filled ki-left"></i></a>

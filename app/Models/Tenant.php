@@ -72,6 +72,11 @@ class Tenant extends Model
         return $this->hasMany(HostingAccount::class);
     }
 
+    public function accountNotifications()
+    {
+        return $this->hasMany(AccountNotification::class);
+    }
+
     public function domains()
     {
         return $this->hasMany(Domain::class);

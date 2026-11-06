@@ -29,6 +29,9 @@ class AdminSettingsTest extends TestCase
                 'host_name' => 'Doolpool Hosting',
                 'service_grace_days' => 5,
                 'cancelled_data_retention_days' => 45,
+                'notification_email_enabled' => '1',
+                'payment_method_name' => 'Yape o transferencia',
+                'payment_instructions' => 'Envía la referencia para verificar el pago.',
                 'panel_domain' => 'cloud.doolpool.com',
             ])
             ->assertRedirect();
@@ -37,6 +40,9 @@ class AdminSettingsTest extends TestCase
         $this->assertSame('Doolpool Hosting', SystemSetting::get('host_name'));
         $this->assertSame('5', SystemSetting::get('service_grace_days'));
         $this->assertSame('45', SystemSetting::get('cancelled_data_retention_days'));
+        $this->assertSame('1', SystemSetting::get('notification_email_enabled'));
+        $this->assertSame('Yape o transferencia', SystemSetting::get('payment_method_name'));
+        $this->assertSame('Envía la referencia para verificar el pago.', SystemSetting::get('payment_instructions'));
         $this->assertSame('cloud.doolpool.com', SystemSetting::get('panel_domain'));
         $this->assertSame('staged', SystemSetting::get('panel_domain_status'));
 

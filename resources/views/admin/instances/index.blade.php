@@ -19,6 +19,7 @@
                         <h2 class="kt-card-title">Hostings del servidor</h2>
                         <p class="text-xs text-secondary-foreground">Abre el panel del hosting o gestiona su cliente desde aquí.</p>
                     </div>
+                    <div class="flex gap-2"><a class="kt-btn kt-btn-sm {{ request('account_status') ? 'kt-btn-outline' : 'kt-btn-primary' }}" href="{{ route('admin.instances.index') }}">Todos</a><a class="kt-btn kt-btn-sm {{ request('account_status') === 'purge_pending' ? 'kt-btn-primary' : 'kt-btn-outline' }}" href="{{ route('admin.instances.index', ['account_status' => 'purge_pending']) }}">Pendientes de depuración</a></div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[960px] text-left text-sm">
@@ -45,8 +46,9 @@
                                     <td class="px-5 py-4 text-mono">{{ $instance->sites_count }}</td>
                                     <td class="px-5 py-4"><span class="kt-badge kt-badge-outline {{ $instance->hostingAccount?->order?->payment_status === 'paid' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ $instance->hostingAccount?->order?->payment_status === 'paid' ? 'Pagado' : 'Pendiente' }}</span></td>
                                     <td class="px-5 py-4">
-                                        <span class="kt-badge kt-badge-outline {{ $instance->status === 'active' ? 'kt-badge-success' : ($instance->status === 'suspended' ? 'kt-badge-destructive' : 'kt-badge-secondary') }}">
-                                            {{ match($instance->status) { 'active' => 'Activo', 'suspended' => 'Suspendido', 'staged' => 'Preparando', default => ucfirst($instance->status) } }}
+                                        @php($displayStatus = $instance->hostingAccount?->status === 'purge_pending' ? 'purge_pending' : $instance->status)
+                                        <span class="kt-badge kt-badge-outline {{ $displayStatus === 'active' ? 'kt-badge-success' : (in_array($displayStatus, ['suspended','purge_pending'], true) ? 'kt-badge-destructive' : 'kt-badge-secondary') }}">
+                                            {{ match($displayStatus) { 'active' => 'Activo', 'suspended' => 'Suspendido', 'purge_pending' => 'Pendiente de depuración', 'staged' => 'Preparando', default => ucfirst($displayStatus) } }}
                                         </span>
                                     </td>
                                     <td class="px-5 py-4">

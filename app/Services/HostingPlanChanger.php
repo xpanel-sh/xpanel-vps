@@ -15,6 +15,7 @@ class HostingPlanChanger
         private readonly HostInstanceProvisioner $provisioner,
         private readonly HostInstanceMetrics $metrics,
         private readonly HostInstanceDatabaseReader $database,
+        private readonly AccountNotifier $notifier,
     ) {}
 
     public function change(HostingAccount $account, HostingPlan $plan): PlanOrder
@@ -69,6 +70,13 @@ class HostingPlanChanger
             });
             throw $exception;
         }
+
+        $account->loadMissing('tenant');
+        $this->notifier->send(
+            $account->tenant, 'plan.changed', 'Plan de hosting actualizado',
+            "{$account->name} ahora utiliza el plan {$plan->name}. Se generó la boleta {$order->number}.",
+            $account, route('client.orders.show', $order, false), ['order_id' => $order->id, 'plan_id' => $plan->id],
+        );
 
         return $order;
     }

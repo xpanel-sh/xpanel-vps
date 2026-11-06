@@ -46,6 +46,7 @@
             @elseif(in_array($hostingAccount->status, ['cancellation_pending','suspended'], true))
                 <div class="grid gap-2 text-sm"><div><span class="text-secondary-foreground">Estado:</span> {{ $hostingAccount->status === 'suspended' ? 'Suspendido' : 'Cancelación programada' }}</div>@if($hostingAccount->suspend_at)<div><span class="text-secondary-foreground">Suspensión:</span> {{ $hostingAccount->suspend_at->format('d/m/Y H:i') }}</div>@endif @if($hostingAccount->purge_after)<div><span class="text-secondary-foreground">Retención hasta:</span> {{ $hostingAccount->purge_after->format('d/m/Y H:i') }}</div>@endif</div>
                 <form class="mt-5" method="post" action="{{ route('client.host.restore', $hostingAccount) }}">@csrf<button class="kt-btn kt-btn-primary" type="submit">Conservar y restaurar hosting</button></form>
+            @elseif($hostingAccount->status === 'purge_pending')<div class="kt-alert kt-alert-warning"><i class="ki-filled ki-information-2"></i><div><strong>Terminó el periodo de retención.</strong><p class="mt-1 text-xs">La cuenta sigue suspendida y ningún dato se elimina automáticamente. Contacta al administrador para revisar una recuperación o depuración definitiva.</p></div></div>
             @else<p class="text-sm text-secondary-foreground">El servicio está {{ $hostingAccount->status }}.</p>@endif
         </div></section>
     </div>

@@ -13,6 +13,7 @@ use App\Services\HostInstanceProvisioner;
 use App\Services\HostSsoLink;
 use App\Services\HostUpdateCoordinator;
 use App\Services\HostingPlanChanger;
+use App\Services\AccountNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,14 +23,16 @@ use Illuminate\Validation\Rule;
 
 class HostInstanceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $instances = HostInstance::with(['tenant.user', 'hostingAccount.plan', 'hostingAccount.order'])
             ->withCount(['brokerResources as sites_count' => fn ($query) => $query
                 ->where('type', 'site-domain')
                 ->where('name', 'not like', '*.%')])
+            ->when($request->filled('account_status'), fn ($query) => $query->whereHas('hostingAccount', fn ($accounts) => $accounts->where('status', (string) $request->input('account_status'))))
             ->latest()
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
 
         return view('admin.instances.index', compact('instances'));
     }
@@ -72,7 +75,7 @@ class HostInstanceController extends Controller
         return back()->with('success', 'Plan actualizado y límites reaplicados a la instancia.');
     }
 
-    public function restore(HostInstance $instance, HostInstanceProvisioner $provisioner)
+    public function restore(HostInstance $instance, HostInstanceProvisioner $provisioner, AccountNotifier $notifier)
     {
         $account = $instance->hostingAccount;
         abort_unless($account, 409, 'La instancia no tiene una cuenta de hosting vinculada.');
@@ -91,6 +94,11 @@ class HostInstanceController extends Controller
             'suspended_at' => null,
             'purge_after' => null,
         ]);
+        $notifier->send(
+            $account->tenant, 'hosting.restored', 'Hosting restaurado por administración',
+            "{$account->name} fue restaurado y vuelve a estar activo.",
+            $account, route('client.host.account', $account, false),
+        );
 
         return back()->with('success', 'Hosting restaurado y cancelación anulada.');
     }

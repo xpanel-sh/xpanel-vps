@@ -11,6 +11,7 @@ use App\Services\HostingPlanChanger;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostSsoLink;
 use App\Services\HostInstancePanelDomainManager;
+use App\Services\AccountNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -46,7 +47,7 @@ class HostAccessController extends Controller
         return redirect()->route('client.orders.show', $order)->with('success', 'El nuevo plan fue aplicado a la misma instancia.');
     }
 
-    public function cancel(Request $request, HostingAccount $hostingAccount)
+    public function cancel(Request $request, HostingAccount $hostingAccount, AccountNotifier $notifier)
     {
         $this->authorizeAccount($request, $hostingAccount);
         abort_unless($hostingAccount->status === 'active', 409, 'El hosting no está activo.');
@@ -60,11 +61,16 @@ class HostAccessController extends Controller
             'purge_after' => $suspendAt->copy()->addDays($retention),
         ]);
         $order?->update(['status' => PlanOrder::STATUS_CANCELLATION_PENDING]);
+        $notifier->send(
+            $hostingAccount->tenant, 'hosting.cancellation_pending', 'Cancelación programada',
+            "{$hostingAccount->name} seguirá activo hasta {$suspendAt->format('d/m/Y H:i')} y después conservará sus datos durante {$retention} días.",
+            $hostingAccount, route('client.host.account', $hostingAccount, false),
+        );
 
         return back()->with('info', 'Cancelación programada. El servicio funcionará hasta '.$suspendAt->format('d/m/Y H:i').'.');
     }
 
-    public function restore(Request $request, HostingAccount $hostingAccount, HostInstanceProvisioner $provisioner)
+    public function restore(Request $request, HostingAccount $hostingAccount, HostInstanceProvisioner $provisioner, AccountNotifier $notifier)
     {
         $this->authorizeAccount($request, $hostingAccount);
         abort_unless(in_array($hostingAccount->status, ['cancellation_pending', 'suspended'], true), 409, 'El hosting no tiene una cancelación reversible.');
@@ -72,6 +78,11 @@ class HostAccessController extends Controller
         if ($hostingAccount->hostInstance?->status === 'suspended') $provisioner->setSuspended($hostingAccount->hostInstance, false);
         $hostingAccount->order?->update(['status' => PlanOrder::STATUS_ACTIVE]);
         $hostingAccount->update(['status' => 'active', 'cancellation_requested_at' => null, 'suspend_at' => null, 'suspended_at' => null, 'purge_after' => null]);
+        $notifier->send(
+            $hostingAccount->tenant, 'hosting.restored', 'Hosting restaurado',
+            "La cancelación de {$hostingAccount->name} fue retirada y el servicio está activo.",
+            $hostingAccount, route('client.host.account', $hostingAccount, false),
+        );
 
         return back()->with('success', 'Cancelación retirada y hosting restaurado.');
     }

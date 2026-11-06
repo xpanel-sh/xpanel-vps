@@ -20,7 +20,7 @@ class PlanOrder extends Model
     protected $fillable = [
         'number', 'kind', 'tenant_id', 'hosting_account_id', 'hosting_plan_id', 'previous_hosting_plan_id', 'status', 'payment_status', 'amount', 'currency',
         'billing_period_months', 'payment_due_at', 'payment_method',
-        'payment_reference', 'paid_at', 'marked_paid_by', 'activated_at', 'service_ends_at', 'activated_by',
+        'payment_reference', 'payment_submitted_at', 'payment_note', 'paid_at', 'marked_paid_by', 'activated_at', 'service_ends_at', 'activated_by',
     ];
 
     protected $casts = [
@@ -29,6 +29,7 @@ class PlanOrder extends Model
         'activated_at' => 'datetime',
         'service_ends_at' => 'datetime',
         'paid_at' => 'datetime',
+        'payment_submitted_at' => 'datetime',
     ];
 
     public function tenant()

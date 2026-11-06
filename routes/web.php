@@ -252,6 +252,9 @@ Route::group(['middleware' => ['web']], function () {
         });
 
         Route::get('/account', [\App\Http\Controllers\Client\AccountController::class, 'show'])->name('client.account.show');
+        Route::get('/notifications', [\App\Http\Controllers\Client\NotificationController::class, 'index'])->name('client.notifications.index');
+        Route::post('/notifications/read-all', [\App\Http\Controllers\Client\NotificationController::class, 'readAll'])->name('client.notifications.read-all');
+        Route::post('/notifications/{notification}/read', [\App\Http\Controllers\Client\NotificationController::class, 'read'])->name('client.notifications.read');
         Route::get('/hosting', [\App\Http\Controllers\Client\HostAccessController::class, 'show'])->name('client.host.show');
         Route::get('/hosting/{hostingAccount}', [\App\Http\Controllers\Client\HostAccessController::class, 'account'])->name('client.host.account');
         Route::post('/hosting/{hostingAccount}/access', [\App\Http\Controllers\Client\HostAccessController::class, 'access'])->name('client.host.access');
@@ -263,6 +266,7 @@ Route::group(['middleware' => ['web']], function () {
         Route::post('/plans/{plan}/contract', [\App\Http\Controllers\Client\PlanOrderController::class, 'store'])->name('client.plans.contract');
         Route::get('/orders', [\App\Http\Controllers\Client\PlanOrderController::class, 'index'])->name('client.orders.index');
         Route::get('/orders/{order}', [\App\Http\Controllers\Client\PlanOrderController::class, 'show'])->name('client.orders.show');
+        Route::post('/orders/{order}/payment', [\App\Http\Controllers\Client\PlanOrderController::class, 'submitPayment'])->name('client.orders.payment');
 
         // Docker Apps
         Route::prefix('docker')->name('client.docker.')->middleware('docker.enabled')->group(function () {

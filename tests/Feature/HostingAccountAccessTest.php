@@ -128,6 +128,23 @@ class HostingAccountAccessTest extends TestCase
         $this->assertSame(PlanOrder::STATUS_CANCELLED, $order->fresh()->status);
     }
 
+    public function test_lifecycle_marks_expired_retention_without_deleting_the_instance(): void
+    {
+        config()->set('xpanel.native_hosting.apply_system_changes', false);
+        config()->set('xpanel.host_instances.release_path', '/opt/xpanel-host/current');
+        $user = User::factory()->create(['role' => 'client']);
+        $tenant = Tenant::create(['name' => 'Cliente', 'domain' => 'client.test', 'user_id' => $user->id, 'status' => 'active']);
+        $account = HostingAccount::create(['uuid' => (string) Str::uuid(), 'tenant_id' => $tenant->id, 'name' => 'Hosting retenido', 'status' => 'suspended', 'purge_after' => now()->subMinute()]);
+        $instance = app(HostInstanceProvisioner::class)->create($account);
+        $instance->update(['status' => 'suspended']);
+
+        $this->artisan('xpanel:hosting-lifecycle')->assertSuccessful();
+
+        $this->assertSame('purge_pending', $account->fresh()->status);
+        $this->assertDatabaseHas('host_instances', ['id' => $instance->id]);
+        $this->assertDatabaseHas('account_notifications', ['tenant_id' => $tenant->id, 'type' => 'hosting.retention_expired']);
+    }
+
     private function plan(string $slug, int $sites, int $storage): HostingPlan
     {
         return HostingPlan::create(['name' => ucfirst($slug), 'slug' => $slug, 'max_sites' => $sites, 'max_databases' => $sites, 'storage_mb' => $storage, 'inode_limit' => 50000, 'bandwidth_gb' => 25, 'email_accounts' => $sites, 'memory_mb' => 512, 'cpu_percent' => 50, 'tasks_max' => 128, 'monthly_price' => 10, 'billing_period_months' => 1, 'payment_due_days' => 7, 'is_active' => true]);

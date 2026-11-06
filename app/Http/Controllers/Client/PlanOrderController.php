@@ -8,6 +8,8 @@ use App\Models\HostingAccount;
 use App\Models\PlanOrder;
 use App\Services\HostInstanceProvisioner;
 use App\Services\HostInstanceCertificateProvisioner;
+use App\Services\AccountNotifier;
+use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,7 +24,7 @@ class PlanOrderController extends Controller
         return view('client.orders.index', compact('tenant', 'orders'));
     }
 
-    public function store(Request $request, HostingPlan $plan, HostInstanceProvisioner $provisioner, HostInstanceCertificateProvisioner $certificates)
+    public function store(Request $request, HostingPlan $plan, HostInstanceProvisioner $provisioner, HostInstanceCertificateProvisioner $certificates, AccountNotifier $notifier)
     {
         abort_unless($plan->is_active, 404);
         $tenant = $request->attributes->get('tenant');
@@ -83,6 +85,12 @@ class PlanOrderController extends Controller
             }
         }
 
+        $notifier->send(
+            $tenant, 'payment.pending', 'Nueva contratación pendiente de pago',
+            "El plan {$plan->name} está activo. La boleta {$order->number} vence el {$order->payment_due_at->format('d/m/Y')}.",
+            $account, route('client.orders.show', $order, false), ['order_id' => $order->id],
+        );
+
         return redirect()->route('client.orders.show', $order)
             ->with('success', 'Plan activo. Ya tienes acceso mientras la boleta permanece pendiente de pago.')
             ->with('warning', $provisioningWarning);
@@ -94,6 +102,34 @@ class PlanOrderController extends Controller
         abort_unless($order->tenant_id === $tenant->id, 404);
         $order->load(['plan', 'hostingAccount']);
 
-        return view('client.orders.show', compact('tenant', 'order'));
+        $paymentMethodName = SystemSetting::get('payment_method_name', 'Transferencia bancaria');
+        $paymentInstructions = SystemSetting::get('payment_instructions', 'Solicita los datos de pago al administrador.');
+
+        return view('client.orders.show', compact('tenant', 'order', 'paymentMethodName', 'paymentInstructions'));
+    }
+
+    public function submitPayment(Request $request, PlanOrder $order, AccountNotifier $notifier)
+    {
+        $tenant = $request->attributes->get('tenant');
+        abort_unless($order->tenant_id === $tenant?->id, 404);
+        abort_unless($order->payment_status === PlanOrder::PAYMENT_PENDING, 409, 'Esta boleta ya está pagada.');
+        $data = $request->validate([
+            'payment_reference' => ['required', 'string', 'min:3', 'max:150'],
+            'payment_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $method = SystemSetting::get('payment_method_name', 'Transferencia bancaria');
+        $order->update([
+            'payment_method' => $method,
+            'payment_reference' => trim($data['payment_reference']),
+            'payment_note' => filled($data['payment_note'] ?? null) ? trim($data['payment_note']) : null,
+            'payment_submitted_at' => now(),
+        ]);
+        $notifier->send(
+            $tenant, 'payment.submitted', 'Pago enviado para revisión',
+            "Registramos la referencia de la boleta {$order->number}. El administrador debe confirmarla.",
+            $order->hostingAccount, route('client.orders.show', $order, false), ['order_id' => $order->id],
+        );
+
+        return back()->with('success', 'Referencia enviada. La boleta quedó pendiente de revisión administrativa.');
     }
 }

@@ -21,7 +21,10 @@ class SettingsController extends Controller
 
         $graceDays = (int) SystemSetting::get('service_grace_days', '7');
         $retentionDays = (int) SystemSetting::get('cancelled_data_retention_days', '30');
-        return view('admin.settings.index', compact('appName', 'hostName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl', 'graceDays', 'retentionDays'));
+        $notificationEmailEnabled = SystemSetting::get('notification_email_enabled', '0') === '1';
+        $paymentMethodName = SystemSetting::get('payment_method_name', 'Transferencia bancaria');
+        $paymentInstructions = SystemSetting::get('payment_instructions', 'Solicita los datos de pago al administrador.');
+        return view('admin.settings.index', compact('appName', 'hostName', 'panelDomain', 'panelDomainStatus', 'recoveryUrl', 'graceDays', 'retentionDays', 'notificationEmailEnabled', 'paymentMethodName', 'paymentInstructions'));
     }
 
     public function update(Request $request, ServerCommandRunner $commands, HostInstanceDomainMigrator $instances)
@@ -31,6 +34,9 @@ class SettingsController extends Controller
             'host_name' => ['sometimes', 'required', 'string', 'max:80', 'regex:/^[^\r\n]+$/u'],
             'service_grace_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:90'],
             'cancelled_data_retention_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:365'],
+            'notification_email_enabled' => ['sometimes', 'boolean'],
+            'payment_method_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'payment_instructions' => ['sometimes', 'required', 'string', 'max:2000'],
             'panel_domain' => ['nullable', 'string', 'max:253', 'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
         ]);
 
@@ -69,6 +75,9 @@ class SettingsController extends Controller
         if (array_key_exists('host_name', $data)) SystemSetting::set('host_name', trim($data['host_name']));
         if (array_key_exists('service_grace_days', $data)) SystemSetting::set('service_grace_days', (string) $data['service_grace_days']);
         if (array_key_exists('cancelled_data_retention_days', $data)) SystemSetting::set('cancelled_data_retention_days', (string) $data['cancelled_data_retention_days']);
+        SystemSetting::set('notification_email_enabled', $request->boolean('notification_email_enabled') ? '1' : '0');
+        if (array_key_exists('payment_method_name', $data)) SystemSetting::set('payment_method_name', trim($data['payment_method_name']));
+        if (array_key_exists('payment_instructions', $data)) SystemSetting::set('payment_instructions', trim($data['payment_instructions']));
 
         return back()->with('status', $panelDomain !== '' && $panelDomain !== $currentDomain
             ? 'Dominio configurado y '.$migration['migrated'].' instancia(s) técnica(s) actualizada(s).'

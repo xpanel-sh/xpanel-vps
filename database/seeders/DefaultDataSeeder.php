@@ -55,6 +55,9 @@ class DefaultDataSeeder extends Seeder
         SystemSetting::firstOrCreate(['key' => 'host_name'], ['value' => 'XPanel Hosting']);
         SystemSetting::firstOrCreate(['key' => 'service_grace_days'], ['value' => '7']);
         SystemSetting::firstOrCreate(['key' => 'cancelled_data_retention_days'], ['value' => '30']);
+        SystemSetting::firstOrCreate(['key' => 'notification_email_enabled'], ['value' => '0']);
+        SystemSetting::firstOrCreate(['key' => 'payment_method_name'], ['value' => 'Transferencia bancaria']);
+        SystemSetting::firstOrCreate(['key' => 'payment_instructions'], ['value' => 'Solicita los datos de pago al administrador y registra aquí la referencia de la operación.']);
 
         NameserverSetting::firstOrCreate(
             ['name' => 'default'],
