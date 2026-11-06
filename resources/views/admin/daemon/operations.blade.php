@@ -11,7 +11,7 @@
                 <div class="kt-container-fluid">
                     <div class="grid gap-5 lg:gap-7.5">
                         <div>
-                            <div class="text-sm font-semibold text-secondary-foreground">Broker privilegiado</div>
+                            <div class="text-sm text-secondary-foreground">Ajustes / Operaciones</div>
                             <h1 class="mt-1 text-2xl font-semibold text-mono">Operaciones de instancias Host</h1>
                             <p class="mt-2 max-w-3xl text-sm text-secondary-foreground">
                                 Solicitudes verificadas que las instancias envían a XPanel VPS para aplicar cambios nativos en el servidor.

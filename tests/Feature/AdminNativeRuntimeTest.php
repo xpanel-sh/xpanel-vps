@@ -32,7 +32,7 @@ class AdminNativeRuntimeTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin, 'admin')
-            ->get(route('admin.daemon.operations'))
+            ->get(route('admin.settings.operations'))
             ->assertOk()
             ->assertSee('Historial del broker')
             ->assertDontSee('No se pudo consultar el agente');
@@ -43,8 +43,14 @@ class AdminNativeRuntimeTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin, 'admin')->get(route('admin.software-packages.index'))
-            ->assertOk()->assertSee('Software del servidor')->assertSee('Nuevo cliente');
+            ->assertOk()->assertSee('Software del servidor')->assertSee('Paquetes');
         $this->actingAs($admin, 'admin')->get(route('admin.instances.index'))
             ->assertOk()->assertSee('Instancias XPanel Host')->assertSee('Aún no hay hostings');
+        $this->actingAs($admin, 'admin')->get(route('admin.plans.index'))
+            ->assertOk()->assertSee('Planes de hosting')->assertSee('Crear plan');
+        $this->actingAs($admin, 'admin')->get(route('admin.servers.index'))
+            ->assertOk()->assertSee('Servidores conectados')->assertSee('Inventario de nodos');
+        $this->actingAs($admin, 'admin')->get(route('admin.pages.index'))
+            ->assertOk()->assertSee('Páginas públicas')->assertSee('Contenido');
     }
 }

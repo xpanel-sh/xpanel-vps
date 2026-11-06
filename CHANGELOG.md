@@ -18,6 +18,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 - Los clientes comerciales ya no requieren dominio propio. Sitios se integra en Dominios, Instancias pasa a llamarse Hostings y Contrataciones se presenta como el historial financiero de Pagos.
 - Se renovaron las tablas de clientes, hostings, dominios y pagos con jerarquía visual, estados y acciones coherentes con el resto del panel.
+- Planes y Servidores adoptan los componentes visuales actuales; el buscador de Clientes permanece compacto a la derecha. La navegación superior queda limitada al módulo activo y Operaciones pasa a Ajustes sin romper la dirección anterior.
 - La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas. En instalaciones nuevas, el escaneo de cuota intenta remontar la raíz en solo lectura y falla de forma segura si no puede, sin usar `quotacheck -m` ni `-M`.
 - Las copias nuevas de Host administrado usan una ruta bajo la instancia para que el inventario pueda atribuirlas a la cuenta. Se corrige además la validación de UUID completo al reconciliar bases de una cuota por proyecto.
 

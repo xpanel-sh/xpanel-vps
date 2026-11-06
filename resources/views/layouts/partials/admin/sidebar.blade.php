@@ -13,8 +13,7 @@
             ? [['label' => 'Docker Apps', 'route' => 'admin.docker.index', 'match' => ['admin.docker.*'], 'icon' => 'ki-cube-3']]
             : []),
         ['label' => 'Backups / HA', 'disabled' => true, 'match' => [], 'icon' => 'ki-shield-tick'],
-        ['label' => 'Operaciones', 'route' => 'admin.daemon.operations', 'match' => ['admin.daemon.*'], 'icon' => 'ki-pulse'],
-        ['label' => 'Settings', 'route' => 'admin.settings.index', 'match' => ['admin.settings.*'], 'icon' => 'ki-setting-2'],
+        ['label' => 'Ajustes', 'route' => 'admin.settings.index', 'match' => ['admin.settings.*', 'admin.daemon.*'], 'icon' => 'ki-setting-2'],
     ];
 
     $sideBaseClass = 'kt-btn kt-btn-ghost kt-btn-icon rounded-full size-10 border border-transparent text-secondary-foreground hover:bg-background hover:[&_i]:text-primary hover:border-input';

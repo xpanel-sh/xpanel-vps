@@ -12,8 +12,13 @@ class ServerNodeController extends Controller
     public function index()
     {
         $nodes = ServerNode::latest()->paginate(15);
+        $summary = [
+            'total' => ServerNode::count(),
+            'active' => ServerNode::where('is_active', true)->count(),
+            'inactive' => ServerNode::where('is_active', false)->count(),
+        ];
 
-        return view('admin.servers.index', compact('nodes'));
+        return view('admin.servers.index', compact('nodes', 'summary'));
     }
 
     public function create()

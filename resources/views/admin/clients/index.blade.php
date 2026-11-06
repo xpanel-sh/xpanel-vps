@@ -14,12 +14,12 @@
             </div>
 
             <div class="kt-card">
-                <div class="kt-card-header flex-wrap gap-3">
-                    <div>
+                <div class="kt-card-header flex items-center justify-between gap-4">
+                    <div class="min-w-0">
                         <h2 class="kt-card-title">Directorio de clientes</h2>
                         <p class="text-xs text-secondary-foreground">El dominio pertenece a un sitio o hosting, no a la ficha comercial del cliente.</p>
                     </div>
-                    <label class="kt-input kt-input-sm w-full sm:w-72"><i class="ki-filled ki-magnifier"></i><input x-model="search" type="search" placeholder="Buscar nombre o acceso..."></label>
+                    <label class="kt-input kt-input-sm w-64 max-w-full shrink-0"><i class="ki-filled ki-magnifier"></i><input x-model="search" type="search" placeholder="Buscar cliente..."></label>
                 </div>
                 <div class="kt-card-table kt-scrollable-x-auto">
                     <table class="kt-table min-w-[820px] align-middle text-sm">

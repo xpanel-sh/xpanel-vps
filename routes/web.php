@@ -133,7 +133,8 @@ Route::group(['middleware' => ['web']], function () {
         Route::get('/admin/domains', [\App\Http\Controllers\Admin\DomainController::class, 'index'])->name('admin.domains.index');
         Route::get('/admin/dns/nameservers', [\App\Http\Controllers\Admin\NameserverController::class, 'edit'])->name('admin.dns.nameservers');
         Route::put('/admin/dns/nameservers', [\App\Http\Controllers\Admin\NameserverController::class, 'update'])->name('admin.dns.nameservers.update');
-        Route::get('/admin/daemon/operations', [\App\Http\Controllers\Admin\DaemonOperationController::class, 'index'])->name('admin.daemon.operations');
+        Route::get('/admin/settings/operations', [\App\Http\Controllers\Admin\DaemonOperationController::class, 'index'])->name('admin.settings.operations');
+        Route::redirect('/admin/daemon/operations', '/admin/settings/operations')->name('admin.daemon.operations');
 
         Route::get('/admin/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('admin.settings.index');
         Route::put('/admin/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'update'])->name('admin.settings.update');

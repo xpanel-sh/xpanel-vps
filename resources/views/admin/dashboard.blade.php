@@ -264,7 +264,7 @@
                                         <i class="ki-filled ki-dollar"></i>
                                         Crear plan
                                     </a>
-                                    <a class="kt-btn kt-btn-outline justify-start" href="{{ route('admin.daemon.operations') }}">
+                                    <a class="kt-btn kt-btn-outline justify-start" href="{{ route('admin.settings.operations') }}">
                                         <i class="ki-filled ki-setting-3"></i>
                                         Ver instancias
                                     </a>
