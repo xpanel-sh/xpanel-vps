@@ -3,7 +3,9 @@ set -euo pipefail
 
 fail() { echo "xpanel-quota-setup: $*" >&2; exit 1; }
 [[ "$(id -u)" == 0 ]] || fail "root is required"
-[[ "${1:-}" == prepare && $# -eq 1 ]] || fail "usage: $0 prepare"
+action="${1:-}"
+[[ "$action" == prepare || "$action" == activate-fresh ]] && [[ $# -eq 1 ]] \
+    || fail "usage: $0 prepare|activate-fresh"
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if bash "$script_dir/xpanel-project-quota.sh" status >/dev/null 2>&1; then
@@ -33,6 +35,49 @@ ensure_quota_module() {
     fi
 }
 
+assert_fresh_server() {
+    [[ -d /var/lib/xpanel-vps/instances ]] || fail "instance directory is unavailable"
+    [[ -z "$(find /var/lib/xpanel-vps/instances -mindepth 1 -maxdepth 1 -print -quit)" ]] \
+        || fail "Host accounts already exist; refusing quota bootstrap"
+    [[ -z "$(find /home -mindepth 1 -maxdepth 1 -name 'xhi*' -print -quit)" ]] \
+        || fail "Host homes already exist; refusing quota bootstrap"
+}
+
+activate_fresh_quota() {
+    local services=() service
+    assert_fresh_server
+    [[ ",$(findmnt -n -o OPTIONS -T /)," == *,usrquota,* ]] \
+        || fail "usrquota is not active on the root filesystem"
+
+    # A normal cloud root cannot generally be remounted read-only after boot.
+    # On a fresh VPS there are no hosting UIDs to race with the scan, so pause
+    # shared writers, build the vfsv1 file in live mode, then restore services.
+    for service in mariadb nginx apache2 cron postfix dovecot opendkim php8.1-fpm php8.2-fpm php8.3-fpm php8.4-fpm; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            services+=("$service")
+            systemctl stop "$service"
+        fi
+    done
+    restore_services() {
+        local item
+        for item in "${services[@]}"; do
+            systemctl start "$item" 2>/dev/null || true
+        done
+    }
+    trap restore_services EXIT
+
+    if [[ ! -f /aquota.user && ! -f /quota.user ]]; then
+        echo "Inicializando la cuota de usuario en este VPS vacío..."
+        quotacheck -F vfsv1 -cum / \
+            || fail "quotacheck no pudo crear /aquota.user; revisa el kernel, dmesg y el sistema de archivos"
+    fi
+    quotaon -u / 2>/dev/null || true
+    bash "$script_dir/xpanel-user-quota.sh" status >/dev/null \
+        || fail "el archivo de cuotas existe, pero el kernel no confirmó su activación"
+    restore_services
+    trap - EXIT
+}
+
 # Only prepare the simple, known layout. Other filesystems require explicit
 # administration; never rewrite a mount entry whose target is ambiguous.
 [[ "$(findmnt -n -o FSTYPE -T /home)" == ext4 ]] || fail "automatic setup currently supports ext4 only"
@@ -45,10 +90,15 @@ root_entries="$(awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" { n++ } END { print
 ensure_quota_module
 if awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" && ("," $4 ",") ~ /,usrquota,/ { found=1 } END { exit !found }' /etc/fstab; then
     if [[ ",$(findmnt -n -o OPTIONS -T /)," != *,usrquota,* ]]; then
-        fail "usrquota figura en /etc/fstab pero no en el montaje activo; reinicia para aplicar la opción"
+        if mount -o remount,usrquota / 2>/dev/null; then
+            echo "usrquota aplicado al montaje activo."
+        else
+            echo "usrquota ya figura en /etc/fstab; se activará después del próximo reinicio."
+            exit 0
+        fi
     fi
     if [[ ! -f /aquota.user && ! -f /quota.user ]]; then
-        fail "usrquota está montado, pero falta /aquota.user: quotaon no puede activarse. Inicializa el archivo de cuotas antes de repetir la actualización (consulta README.md). No sirve reiniciar otra vez"
+        activate_fresh_quota
     fi
     if ! quota_output="$(quotaon -u / 2>&1)"; then
         if ! bash "$script_dir/xpanel-user-quota.sh" status >/dev/null 2>&1; then
@@ -61,6 +111,10 @@ if awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" && ("," $4 ",") ~ /,usrquota,/ {
     exit 0
 fi
 
+if [[ "$action" == activate-fresh ]]; then
+    fail "usrquota todavía no está configurado en /etc/fstab; ejecuta primero prepare"
+fi
+
 tmp="$(mktemp /etc/.xpanel-fstab.XXXXXX)"
 trap 'rm -f -- "$tmp"' EXIT
 awk '$1 !~ /^#/ && $2 == "/" && $3 == "ext4" { $4=$4 ",usrquota" } { print }' /etc/fstab > "$tmp"
@@ -68,4 +122,10 @@ findmnt --verify --tab-file "$tmp" >/dev/null || fail "the proposed /etc/fstab d
 backup="/etc/fstab.xpanel-$(date -u +%Y%m%dT%H%M%SZ).bak"
 cp -p -- /etc/fstab "$backup"
 install -o root -g root -m 0644 "$tmp" /etc/fstab
-echo "Preparado usrquota en /etc/fstab (respaldo: $backup). Falta inicializar /aquota.user y activar las cuotas antes de crear cuentas Host; consulta README.md."
+if mount -o remount,usrquota / 2>/dev/null; then
+    echo "Preparado usrquota en /etc/fstab (respaldo: $backup) y aplicado al montaje activo."
+    activate_fresh_quota
+    echo "Cuotas por usuario activas."
+else
+    echo "Preparado usrquota en /etc/fstab (respaldo: $backup). Se completará automáticamente después del próximo reinicio."
+fi

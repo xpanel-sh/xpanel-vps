@@ -23,6 +23,7 @@ ensure_quota_tools() {
 # Existing VPS installations may predate project quotas. Repair these small
 # system dependencies before putting the panel into maintenance mode.
 ensure_quota_tools
+bash "$ROOT/scripts/configure-managed-mail.sh" --packages-only
 if ! bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
   if ! bash "$ROOT/scripts/xpanel-quota-setup.sh" prepare; then
     echo "AVISO: no se pudieron activar las cuotas. La actualización del panel continuará, pero el aprovisionamiento Host quedará bloqueado." >&2
@@ -38,7 +39,7 @@ restore_panel() { sudo -u www-data php "$ROOT/artisan" up >/dev/null 2>&1 || tru
 trap restore_panel EXIT
 
 composer --working-dir="$ROOT" install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-npm --prefix "$ROOT" install --ignore-scripts --no-audit --no-fund
+npm --prefix "$ROOT" ci --ignore-scripts --no-audit --no-fund
 npm --prefix "$ROOT" run build
 chown -R www-data:www-data "$ROOT/storage" "$ROOT/bootstrap/cache"
 sudo -u www-data php "$ROOT/artisan" migrate --force

@@ -13,6 +13,10 @@ if [[ "$action" == status && "${XPANEL_PROJECT_ONLY:-}" != 1 ]]; then
     if bash "$user_helper" status >/dev/null 2>&1; then
         exec bash "$user_helper" status
     fi
+    if [[ ",$(findmnt -n -o OPTIONS -T /home 2>/dev/null)," == *,usrquota,* ]] \
+        || awk '$1 !~ /^#/ && $2 == "/" && ("," $4 ",") ~ /,usrquota,/ { found=1 } END { exit !found }' /etc/fstab 2>/dev/null; then
+        exec bash "$user_helper" status
+    fi
 elif [[ "$action" == apply || "$action" == remove || "$action" == tag-database || "$action" == check-databases || "$action" == reconcile-databases || "$action" == reconcile-total ]]; then
     uuid="${2:-}"
     if [[ "$uuid" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; then

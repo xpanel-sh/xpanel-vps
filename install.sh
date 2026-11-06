@@ -37,11 +37,7 @@ if [[ "$ROOT" == /root/* && "$ROOT" != /opt/xpanel-vps ]]; then
   target=/opt/xpanel-vps
   [[ ! -e "$target" ]] || fail "$target ya existe; ejecuta su install.sh o retira la instalación incompleta de forma explícita."
   install -d -o root -g root -m 0755 /opt
-  if [[ -d "$ROOT/.git" ]]; then
-    git clone --local --no-hardlinks "$ROOT" "$target"
-  else
-    cp -a -- "$ROOT" "$target"
-  fi
+  cp -a -- "$ROOT" "$target"
   echo "Código trasladado a $target para que PHP-FPM pueda acceder de forma segura."
   exec bash "$target/install.sh" "$@"
 fi
@@ -129,6 +125,10 @@ configure_firewall() {
   ufw allow 22/tcp >/dev/null
   ufw allow 80/tcp >/dev/null
   ufw allow 443/tcp >/dev/null
+  ufw allow 25/tcp >/dev/null
+  ufw allow 587/tcp >/dev/null
+  ufw allow 143/tcp >/dev/null
+  ufw allow 993/tcp >/dev/null
   ufw allow "$PANEL_PORT/tcp" >/dev/null
   ufw allow "${XPANEL_HOST_PORT_START:-10000}:${XPANEL_HOST_PORT_END:-19999}/tcp" >/dev/null
   ufw --force enable >/dev/null

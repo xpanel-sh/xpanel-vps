@@ -3,7 +3,7 @@ Description=Complete XPanel VPS quota setup after first reboot
 Documentation=file:/opt/xpanel-vps/README.md
 ConditionPathExists=/var/lib/xpanel-vps/install/quota-firstboot.pending
 After=local-fs.target
-Before=mariadb.service nginx.service cron.service php8.3-fpm.service php8.4-fpm.service
+Before=mariadb.service nginx.service apache2.service cron.service postfix.service dovecot.service opendkim.service php8.1-fpm.service php8.2-fpm.service php8.3-fpm.service php8.4-fpm.service
 
 [Service]
 Type=oneshot

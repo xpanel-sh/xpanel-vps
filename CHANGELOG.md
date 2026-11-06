@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Instalación y actualización del stack de correo compartido para Host administrado: Postfix, Dovecot, OpenDKIM, mapas globales y política de límites/salida quedan configurados antes de crear la primera instancia.
 - Cuota combinada de archivos, bases MariaDB, correo y copias: `prjquota` mantiene la garantía física y el modo compatible `usrquota` reserva automáticamente el uso externo dentro del total del plan.
 - Resincronización global de Postfix, Dovecot, DKIM, rutas de salida y permisos Maildir al recuperar o depurar una instancia, conservando el correo de las demás cuentas.
 - Métricas anónimas configurables por categoría hacia el futuro receptor de `xpanel.sh/get`: versión, modo, salud, Linux, CPU/RAM, disco, GPU y carga agregada. Se activan inicialmente, pueden deshabilitarse sin afectar funciones y nunca incluyen IP, dominios, correos ni datos de clientes.
@@ -29,10 +30,18 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Cambiado
 
+- La preparación de cuotas en un VPS vacío ya no depende de remontar `/` en solo lectura. Aplica `usrquota` en vivo cuando el kernel lo permite, pausa escritores y crea el archivo vfsv1 únicamente después de verificar que no existen cuentas; si requiere reinicio, el servicio de primer arranque completa el mismo flujo de forma idempotente.
+- Las dependencias JavaScript de VPS usan ahora un lockfile versionado y `npm ci`; el instalador deja de crear archivos no rastreados que luego bloqueaban `xpanel update`.
 - Los clientes comerciales ya no requieren dominio propio. Sitios se integra en Dominios, Instancias pasa a llamarse Hostings y Contrataciones se presenta como el historial financiero de Pagos.
 - Se renovaron las tablas de clientes, hostings, dominios y pagos con jerarquía visual, estados y acciones coherentes con el resto del panel.
 - Planes y Servidores adoptan los componentes visuales actuales; el buscador de Clientes permanece compacto a la derecha. La navegación superior queda limitada al módulo activo y Operaciones pasa a Ajustes sin romper la dirección anterior.
-- La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas. En instalaciones nuevas, el escaneo de cuota intenta remontar la raíz en solo lectura y falla de forma segura si no puede, sin usar `quotacheck -m` ni `-M`.
+- La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas.
+
+### Corregido
+
+- Los reintentos reconocen `usrquota` ya escrito en `fstab`, crean `/aquota.user` si falta y muestran el fallo real de cuota de usuario, en vez de caer al diagnóstico engañoso de `prjquota`.
+- Una ejecución desde un checkout bajo `/root` se traslada a `/opt/xpanel-vps` antes de invocar Artisan como `www-data`; `install.sh` se distribuye además con modo ejecutable.
+- El instalador ya no reescribe el marcador Git rastreado para guardar el idioma ni confunde la versión del producto con `VERSION` de `/etc/os-release`.
 - Las copias nuevas de Host administrado usan una ruta bajo la instancia para que el inventario pueda atribuirlas a la cuenta. Se corrige además la validación de UUID completo al reconciliar bases de una cuota por proyecto.
 
 ## [0.1.0-alpha.3] - Hito de desarrollo retrospectivo

@@ -47,7 +47,10 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertLessThan(strpos($update, 'php "$ROOT/artisan" down'), strpos($update, 'xpanel-quota-setup.sh" prepare'));
         $this->assertStringContainsString('findmnt --verify --tab-file "$tmp"', $setup);
         $this->assertStringContainsString('cp -p -- /etc/fstab "$backup"', $setup);
-        $this->assertStringContainsString('falta /aquota.user', $setup);
+        $this->assertStringContainsString('quotacheck -F vfsv1 -cum /', $setup);
+        $this->assertStringContainsString('Host accounts already exist; refusing quota bootstrap', $setup);
+        $this->assertStringContainsString('systemctl stop "$service"', $setup);
+        $this->assertStringContainsString('mount -o remount,usrquota /', $setup);
         $this->assertStringContainsString('modprobe quota_v2', $setup);
         $this->assertStringContainsString('linux-modules-extra-$(uname -r)', $setup);
         $this->assertStringContainsString('quotaon -u -p "$home_mount" 2>&1)" || true', $userQuota);
@@ -71,16 +74,32 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $unit = file_get_contents(base_path('scripts/xpanel-quota-firstboot.service'));
         $status = file_get_contents(base_path('scripts/xpanel-install-status.sh'));
 
-        $this->assertStringContainsString('install -d -m 0755 /var/lib/xpanel-vps /var/lib/xpanel-vps/instances', $installer);
+        $this->assertStringContainsString('install -d -m 0755 /var/lib/xpanel-vps/instances', $installer);
         $this->assertLessThan(strpos($installer, 'shutdown -r +1'), strpos($installer, 'echo "Contraseña: $initial_admin_password"'));
         $this->assertStringContainsString("read -r -p '¿Programar reinicio en 1 minuto? [s/N] '", $installer);
         $this->assertStringContainsString('ConditionPathExists=/var/lib/xpanel-vps/install/quota-firstboot.pending', $unit);
-        $this->assertStringContainsString('Before=mariadb.service nginx.service', $unit);
-        $this->assertStringContainsString('cron.service php8.3-fpm.service', $unit);
-        $this->assertStringContainsString('quotacheck -cu /', $firstboot);
-        $this->assertStringNotContainsString('quotacheck -cum /', $firstboot);
+        $this->assertStringContainsString('Before=mariadb.service nginx.service apache2.service', $unit);
+        $this->assertStringContainsString('postfix.service dovecot.service opendkim.service', $unit);
+        $this->assertStringContainsString('xpanel-quota-setup.sh" activate-fresh', $firstboot);
         $this->assertStringContainsString('Host accounts already exist; refusing quota bootstrap', $firstboot);
         $this->assertStringContainsString('--credentials', $status);
+    }
+
+    public function test_managed_mail_stack_is_installed_and_configured_for_instances(): void
+    {
+        $installer = file_get_contents(base_path('install.sh'));
+        $update = file_get_contents(base_path('scripts/xpanel-update.sh'));
+        $mail = file_get_contents(base_path('scripts/configure-managed-mail.sh'));
+
+        $this->assertStringContainsString('postfix dovecot-core dovecot-imapd dovecot-lmtpd opendkim', $installer);
+        $this->assertStringContainsString('ufw allow 587/tcp', $installer);
+        $this->assertStringContainsString('ufw allow 993/tcp', $installer);
+        $this->assertStringContainsString('configure-managed-mail.sh"', $installer);
+        $this->assertStringContainsString('configure-managed-mail.sh" --packages-only', $update);
+        $this->assertStringContainsString('mail_location = maildir:~/Maildir', $mail);
+        $this->assertStringContainsString('virtual_mailbox_domains = hash:/etc/xpanel-host/mail/domains', $mail);
+        $this->assertStringContainsString('configure-mail-rate-policy.sh', $mail);
+        $this->assertStringContainsString('opendkim -n -x /etc/opendkim.conf', $mail);
     }
 
     private function account(int $inodes = 50000): HostingAccount
