@@ -40,6 +40,8 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Las instancias Host aceptan cargas grandes en sus capas Nginx y PHP-FPM, evitando el 413 del gestor de archivos administrado.
+- El broker permite consultar únicamente el log de acceso de sitios pertenecientes a la instancia, reparando Analytics sin ampliar el acceso al servidor.
 - La configuración PHP-FPM de una instancia omite variables opcionales vacías y usa la IP detectada para la CA fallback del broker. Esto evita `empty value` en `panel.conf`; una reparación fallida vuelve ahora a la ficha con diagnóstico en vez de responder 500.
 - Reaplicar una instancia repara también los permisos de recorrido de la release compartida de Host. La ficha del cliente permite desplegar el error técnico completo cuando el aprovisionamiento queda parcial.
 - Los planes base pueden activarse después de definir precio y límites válidos; se retiró el bloqueo transitorio anterior a la cuota combinada. Un borrador sin precio muestra ahora «Configurar precio» y los planes nuevos nacen inactivos.

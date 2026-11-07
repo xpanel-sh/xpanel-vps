@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -98,6 +98,11 @@ elif [[ "$ACTION" == "resource-snapshot" ]]; then
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "resource user escaped the account"
   [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ ]] || fail "invalid resource engine"
   for database in "${@:5}"; do [[ "$database" =~ ^xp_${INSTANCE_HEX:0:6}_[a-z0-9_]+$ ]] || fail "database escaped the account"; done
+elif [[ "$ACTION" == "access-log-read" ]]; then
+  [[ $# -eq 2 ]] || fail "invalid analytics argument count"
+  DOMAIN="$1"; ENGINE="$2"
+  [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid analytics domain"
+  [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ ]] || fail "invalid analytics engine"
 elif [[ "$ACTION" == "traffic-rate-set" ]]; then
   [[ $# -eq 1 && ( "$1" == normal || "$1" == reduced ) ]] || fail "invalid traffic rate"
   exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-traffic-rate.sh" apply "$UUID" "$1"

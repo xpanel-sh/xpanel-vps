@@ -22,6 +22,7 @@ class HostBrokerActionPolicy
         match ($action) {
             'apply' => $this->site($instance, $arguments, in_array(count($arguments), [12, 13], true) ? count($arguments) : 13, $action),
             'resource-snapshot' => $this->resourceSnapshot($instance, $arguments),
+            'access-log-read' => $this->accessLog($instance, $arguments),
             'traffic-rate-status', 'traffic-rate-set' => $this->trafficRate($arguments, $action),
             'remove', 'site-restart' => $this->site($instance, $arguments, 6, $action),
             'ssl-issue', 'ssl-wildcard-issue', 'ssl-delete' => $this->certificate($instance, $arguments, $action),
@@ -97,6 +98,20 @@ class HostBrokerActionPolicy
                 || ! $this->row($instance, 'database-name', $database)) {
                 throw new RuntimeException('La base medida no pertenece a la instancia.');
             }
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function accessLog(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) !== 2) {
+            throw new RuntimeException('Argumentos de analítica inválidos.');
+        }
+        [$domain, $engine] = $arguments;
+        $site = $this->row($instance, 'site', $domain);
+        if (! $this->domain($domain) || ! in_array($engine, ['nginx', 'apache', 'openlitespeed'], true)
+            || ! $site || $site['web_server'] !== $engine) {
+            throw new RuntimeException('El log solicitado no pertenece a la instancia.');
         }
     }
 

@@ -375,6 +375,18 @@ class HostBrokerTest extends TestCase
         ]);
     }
 
+    public function test_analytics_can_read_only_a_log_owned_by_the_instance(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $payload = $this->payload($instance, 'access-log-read', ['example.test', 'nginx']);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'authorized-staged');
+
+        $foreign = $this->payload($instance, 'access-log-read', ['other.test', 'nginx']);
+        $this->postJson(route('api.host-broker'), $foreign, ['X-XPanel-Signature' => $this->signature($foreign, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_signed_host_can_request_its_own_update_without_arguments(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

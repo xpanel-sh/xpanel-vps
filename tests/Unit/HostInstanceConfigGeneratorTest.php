@@ -83,6 +83,11 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('proxy_pass http://127.0.0.1:7093;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('location = /internal/terminal/consume {', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('allow 127.0.0.1;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('client_max_body_size 2050m;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('client_body_timeout 1200s;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('fastcgi_read_timeout 1200s;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('php_admin_value[upload_max_filesize] = 2048M', File::get($firstFiles['fpm']));
+        $this->assertStringContainsString('php_admin_value[post_max_size] = 2050M', File::get($firstFiles['fpm']));
         $this->assertStringContainsString('Slice=xpanel-instance-'.$first->uuid.'.slice', File::get($firstFiles['fpm_service']));
         $this->assertStringContainsString('/php-fpm-pools/*.conf', File::get($firstFiles['fpm_global']));
     }
