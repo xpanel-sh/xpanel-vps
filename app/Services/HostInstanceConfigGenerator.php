@@ -89,7 +89,7 @@ class HostInstanceConfigGenerator
             'XPANEL_BROKER_URL' => config('xpanel.host_instances.broker_url'),
             'XPANEL_BROKER_SECRET' => $instance->broker_secret,
             'XPANEL_BROKER_CA' => config('xpanel.host_instances.broker_ca'),
-            'XPANEL_BROKER_CA_HOST' => config('xpanel.host_instances.broker_ca_host'),
+            'XPANEL_BROKER_CA_HOST' => config('xpanel.host_instances.broker_ca_host') ?: config('xpanel.server_ip'),
             'XPANEL_PANEL_DOMAIN' => $panelDomain,
             'XPANEL_PANEL_ACCESS_MODE' => 'domain',
             'XPANEL_SERVER_IPV4' => config('xpanel.server_ip'),
@@ -170,7 +170,13 @@ class HostInstanceConfigGenerator
     {
         $pool = 'xpanel-instance-'.$instance->uuid;
         $socket = '/run/php/php'.$instance->php_version.'-fpm-'.$pool.'.sock';
-        $environment = collect($values)->map(fn ($value, $key) => 'env['.$key.'] = "'.addcslashes((string) $value, '\\"').'"')->implode("\n");
+        // PHP-FPM treats `env[NAME] = ""` as an invalid empty directive.
+        // Optional managed settings stay absent and Laravel applies their
+        // normal defaults instead of making the whole pool unbootable.
+        $environment = collect($values)
+            ->reject(fn ($value) => $value === null || $value === '')
+            ->map(fn ($value, $key) => 'env['.$key.'] = "'.addcslashes((string) $value, '\\"').'"')
+            ->implode("\n");
 
         return "[{$pool}]\nuser = {$instance->system_user}\ngroup = {$instance->system_user}\nlisten = {$socket}\nlisten.owner = www-data\nlisten.group = www-data\nlisten.mode = 0660\npm = ondemand\npm.max_children = 8\npm.process_idle_timeout = 20s\nchdir = {$instance->release_path}\nclear_env = yes\n{$environment}\n";
     }

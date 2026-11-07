@@ -241,7 +241,19 @@ class HostInstanceController extends Controller
         $validated = $request->validate([
             'owner_password' => ['nullable', 'string', 'min:16', 'max:128'],
         ]);
-        $provisioner->apply($instance, $validated['owner_password'] ?? null);
+        try {
+            $provisioner->apply($instance, $validated['owner_password'] ?? null);
+        } catch (\Throwable $exception) {
+            Log::error('Host instance configuration repair failed', [
+                'instance_id' => $instance->id,
+                'instance_uuid' => $instance->uuid,
+                'exception' => $exception,
+            ]);
+
+            return back()->withErrors([
+                'hosting' => 'No se pudo reparar la instancia. Despliega el error técnico de la cuenta para ver la causa completa.',
+            ]);
+        }
 
         return back()->with('success', 'La configuración de la instancia fue aplicada.');
     }

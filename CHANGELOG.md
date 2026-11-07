@@ -40,6 +40,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- La configuración PHP-FPM de una instancia omite variables opcionales vacías y usa la IP detectada para la CA fallback del broker. Esto evita `empty value` en `panel.conf`; una reparación fallida vuelve ahora a la ficha con diagnóstico en vez de responder 500.
 - Reaplicar una instancia repara también los permisos de recorrido de la release compartida de Host. La ficha del cliente permite desplegar el error técnico completo cuando el aprovisionamiento queda parcial.
 - Los planes base pueden activarse después de definir precio y límites válidos; se retiró el bloqueo transitorio anterior a la cuota combinada. Un borrador sin precio muestra ahora «Configurar precio» y los planes nuevos nacen inactivos.
 - Las releases compartidas de Host conservan permisos de recorrido para los usuarios aislados, el broker acepta el nombre visual enviado por el contrato actual y las instancias confían de forma limitada en el certificado fallback solo al comunicarse con la IP que lo emitió.

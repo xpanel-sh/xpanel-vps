@@ -115,6 +115,24 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('APP_KEY="base64:restored-key-value"', $environment);
     }
 
+    public function test_fpm_pool_never_contains_empty_environment_directives(): void
+    {
+        config()->set('xpanel.host_instances.control_plane_url', null);
+        config()->set('xpanel.host_instances.broker_url', null);
+        config()->set('xpanel.host_instances.broker_ca_host', null);
+        config()->set('xpanel.server_ip', null);
+
+        $files = app(HostInstanceConfigGenerator::class)->generate(
+            $this->makeInstance('01234567-89ab-cdef-0123-456789abcdef', 'panel.one.test'),
+        );
+        $pool = File::get($files['fpm']);
+
+        $this->assertStringNotContainsString('env[XPANEL_CONTROL_PLANE_URL]', $pool);
+        $this->assertStringNotContainsString('env[XPANEL_BROKER_URL]', $pool);
+        $this->assertStringNotContainsString('env[XPANEL_BROKER_CA_HOST]', $pool);
+        $this->assertDoesNotMatchRegularExpression('/^env\[[^]]+\]\s*=\s*""$/m', $pool);
+    }
+
     private function makeInstance(string $uuid, string $domain, ?string $root = null): HostInstance
     {
         $root ??= '/var/lib/xpanel-vps/instances/'.$uuid;
