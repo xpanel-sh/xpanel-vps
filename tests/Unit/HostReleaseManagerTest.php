@@ -38,4 +38,13 @@ class HostReleaseManagerTest extends TestCase
 
         $this->assertStringContainsString("  return 0\n}\ntrap cleanup EXIT", $script);
     }
+
+    public function test_shared_release_parents_remain_traversable_by_instance_users(): void
+    {
+        $installer = file_get_contents(base_path('install.sh'));
+        $preparer = file_get_contents(base_path('scripts/prepare-host-release.sh'));
+
+        $this->assertStringContainsString('install -d -o root -g root -m 0755 "$host_base" "$host_base/releases"', $installer);
+        $this->assertStringContainsString('install -d -o root -g root -m 0755 "$base" "$base/releases"', $preparer);
+    }
 }

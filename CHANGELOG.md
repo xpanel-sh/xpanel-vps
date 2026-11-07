@@ -39,6 +39,9 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Los planes base pueden activarse después de definir precio y límites válidos; se retiró el bloqueo transitorio anterior a la cuota combinada. Un borrador sin precio muestra ahora «Configurar precio» y los planes nuevos nacen inactivos.
+- Las releases compartidas de Host conservan permisos de recorrido para los usuarios aislados, el broker acepta el nombre visual enviado por el contrato actual y las instancias confían de forma limitada en el certificado fallback solo al comunicarse con la IP que lo emitió.
+- Instalar o actualizar VPS descarta las variables Laravel, SQLite y caché heredadas si el operador había cargado el `runtime.sh` de una instancia, evitando migrar accidentalmente la base privada de Host.
 - La configuración compartida de Dovecot escribe el bloque `plugin` en sintaxis multilínea compatible con Dovecot 2.3; la instalación ya no se detiene con `Garbage after '{'` después de activar las cuotas.
 - Los reintentos reconocen `usrquota` ya escrito en `fstab`, crean `/aquota.user` si falta y muestran el fallo real de cuota de usuario, en vez de caer al diagnóstico engañoso de `prjquota`.
 - Una ejecución desde un checkout bajo `/root` se traslada a `/opt/xpanel-vps` antes de invocar Artisan como `www-data`; `install.sh` se distribuye además con modo ejecutable.

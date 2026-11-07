@@ -45,7 +45,7 @@ class DefaultHostingPlansTest extends TestCase
         $this->assertFalse($legacy->fresh()->is_active);
     }
 
-    public function test_draft_cannot_be_activated_without_price_or_hard_disk_quota(): void
+    public function test_draft_requires_price_and_can_then_be_activated(): void
     {
         app(DefaultDataSeeder::class)->run();
         $plan = HostingPlan::where('slug', 'esencial')->firstOrFail();
@@ -57,7 +57,18 @@ class DefaultHostingPlansTest extends TestCase
 
         $plan->update(['monthly_price' => 5]);
         $this->actingAs($admin, 'admin')->post(route('admin.plans.toggle', $plan))
-            ->assertSessionHasErrors('storage_mb');
-        $this->assertFalse($plan->fresh()->is_active);
+            ->assertSessionHasNoErrors()->assertRedirect(route('admin.plans.index'));
+        $this->assertTrue($plan->fresh()->is_active);
+    }
+
+    public function test_zero_price_draft_offers_configuration_instead_of_activation(): void
+    {
+        app(DefaultDataSeeder::class)->run();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'admin')->get(route('admin.plans.index'))
+            ->assertOk()
+            ->assertSee('Configurar precio')
+            ->assertDontSee('La cuota de archivos ya está preparada');
     }
 }

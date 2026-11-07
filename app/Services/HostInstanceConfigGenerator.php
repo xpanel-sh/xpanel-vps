@@ -88,6 +88,8 @@ class HostInstanceConfigGenerator
             'XPANEL_CONTROL_PLANE_URL' => config('xpanel.host_instances.control_plane_url'),
             'XPANEL_BROKER_URL' => config('xpanel.host_instances.broker_url'),
             'XPANEL_BROKER_SECRET' => $instance->broker_secret,
+            'XPANEL_BROKER_CA' => config('xpanel.host_instances.broker_ca'),
+            'XPANEL_BROKER_CA_HOST' => config('xpanel.host_instances.broker_ca_host'),
             'XPANEL_PANEL_DOMAIN' => $panelDomain,
             'XPANEL_PANEL_ACCESS_MODE' => 'domain',
             'XPANEL_SERVER_IPV4' => config('xpanel.server_ip'),

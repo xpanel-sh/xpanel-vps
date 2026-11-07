@@ -2,6 +2,16 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Ignore a Host instance runtime accidentally sourced by an administrator.
+# Otherwise VPS Artisan can inherit the tenant SQLite and cache locations.
+unset APP_NAME APP_ENV APP_KEY APP_DEBUG APP_URL
+unset APP_CONFIG_CACHE APP_EVENTS_CACHE APP_PACKAGES_CACHE APP_ROUTES_CACHE APP_SERVICES_CACHE
+unset DB_CONNECTION DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD
+unset SESSION_DRIVER CACHE_STORE QUEUE_CONNECTION
+unset XPANEL_MANAGEMENT_MODE XPANEL_INSTANCE_ID XPANEL_INSTANCE_ROOT XPANEL_PROJECT_ID
+unset XPANEL_BROKER_URL XPANEL_BROKER_SECRET XPANEL_BROKER_CA XPANEL_BROKER_CA_HOST
+unset XPANEL_CONTROL_PLANE_URL XPANEL_PANEL_DOMAIN XPANEL_PANEL_ACCESS_MODE XPANEL_PANEL_PORT
 [[ "$(id -u)" == "0" ]] || { echo "Ejecuta la actualización con sudo." >&2; exit 1; }
 [[ -f "$ROOT/.env" ]] || { echo "Falta $ROOT/.env" >&2; exit 1; }
 

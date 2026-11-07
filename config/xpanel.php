@@ -41,6 +41,8 @@ return [
         'staging_root' => env('XPANEL_INSTANCE_STAGING_ROOT', storage_path('app/native/host-instances')),
         'control_plane_url' => env('XPANEL_CONTROL_PLANE_URL', env('APP_URL')),
         'broker_url' => env('XPANEL_BROKER_URL', rtrim(env('APP_URL'), '/').'/api/internal/host-broker'),
+        'broker_ca' => env('XPANEL_BROKER_CA', '/etc/xpanel/tls/fallback.crt'),
+        'broker_ca_host' => env('XPANEL_BROKER_CA_HOST', env('XPANEL_SERVER_IPV4')),
         'broker_helper' => env('XPANEL_BROKER_HELPER', base_path('scripts/xpanel-host-broker-helper.sh')),
         'fallback_port_start' => (int) env('XPANEL_HOST_PORT_START', 10000),
         'fallback_port_end' => (int) env('XPANEL_HOST_PORT_END', 19999),

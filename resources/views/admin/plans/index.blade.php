@@ -62,7 +62,11 @@
                             <p class="mt-5 min-h-10 text-sm leading-5 text-secondary-foreground">{{ $plan->description ?: 'Sin descripción comercial todavía.' }}</p>
                             <div class="mt-5 flex items-center gap-2 border-t border-border pt-4">
                                 <a class="kt-btn kt-btn-sm kt-btn-outline grow" href="{{ route('admin.plans.edit', $plan) }}"><i class="ki-filled ki-pencil"></i>Editar</a>
-                                <form action="{{ route('admin.plans.toggle', $plan) }}" method="POST">@csrf<button class="kt-btn kt-btn-sm {{ $plan->is_active ? 'kt-btn-ghost' : 'kt-btn-primary' }}">{{ $plan->is_active ? 'Pausar' : 'Activar' }}</button></form>
+                                @if(!$plan->is_active && (float) $plan->monthly_price <= 0)
+                                    <a class="kt-btn kt-btn-sm kt-btn-primary" href="{{ route('admin.plans.edit', $plan) }}">Configurar precio</a>
+                                @else
+                                    <form action="{{ route('admin.plans.toggle', $plan) }}" method="POST">@csrf<button class="kt-btn kt-btn-sm {{ $plan->is_active ? 'kt-btn-ghost' : 'kt-btn-primary' }}">{{ $plan->is_active ? 'Pausar' : 'Activar' }}</button></form>
+                                @endif
                             </div>
                         </div>
                     </article>

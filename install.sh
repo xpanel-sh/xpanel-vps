@@ -3,6 +3,18 @@ set -Eeuo pipefail
 umask 027
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# An operator may have sourced a Host instance runtime.sh in this terminal.
+# Never let its SQLite/cache paths override the VPS application's own .env.
+unset APP_CONFIG_CACHE APP_EVENTS_CACHE APP_PACKAGES_CACHE APP_ROUTES_CACHE APP_SERVICES_CACHE
+unset DB_CONNECTION DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD
+unset SESSION_DRIVER CACHE_STORE QUEUE_CONNECTION
+if [[ "${XPANEL_MANAGEMENT_MODE:-}" == "vps-instance" || -n "${XPANEL_INSTANCE_ID:-}" ]]; then
+  unset APP_NAME APP_ENV APP_KEY APP_DEBUG APP_URL
+  unset XPANEL_MANAGEMENT_MODE XPANEL_INSTANCE_ID XPANEL_INSTANCE_ROOT XPANEL_PROJECT_ID
+  unset XPANEL_BROKER_URL XPANEL_BROKER_SECRET XPANEL_BROKER_CA XPANEL_BROKER_CA_HOST
+  unset XPANEL_CONTROL_PLANE_URL XPANEL_PANEL_DOMAIN XPANEL_PANEL_ACCESS_MODE XPANEL_PANEL_PORT
+fi
 CLI_DIR="$(realpath -m "${XPANEL_CLI_DIR:-/opt/xpanel-cli}")"
 REPO_CLI="${XPANEL_CLI_REPO:-github.com/xpanel-sh/xpanel-cli}"
 SAVED_PANEL_DOMAIN="$(grep -E '^XPANEL_PANEL_DOMAIN=' "$ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"' || true)"
@@ -406,6 +418,11 @@ install_host_release() {
   local revision="${XPANEL_HOST_REVISION:-main}"
   local release_id target php_bin managed_source
 
+  # Instance workers and their isolated system users must be able to traverse
+  # the shared, immutable Host release. A restrictive installer umask must not
+  # leave /opt/xpanel-host as root:root 0750 after the first git clone.
+  install -d -o root -g root -m 0755 "$host_base" "$host_base/releases"
+
   # Updating the VPS control plane must not implicitly advance Host. Each
   # hosting account chooses its own release from Host or from the VPS admin.
   if [[ "${XPANEL_PRESERVE_HOST_RELEASE:-false}" == "true" ]]; then
@@ -438,7 +455,6 @@ install_host_release() {
   fi
 
   target="$host_base/releases/$release_id"
-  install -d -m 0755 "$host_base/releases"
   if [[ ! -d "$target/.git" ]]; then
     git clone --no-hardlinks "$source" "$target"
     git -C "$target" checkout --force --detach "$(git -C "$source" rev-parse HEAD)"
@@ -455,6 +471,7 @@ install_host_release() {
   npm --prefix "$target" run build
   chown -R root:root "$target"
   chmod -R a+rX,go-w "$target"
+  chmod 0755 "$host_base" "$host_base/releases" "$target"
   ln -sfn "$target" "$host_base/current"
   set_env_var XPANEL_HOST_INSTANCES true
   set_env_var XPANEL_HOST_RELEASE "$target"

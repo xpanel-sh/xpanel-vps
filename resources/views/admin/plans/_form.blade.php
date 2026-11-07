@@ -91,7 +91,7 @@
             </div>
             <div class="kt-card-content grid gap-5">
                 <label class="kt-label">
-                    <input class="kt-switch" type="checkbox" name="is_active" value="1" @checked(old('is_active', $plan->exists ? $plan->is_active : true))>
+                    <input class="kt-switch" type="checkbox" name="is_active" value="1" @checked(old('is_active', $plan->exists ? $plan->is_active : false))>
                     Plan activo para nuevas asignaciones
                 </label>
                 <div class="flex justify-end gap-2.5">

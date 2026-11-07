@@ -31,6 +31,17 @@ class PublicPagesTest extends TestCase
         $this->get('/')->assertOk()->assertSee('Acme Hosting')->assertSee('Pro')->assertSee('19.99');
     }
 
+    public function test_home_never_displays_draft_plans(): void
+    {
+        config()->set('xpanel.home_enabled', true);
+        HostingPlan::create([
+            'name' => 'QA Invisible', 'slug' => 'qa-invisible',
+            'monthly_price' => 1, 'is_active' => false,
+        ]);
+
+        $this->get('/')->assertOk()->assertDontSee('QA Invisible');
+    }
+
     public function test_admin_can_edit_a_public_policy(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

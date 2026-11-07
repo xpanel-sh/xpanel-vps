@@ -31,7 +31,7 @@ class HostingPlanController extends Controller
     {
         $validated = $this->validatePlan($request);
         $validated['slug'] = Str::slug($validated['slug'] ?: $validated['name']);
-        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['is_active'] = $request->boolean('is_active');
         $this->assertPaidDraftHasPrice($validated);
 
         HostingPlan::create($validated);
@@ -75,8 +75,7 @@ class HostingPlanController extends Controller
 
     private function assertPaidDraftHasPrice(array $data): void
     {
-        if (($data['is_active'] ?? false)
-            && in_array($data['slug'] ?? '', ['esencial', 'plus', 'pro', 'max'], true)) {
+        if ($data['is_active'] ?? false) {
             if ((float) ($data['monthly_price'] ?? 0) <= 0) {
                 throw ValidationException::withMessages(['monthly_price' => 'Define un precio mensual mayor que cero antes de activar este plan.']);
             }
@@ -85,11 +84,6 @@ class HostingPlanController extends Controller
                     throw ValidationException::withMessages([$field => 'Este límite debe ser mayor que cero para activar el plan.']);
                 }
             }
-            // Per-account files are quota-tagged, but shared MariaDB files and
-            // other external data paths still need complete hard enforcement.
-            throw ValidationException::withMessages([
-                'storage_mb' => 'La cuota de archivos ya está preparada, pero la base MariaDB compartida y otros datos externos aún no están incluidos en el límite duro total. No actives este plan como cuota garantizada.',
-            ]);
         }
     }
 

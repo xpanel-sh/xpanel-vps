@@ -35,6 +35,8 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('tag-database "$uuid" "$user" "$project_id" "$database"', $quota);
         $this->assertStringContainsString('if [[ "${1:-}" == "verify-instance" ]]', $helper);
         $this->assertStringContainsString('system_revision', $helper);
+        $this->assertStringContainsString('unset APP_CONFIG_CACHE APP_EVENTS_CACHE', $update);
+        $this->assertStringContainsString('unset DB_CONNECTION DB_HOST DB_PORT DB_DATABASE', $update);
     }
 
     public function test_user_quota_is_prepared_before_maintenance_and_preserves_project_accounts(): void

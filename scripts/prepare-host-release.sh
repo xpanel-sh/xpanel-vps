@@ -5,7 +5,7 @@ set -Eeuo pipefail
 
 base=/opt/xpanel-host
 repository=https://github.com/xpanel-sh/xpanel-host.git
-install -d -m 0755 "$base/releases"
+install -d -o root -g root -m 0755 "$base" "$base/releases"
 exec 9>/run/lock/xpanel-host-release.lock
 flock -w 1800 9 || { echo 'Hay otra preparación de Host en curso.' >&2; exit 1; }
 
@@ -53,6 +53,7 @@ if [[ ! -d "$target" ]]; then
   chown -R root:root "$staging"
   chmod -R a+rX,go-w "$staging"
   mv -- "$staging" "$target"
+  chmod 0755 "$base" "$base/releases" "$target"
   staging=''
 fi
 

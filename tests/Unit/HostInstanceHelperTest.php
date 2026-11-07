@@ -46,6 +46,14 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString('[[ "$access_owner" == root || "$access_owner" == "$PANEL_USER" ]]', $helper);
     }
 
+    public function test_broker_accepts_the_complete_site_apply_contract(): void
+    {
+        $helper = file_get_contents(base_path('scripts/xpanel-host-broker-helper.sh'));
+
+        $this->assertStringContainsString('[[ $# -eq 13 ]]', $helper);
+        $this->assertStringContainsString('invalid site display name', $helper);
+    }
+
     public function test_terminal_installer_updates_existing_jail_profiles_for_optional_file_colors(): void
     {
         $installer = file_get_contents(base_path('scripts/configure-host-terminal.sh'));
