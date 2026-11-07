@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class TenantController extends Controller
 {
@@ -39,23 +38,25 @@ class TenantController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'company_name' => 'required|string|max:255',
+            'company_name' => ['required', 'string', 'max:255'],
+            'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'owner_password' => ['required', 'string', 'min:12', 'max:128', 'confirmed'],
         ]);
 
         try {
             $tenant = DB::transaction(function () use ($validated): Tenant {
-                $placeholder = User::create([
-                    'name' => 'Acceso pendiente',
-                    'email' => 'pending-'.Str::lower((string) Str::uuid()).'@xpanel.invalid',
-                    'password' => Hash::make(Str::password(40)),
+                $user = User::create([
+                    'name' => $validated['company_name'],
+                    'email' => strtolower($validated['owner_email']),
+                    'password' => Hash::make($validated['owner_password']),
                     'role' => 'client',
                 ]);
 
                 return Tenant::create([
                     'name' => $validated['company_name'],
                     'domain' => null,
-                    'user_id' => $placeholder->id,
-                    'access_ready' => false,
+                    'user_id' => $user->id,
+                    'access_ready' => true,
                     'status' => 'active',
                 ]);
             });
@@ -66,7 +67,7 @@ class TenantController extends Controller
         }
 
         return redirect()->route('admin.clients.show', $tenant)
-            ->with('success', 'Cliente creado. Ahora añade su primer hosting y define el administrador de esa instancia.');
+            ->with('success', 'Cliente creado con acceso inmediato al portal. Ya puedes añadir uno o más hostings.');
     }
 
     public function show(Tenant $tenant)

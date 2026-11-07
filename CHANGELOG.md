@@ -30,6 +30,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Cambiado
 
+- Crear un cliente desde administración genera en la misma transacción su usuario real del portal con nombre, correo y contraseña; ya no se crea un acceso ficticio pendiente del primer hosting. Los administradores de cada hosting continúan siendo independientes.
 - La preparación de cuotas en un VPS vacío ya no depende de remontar `/` en solo lectura. Aplica `usrquota` en vivo cuando el kernel lo permite, pausa escritores y crea el archivo vfsv1 únicamente después de verificar que no existen cuentas; si requiere reinicio, el servicio de primer arranque completa el mismo flujo de forma idempotente.
 - Las dependencias JavaScript de VPS usan ahora un lockfile versionado y `npm ci`; el instalador deja de crear archivos no rastreados que luego bloqueaban `xpanel update`.
 - Los clientes comerciales ya no requieren dominio propio. Sitios se integra en Dominios, Instancias pasa a llamarse Hostings y Contrataciones se presenta como el historial financiero de Pagos.
@@ -39,6 +40,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Reaplicar una instancia repara también los permisos de recorrido de la release compartida de Host. La ficha del cliente permite desplegar el error técnico completo cuando el aprovisionamiento queda parcial.
 - Los planes base pueden activarse después de definir precio y límites válidos; se retiró el bloqueo transitorio anterior a la cuota combinada. Un borrador sin precio muestra ahora «Configurar precio» y los planes nuevos nacen inactivos.
 - Las releases compartidas de Host conservan permisos de recorrido para los usuarios aislados, el broker acepta el nombre visual enviado por el contrato actual y las instancias confían de forma limitada en el certificado fallback solo al comunicarse con la IP que lo emitió.
 - Instalar o actualizar VPS descarta las variables Laravel, SQLite y caché heredadas si el operador había cargado el `runtime.sh` de una instancia, evitando migrar accidentalmente la base privada de Host.

@@ -33,26 +33,32 @@ class AdminClientProvisioningFlowTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_admin_registers_a_commercial_client_without_creating_a_host_user(): void
+    public function test_admin_creates_one_client_with_immediate_portal_access(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
         $response = $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
             'company_name' => 'Cliente Uno',
+            'owner_email' => 'cliente@example.com',
+            'owner_password' => 'Portal-Password-2026',
+            'owner_password_confirmation' => 'Portal-Password-2026',
         ]);
 
         $tenant = Tenant::sole();
         $response->assertRedirect(route('admin.clients.show', $tenant));
         $this->assertNotNull($tenant->user_id);
-        $this->assertFalse($tenant->access_ready);
+        $this->assertTrue($tenant->access_ready);
         $this->assertNull($tenant->domain);
-        $this->assertStringEndsWith('@xpanel.invalid', $tenant->user->email);
+        $this->assertSame('cliente@example.com', $tenant->user->email);
+        $this->assertTrue(Hash::check('Portal-Password-2026', $tenant->user->password));
         $this->assertDatabaseCount('hosting_accounts', 0);
         $this->assertDatabaseCount('host_instances', 0);
 
         $this->actingAs($admin, 'admin')->put(route('admin.clients.update', $tenant), [
             'company_name' => 'Cliente Uno Editado',
             'status' => 'active',
+            'owner_name' => 'Cliente Uno',
+            'owner_email' => 'cliente@example.com',
         ])->assertRedirect(route('admin.clients.show', $tenant));
         $this->assertSame('Cliente Uno Editado', $tenant->fresh()->name);
     }
@@ -81,11 +87,14 @@ class AdminClientProvisioningFlowTest extends TestCase
         $this->assertDatabaseCount('host_instances', 0);
     }
 
-    public function test_each_host_receives_its_own_admin_and_the_first_enables_client_access(): void
+    public function test_each_host_receives_its_own_admin_without_replacing_portal_access(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin, 'admin')->post(route('admin.clients.store'), [
-            'company_name' => 'Cliente', 'domain' => 'cliente.example.com',
+            'company_name' => 'Cliente',
+            'owner_email' => 'portal@example.com',
+            'owner_password' => 'Portal-Password-2026',
+            'owner_password_confirmation' => 'Portal-Password-2026',
         ]);
         $tenant = Tenant::sole();
         $plan = HostingPlan::create([
@@ -105,7 +114,7 @@ class AdminClientProvisioningFlowTest extends TestCase
 
         $tenant->refresh()->load('user');
         $first = $tenant->hostingAccounts()->with('hostInstance')->sole();
-        $this->assertTrue(Hash::check($password, $tenant->user->password));
+        $this->assertTrue(Hash::check('Portal-Password-2026', $tenant->user->password));
         $this->assertSame('Admin Principal', $first->admin_name);
         $this->assertSame('principal@example.com', $first->admin_email);
         $this->assertSame($password, $first->hostInstance->initial_password);
@@ -122,6 +131,6 @@ class AdminClientProvisioningFlowTest extends TestCase
         $this->assertSame('Admin Tienda', $second->admin_name);
         $this->assertSame('tienda@example.com', $second->admin_email);
         $this->assertSame('Second-Host-Password-2026', $second->hostInstance->initial_password);
-        $this->assertSame('principal@example.com', $tenant->fresh()->user->email);
+        $this->assertSame('portal@example.com', $tenant->fresh()->user->email);
     }
 }

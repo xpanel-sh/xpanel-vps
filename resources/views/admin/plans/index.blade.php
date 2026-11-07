@@ -21,7 +21,7 @@
                 <div><strong>Límites administrados.</strong> RAM, CPU, procesos, sitios, bases y buzones se aplican por hosting. La transferencia excedida reduce la velocidad y las cuotas de archivos requieren soporte Linux activo.</div>
             </div>
 
-            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 @forelse($plans as $plan)
                     <article class="kt-card overflow-hidden">
                         <div class="kt-card-header items-start gap-3 py-5">

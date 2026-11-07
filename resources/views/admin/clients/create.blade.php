@@ -36,17 +36,29 @@
                 <div class="kt-card-header">
                     <div>
                         <h3 class="kt-card-title">Cliente</h3>
-                        <p class="kt-form-description mt-1">Aquí solo registras al cliente comercial. Cada hosting tendrá después su propio plan y administrador.</p>
+                        <p class="kt-form-description mt-1">La ficha comercial y el acceso al portal se crean juntos. Cada hosting podrá tener además su propio administrador.</p>
                     </div>
                 </div>
                 <div class="kt-card-content grid gap-5">
                     <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
-                        <label class="kt-form-label max-w-56">Empresa</label>
-                        <input class="kt-input" type="text" name="company_name" value="{{ old('company_name') }}" placeholder="Mi Cliente S.L." required>
+                        <label class="kt-form-label max-w-56">Nombre / empresa</label>
+                        <input class="kt-input" type="text" name="company_name" value="{{ old('company_name') }}" placeholder="Mi Cliente S.L." autocomplete="organization" required>
+                    </div>
+                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
+                        <label class="kt-form-label max-w-56">Correo del portal</label>
+                        <input class="kt-input" type="email" name="owner_email" value="{{ old('owner_email') }}" placeholder="cliente@empresa.com" autocomplete="email" required>
+                    </div>
+                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
+                        <label class="kt-form-label max-w-56">Contraseña</label>
+                        <input class="kt-input" type="password" name="owner_password" minlength="12" maxlength="128" autocomplete="new-password" required>
+                    </div>
+                    <div class="flex items-baseline flex-wrap lg:flex-nowrap gap-2.5">
+                        <label class="kt-form-label max-w-56">Confirmar contraseña</label>
+                        <input class="kt-input" type="password" name="owner_password_confirmation" minlength="12" maxlength="128" autocomplete="new-password" required>
                     </div>
                     <div class="flex justify-end gap-2.5">
                         <a href="{{ route('admin.clients.index') }}" class="kt-btn kt-btn-outline">Cancelar</a>
-                        <button type="submit" class="kt-btn kt-btn-primary">Crear cliente</button>
+                        <button type="submit" class="kt-btn kt-btn-primary">Crear cliente y acceso</button>
                     </div>
                 </div>
             </div>

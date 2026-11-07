@@ -24,6 +24,7 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringContainsString('xpanel-instance-$UUID-scheduler.timer', $helper);
         $this->assertStringContainsString('schedule:run --no-interaction', $helper);
         $this->assertStringContainsString('systemctl disable --now "xpanel-instance-$UUID-scheduler.timer"', $helper);
+        $this->assertStringContainsString('chmod 0755 /opt/xpanel-host /opt/xpanel-host/releases "$RELEASE_PATH"', $helper);
     }
 
     public function test_access_staging_parent_is_writable_by_the_instance_user(): void

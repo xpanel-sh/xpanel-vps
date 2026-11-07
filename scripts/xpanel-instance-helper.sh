@@ -772,6 +772,10 @@ validate_uuid "$UUID"
 PHP_BIN="/usr/bin/php$PHP_VERSION"
 [[ -x "$PHP_BIN" ]] || fail "PHP $PHP_VERSION CLI is not installed"
 [[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/(current|releases/[A-Za-z0-9._-]+)$ ]] || fail "invalid release path"
+# Repair installations created with a restrictive root umask. Host code is
+# immutable and world-readable by design; isolated users need only traversal.
+install -d -o root -g root -m 0755 /opt/xpanel-host /opt/xpanel-host/releases
+chmod 0755 /opt/xpanel-host /opt/xpanel-host/releases "$RELEASE_PATH"
 [[ "$RESTART_MODE" == "immediate" || "$RESTART_MODE" == "deferred" || "$RESTART_MODE" == "skip" ]] || fail "invalid restart mode"
 [[ "$STAGED_DIR" == "/opt/xpanel-vps/storage/app/native/host-instances/$UUID" ]] || fail "invalid staged directory"
 [[ "$PROJECT_ID" =~ ^[0-9]+$ && "$STORAGE_MIB" =~ ^[0-9]+$ && "$INODE_LIMIT" =~ ^[0-9]+$ ]] || fail "invalid disk quota arguments"

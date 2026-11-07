@@ -92,7 +92,10 @@
                                             </div>
 
                                             @if($instance?->last_error)
-                                                <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{{ Str::limit($instance->last_error, 180) }}</div>
+                                                <details class="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                                    <summary class="cursor-pointer font-medium">{{ Str::limit(Str::of($instance->last_error)->replaceMatches('/\s+/', ' '), 180) }}</summary>
+                                                    <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px]">{{ $instance->last_error }}</pre>
+                                                </details>
                                             @endif
                                             @if($instance?->update_status)
                                                 <div class="mt-3 text-xs text-secondary-foreground">Actualización Host: <strong data-host-update-state>{{ match($instance->update_status) { 'pending' => 'En espera', 'running' => 'Actualizando', 'completed' => 'Completada', 'unchanged' => 'Ya estaba al día', 'failed' => 'Falló', default => $instance->update_status } }}</strong><span class="ms-1" data-host-update-stage aria-live="polite">{{ match($instance->update_stage) { 'queued' => 'En espera de iniciar', 'preparing' => 'Preparando la actualización', 'download' => 'Descargando Host desde GitHub', 'php' => 'Instalando dependencias PHP', 'javascript' => 'Instalando dependencias JavaScript', 'build' => 'Compilando recursos', 'ready' => 'Release preparada', 'applying' => 'Aplicando esta cuenta', default => '' } }}</span></div>
@@ -134,7 +137,7 @@
                         </div>
 
                         <div class="kt-card">
-                            <div class="kt-card-header"><div><h2 class="kt-card-title">Crear hosting</h2><p class="mt-1 text-xs text-secondary-foreground">El primer administrador también habilita el acceso general del cliente.</p></div></div>
+                            <div class="kt-card-header"><div><h2 class="kt-card-title">Crear hosting</h2><p class="mt-1 text-xs text-secondary-foreground">Este administrador pertenece al hosting; el cliente conserva su acceso general al portal.</p></div></div>
                             <form action="{{ route('admin.clients.instances.store', $tenant) }}" method="POST" class="kt-card-content grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
                                 @csrf
                                 <div class="grid gap-1.5"><label for="hosting_name" class="kt-form-label">Nombre del hosting</label><input id="hosting_name" name="name" value="{{ old('name') }}" placeholder="Hosting principal" class="kt-input"></div>
