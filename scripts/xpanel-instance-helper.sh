@@ -4,6 +4,23 @@ set -euo pipefail
 fail() { echo "xpanel-instance-helper: $*" >&2; exit 1; }
 [[ "$(id -u)" == "0" ]] || fail "must run as root"
 
+terminal_agent_ready() {
+    ss -H -ltn 2>/dev/null | awk '$4 == "127.0.0.1:7093" { found=1 } END { exit(found ? 0 : 1) }'
+}
+
+ensure_terminal_agent() {
+    [[ "${XPANEL_TERMINAL_ENABLED:-false}" == "true" ]] || return 0
+    if ! systemctl is-active --quiet xpanel-vps-terminal-agent.service || ! terminal_agent_ready; then
+        systemctl restart xpanel-vps-terminal-agent.service || fail "terminal agent could not be restarted"
+    fi
+    local attempt
+    for attempt in {1..20}; do
+        terminal_agent_ready && return 0
+        sleep 0.25
+    done
+    fail "terminal agent did not open its loopback listener"
+}
+
 validate_uuid() {
     [[ "$1" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]] || fail "invalid instance UUID"
 }
@@ -916,6 +933,7 @@ fi
 php-fpm"$PHP_VERSION" -t -y "$FPM_GLOBAL_TARGET"
 nginx -t
 systemctl daemon-reload
+ensure_terminal_agent
 systemctl enable "xpanel-instance-$UUID-fpm.service"
 systemctl enable --now "xpanel-instance-$UUID-scheduler.timer"
 if [[ "$RESTART_MODE" == "immediate" ]]; then

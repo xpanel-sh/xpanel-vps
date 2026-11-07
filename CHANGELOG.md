@@ -9,6 +9,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 ### Añadido
 
 - Correo administrado publica un hostname canónico compartido para todas las instancias, instala PHP IMAP y Roundcube durante la instalación o reparación, y permite emitir desde Host el certificado común de webmail, SMTP e IMAP mediante el broker firmado.
+
 - Instalación y actualización del stack de correo compartido para Host administrado: Postfix, Dovecot, OpenDKIM, mapas globales y política de límites/salida quedan configurados antes de crear la primera instancia.
 - Cuota combinada de archivos, bases MariaDB, correo y copias: `prjquota` mantiene la garantía física y el modo compatible `usrquota` reserva automáticamente el uso externo dentro del total del plan.
 - Resincronización global de Postfix, Dovecot, DKIM, rutas de salida y permisos Maildir al recuperar o depurar una instancia, conservando el correo de las demás cuentas.
@@ -41,6 +42,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- El aprovisionamiento comprueba que el agente WebSocket de terminal esté activo y escuchando en loopback antes de declarar lista una instancia; si quedó detenido, lo reinicia y espera su disponibilidad en lugar de dejar iKode fallando hasta una reparación posterior.
 - Las instancias Host aceptan cargas grandes en sus capas Nginx y PHP-FPM, evitando el 413 del gestor de archivos administrado.
 - El broker permite consultar únicamente el log de acceso de sitios pertenecientes a la instancia, reparando Analytics sin ampliar el acceso al servidor.
 - La configuración PHP-FPM de una instancia omite variables opcionales vacías y usa la IP detectada para la CA fallback del broker. Esto evita `empty value` en `panel.conf`; una reparación fallida vuelve ahora a la ficha con diagnóstico en vez de responder 500.

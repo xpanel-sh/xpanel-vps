@@ -16,6 +16,16 @@ class HostInstanceHelperTest extends TestCase
         $this->assertStringNotContainsString('systemctl reload "php$PHP_VERSION-fpm"', $helper);
     }
 
+    public function test_instance_is_not_declared_ready_before_the_terminal_agent_listens(): void
+    {
+        $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
+
+        $this->assertStringContainsString('ensure_terminal_agent()', $helper);
+        $this->assertStringContainsString('127.0.0.1:7093', $helper);
+        $this->assertStringContainsString('systemctl restart xpanel-vps-terminal-agent.service', $helper);
+        $this->assertLessThan(strpos($helper, 'echo "active"'), strpos($helper, 'ensure_terminal_agent'));
+    }
+
     public function test_managed_host_gets_its_own_scheduler_and_disk_quota(): void
     {
         $helper = file_get_contents(base_path('scripts/xpanel-instance-helper.sh'));
