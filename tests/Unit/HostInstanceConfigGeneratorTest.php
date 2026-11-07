@@ -24,6 +24,9 @@ class HostInstanceConfigGeneratorTest extends TestCase
         config()->set('xpanel.host_instances.broker_ca', '/etc/xpanel/tls/fallback.crt');
         config()->set('xpanel.host_instances.broker_ca_host', '203.0.113.10');
         config()->set('xpanel.server_ip', '203.0.113.10');
+        config()->set('xpanel.mail_hostname', 'mail.cloud.example.test');
+        config()->set('xpanel.webmail_hostname', 'mail.cloud.example.test');
+        config()->set('xpanel.webmail_url', 'https://mail.cloud.example.test');
     }
 
     protected function tearDown(): void
@@ -54,6 +57,9 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('XPANEL_MANAGEMENT_MODE="vps-instance"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_PROJECT_ID="100000"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_SERVER_IPV4="203.0.113.10"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_MAIL_HOSTNAME="mail.cloud.example.test"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_WEBMAIL_URL="https://mail.cloud.example.test"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_ROUNDCUBE_ENABLED="true"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_BROKER_CA="/etc/xpanel/tls/fallback.crt"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_BROKER_CA_HOST="203.0.113.10"', $firstEnvironment);
         $this->assertStringContainsString('APP_URL="https://panel.customer.test"', $firstEnvironment);

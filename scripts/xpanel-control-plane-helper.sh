@@ -109,6 +109,13 @@ set_env_var XPANEL_PANEL_DOMAIN "$domain"
 set_env_var XPANEL_CLOUD_DOMAIN "$domain"
 set_env_var XPANEL_CONTROL_PLANE_URL "https://$domain"
 set_env_var XPANEL_BROKER_URL "https://$domain/api/internal/host-broker"
+set_env_var XPANEL_MAIL_HOSTNAME "mail.$domain"
+set_env_var XPANEL_WEBMAIL_HOSTNAME "mail.$domain"
+set_env_var XPANEL_WEBMAIL_URL "http://mail.$domain"
+XPANEL_MAIL_HOSTNAME="mail.$domain" bash "$ROOT/scripts/configure-managed-mail.sh"
+XPANEL_MAIL_HOSTNAME="mail.$domain" XPANEL_WEBMAIL_HOSTNAME="mail.$domain" \
+  XPANEL_SITE_USER=www-data XPANEL_SITE_GROUP=www-data \
+  bash /opt/xpanel-host/current/scripts/install-roundcube.sh
 runuser -u www-data -- php "$ROOT/artisan" optimize:clear >/dev/null
 
 printf 'Dominio principal activado: https://%s\n' "$domain"

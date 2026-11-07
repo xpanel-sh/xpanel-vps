@@ -93,6 +93,11 @@ class HostInstanceConfigGenerator
             'XPANEL_PANEL_DOMAIN' => $panelDomain,
             'XPANEL_PANEL_ACCESS_MODE' => 'domain',
             'XPANEL_SERVER_IPV4' => config('xpanel.server_ip'),
+            'XPANEL_MAIL_HOSTNAME' => config('xpanel.mail_hostname'),
+            'XPANEL_WEBMAIL_HOSTNAME' => config('xpanel.webmail_hostname'),
+            'XPANEL_WEBMAIL_URL' => config('xpanel.webmail_url') ?: 'http://'.config('xpanel.webmail_hostname'),
+            'XPANEL_ROUNDCUBE_ENABLED' => 'true',
+            'XPANEL_XMAIL_ENABLED' => 'true',
             'XPANEL_PANEL_PORT' => $instance->access_port ?: 80,
             'XPANEL_SSO_ENABLED' => 'true',
             // Host enables mutations, but ServerCommandRunner sends its helper calls

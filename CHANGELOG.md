@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Correo administrado publica un hostname canónico compartido para todas las instancias, instala PHP IMAP y Roundcube durante la instalación o reparación, y permite emitir desde Host el certificado común de webmail, SMTP e IMAP mediante el broker firmado.
 - Instalación y actualización del stack de correo compartido para Host administrado: Postfix, Dovecot, OpenDKIM, mapas globales y política de límites/salida quedan configurados antes de crear la primera instancia.
 - Cuota combinada de archivos, bases MariaDB, correo y copias: `prjquota` mantiene la garantía física y el modo compatible `usrquota` reserva automáticamente el uso externo dentro del total del plan.
 - Resincronización global de Postfix, Dovecot, DKIM, rutas de salida y permisos Maildir al recuperar o depurar una instancia, conservando el correo de las demás cuentas.

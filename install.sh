@@ -74,6 +74,19 @@ env_value() {
   grep -E "^${key}=" "$ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/' || true
 }
 
+configure_mail_identity() {
+  local cloud_domain mail_hostname
+  cloud_domain="${XPANEL_CLOUD_DOMAIN:-$(env_value XPANEL_CLOUD_DOMAIN)}"
+  cloud_domain="${cloud_domain:-$PANEL_DOMAIN}"
+  [[ -n "$cloud_domain" ]] || cloud_domain="cloud.$(detect_server_ip).sslip.io"
+  mail_hostname="${XPANEL_MAIL_HOSTNAME:-$(env_value XPANEL_MAIL_HOSTNAME)}"
+  mail_hostname="${mail_hostname:-mail.$cloud_domain}"
+  [[ "$mail_hostname" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$ ]] || fail "No se pudo determinar un hostname de correo válido."
+  set_env_var XPANEL_MAIL_HOSTNAME "$mail_hostname"
+  set_env_var XPANEL_WEBMAIL_HOSTNAME "$mail_hostname"
+  [[ -n "$(env_value XPANEL_WEBMAIL_URL)" ]] || set_env_var XPANEL_WEBMAIL_URL "http://$mail_hostname"
+}
+
 is_ipv4() {
   local candidate="$1" octet
   [[ "$candidate" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
@@ -111,7 +124,7 @@ install_packages() {
     ca-certificates curl git unzip zip xz-utils sudo openssl acl rsync cron certbot python3-certbot-dns-cloudflare ufw quota e2fsprogs \
     nginx mariadb-server composer nodejs npm golang-go openssh-server nftables \
     postfix dovecot-core dovecot-imapd dovecot-lmtpd opendkim opendkim-tools ssl-cert swaks \
-    php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd
+    php-cli php-fpm php-mysql php-sqlite3 php-mbstring php-xml php-curl php-zip php-intl php-gd php-imap
 
   if [[ "$INSTALL_APACHE" == "true" ]]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 libapache2-mod-fcgid
@@ -127,7 +140,7 @@ install_packages() {
     if apt-cache show "$package" >/dev/null 2>&1; then
       DEBIAN_FRONTEND=noninteractive apt-get install -y \
         "$package" "php${version}-cli" "php${version}-mysql" "php${version}-mbstring" \
-        "php${version}-xml" "php${version}-curl" "php${version}-zip" "php${version}-intl" "php${version}-gd"
+        "php${version}-xml" "php${version}-curl" "php${version}-zip" "php${version}-intl" "php${version}-gd" "php${version}-imap"
     fi
   done
 }
@@ -539,6 +552,7 @@ command -v composer >/dev/null 2>&1 || fail "Composer no está disponible."
 [[ -f "$ROOT/.env" ]] || cp "$ROOT/.env.example" "$ROOT/.env"
 set_env_var APP_ENV production
 set_env_var APP_DEBUG false
+configure_mail_identity
 set_env_var XPANEL_DOCKER_APPS "${XPANEL_DOCKER_APPS:-false}"
 node_token="$(env_value XPANEL_NODE_TOKEN)"
 [[ -n "$node_token" ]] || set_env_var XPANEL_NODE_TOKEN "$(openssl rand -hex 32)"
@@ -553,6 +567,10 @@ configure_apache
 configure_database
 install_host_release
 bash "$ROOT/scripts/configure-managed-mail.sh"
+XPANEL_MAIL_HOSTNAME="$(env_value XPANEL_MAIL_HOSTNAME)" \
+XPANEL_WEBMAIL_HOSTNAME="$(env_value XPANEL_WEBMAIL_HOSTNAME)" \
+XPANEL_SITE_USER=www-data XPANEL_SITE_GROUP=www-data \
+  bash /opt/xpanel-host/current/scripts/install-roundcube.sh
 configure_host_terminal
 
 [[ -n "$(env_value APP_KEY)" ]] || php "$ROOT/artisan" key:generate --force

@@ -1,5 +1,8 @@
 <?php
 
+$cloudDomain = env('XPANEL_CLOUD_DOMAIN', parse_url(env('APP_URL', ''), PHP_URL_HOST) ?: 'localhost');
+$defaultMailHostname = 'mail.'.$cloudDomain;
+
 return [
     'routes' => [
         'admin_login_path' => trim(env('XPANEL_ADMIN_LOGIN_PATH', 'admin/login'), '/'),
@@ -9,6 +12,9 @@ return [
     'home_enabled' => (bool) env('XPANEL_HOME_ENABLED', false),
     'server_ip' => env('XPANEL_SERVER_IP', ''),
     'panel_port' => (int) env('XPANEL_PANEL_PORT', 8443),
+    'mail_hostname' => strtolower(trim(env('XPANEL_MAIL_HOSTNAME', $defaultMailHostname))),
+    'webmail_hostname' => strtolower(trim(env('XPANEL_WEBMAIL_HOSTNAME', env('XPANEL_MAIL_HOSTNAME', $defaultMailHostname)))),
+    'webmail_url' => env('XPANEL_WEBMAIL_URL'),
     'telemetry' => [
         'endpoint' => env('XPANEL_TELEMETRY_ENDPOINT', 'https://xpanel.sh/get/v1/heartbeats'),
     ],

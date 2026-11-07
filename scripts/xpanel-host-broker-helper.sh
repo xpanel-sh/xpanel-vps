@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -65,6 +65,11 @@ export XPANEL_PROJECT_QUOTA_HELPER="$(dirname "${BASH_SOURCE[0]}")/xpanel-projec
 if [[ "$ACTION" == "mail-sync" || "$ACTION" == "mail-outbound-sync" ]]; then
   [[ $# -eq 0 ]] || fail "invalid mail synchronization arguments"
   exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" "${ACTION#mail-}"
+fi
+if [[ "$ACTION" == "mail-ssl-issue" ]]; then
+  [[ $# -eq 0 ]] || fail "invalid mail SSL arguments"
+  [[ "${XPANEL_MAIL_HOSTNAME:-}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$ ]] || fail "invalid managed mail hostname"
+  exec bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" mail-ssl-issue
 fi
 
 INSTANCE_HEX="${UUID//-/}"

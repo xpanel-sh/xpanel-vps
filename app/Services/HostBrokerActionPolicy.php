@@ -37,6 +37,7 @@ class HostBrokerActionPolicy
             'access-stage-prepare' => $this->accessRemoval($instance, $arguments),
             'access-sync' => $this->accessSync($instance, $arguments),
             'mail-sync', 'mail-outbound-sync' => $this->noArguments($arguments, 'La sincronización de correo'),
+            'mail-ssl-issue' => $this->noArguments($arguments, 'La emisión SSL del correo'),
             'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };

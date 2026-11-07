@@ -106,6 +106,19 @@ class HostBrokerTest extends TestCase
         ]);
     }
 
+    public function test_signed_instance_can_request_shared_mail_ssl_without_arguments(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $payload = $this->payload($instance, 'mail-ssl-issue', []);
+
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'authorized-staged');
+
+        $invalid = $this->payload($instance, 'mail-ssl-issue', ['foreign.example.test']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_tampering_with_a_broker_request_is_rejected(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

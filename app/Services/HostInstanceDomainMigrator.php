@@ -18,6 +18,9 @@ class HostInstanceDomainMigrator
             'xpanel.host_instances.cloud_domain' => $cloudDomain,
             'xpanel.host_instances.control_plane_url' => $baseUrl,
             'xpanel.host_instances.broker_url' => $baseUrl.'/api/internal/host-broker',
+            'xpanel.mail_hostname' => 'mail.'.$cloudDomain,
+            'xpanel.webmail_hostname' => 'mail.'.$cloudDomain,
+            'xpanel.webmail_url' => 'http://mail.'.$cloudDomain,
         ]);
 
         $result = ['migrated' => 0, 'failed' => 0];

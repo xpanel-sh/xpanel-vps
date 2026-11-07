@@ -14,7 +14,7 @@ if [[ "${1:-}" == --install-packages || "${1:-}" == --packages-only ]]; then
   apt-get update -y
   apt-get install -y --no-install-recommends \
     postfix dovecot-core dovecot-imapd dovecot-lmtpd opendkim opendkim-tools \
-    ssl-cert swaks nftables python3
+    ssl-cert swaks nftables python3 php-imap
   [[ "${1:-}" != --packages-only ]] || configure=false
 elif [[ $# -ne 0 ]]; then
   fail "usage: $0 [--install-packages|--packages-only]"
