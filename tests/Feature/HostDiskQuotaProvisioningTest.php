@@ -49,6 +49,7 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('cp -p -- /etc/fstab "$backup"', $setup);
         $this->assertStringContainsString('quotacheck -F vfsv1 -cum /', $setup);
         $this->assertStringContainsString('Host accounts already exist; refusing quota bootstrap', $setup);
+        $this->assertStringContainsString('Host system users already exist; refusing quota bootstrap', $setup);
         $this->assertStringContainsString('systemctl stop "$service"', $setup);
         $this->assertStringContainsString('mount -o remount,usrquota /', $setup);
         $this->assertStringContainsString('modprobe quota_v2', $setup);

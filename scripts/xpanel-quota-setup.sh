@@ -41,6 +41,8 @@ assert_fresh_server() {
         || fail "Host accounts already exist; refusing quota bootstrap"
     [[ -z "$(find /home -mindepth 1 -maxdepth 1 -name 'xhi*' -print -quit)" ]] \
         || fail "Host homes already exist; refusing quota bootstrap"
+    [[ -z "$(getent passwd | awk -F: '$1 ~ /^xhi[a-f0-9]{12}$/ { print $1; exit }')" ]] \
+        || fail "Host system users already exist; refusing quota bootstrap"
 }
 
 activate_fresh_quota() {
@@ -67,7 +69,7 @@ activate_fresh_quota() {
     trap restore_services EXIT
 
     if [[ ! -f /aquota.user && ! -f /quota.user ]]; then
-        echo "Inicializando la cuota de usuario en este VPS vacío..."
+        echo "Inicializando la cuota de usuario en modo vivo controlado (VPS vacío y servicios escritores detenidos)..."
         quotacheck -F vfsv1 -cum / \
             || fail "quotacheck no pudo crear /aquota.user; revisa el kernel, dmesg y el sistema de archivos"
     fi
