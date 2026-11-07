@@ -103,7 +103,9 @@ protocol lmtp {
 protocol imap {
   mail_plugins = \$mail_plugins quota imap_quota
 }
-plugin { quota = maildir:User quota }
+plugin {
+  quota = maildir:User quota
+}
 EOF
 
 postconf -e "myhostname = $mail_hostname"

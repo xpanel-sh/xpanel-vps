@@ -39,6 +39,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- La configuración compartida de Dovecot escribe el bloque `plugin` en sintaxis multilínea compatible con Dovecot 2.3; la instalación ya no se detiene con `Garbage after '{'` después de activar las cuotas.
 - Los reintentos reconocen `usrquota` ya escrito en `fstab`, crean `/aquota.user` si falta y muestran el fallo real de cuota de usuario, en vez de caer al diagnóstico engañoso de `prjquota`.
 - Una ejecución desde un checkout bajo `/root` se traslada a `/opt/xpanel-vps` antes de invocar Artisan como `www-data`; `install.sh` se distribuye además con modo ejecutable.
 - El instalador ya no reescribe el marcador Git rastreado para guardar el idioma ni confunde la versión del producto con `VERSION` de `/etc/os-release`.

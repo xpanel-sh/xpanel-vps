@@ -98,6 +98,8 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('configure-managed-mail.sh"', $installer);
         $this->assertStringContainsString('configure-managed-mail.sh" --packages-only', $update);
         $this->assertStringContainsString('mail_location = maildir:~/Maildir', $mail);
+        $this->assertStringContainsString("plugin {\n  quota = maildir:User quota\n}", $mail);
+        $this->assertStringNotContainsString('plugin { quota = maildir:User quota }', $mail);
         $this->assertStringContainsString('virtual_mailbox_domains = hash:/etc/xpanel-host/mail/domains', $mail);
         $this->assertStringContainsString('configure-mail-rate-policy.sh', $mail);
         $this->assertStringContainsString('opendkim -n -x /etc/opendkim.conf', $mail);
