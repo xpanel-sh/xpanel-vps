@@ -6,6 +6,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. Agrupa los cambios de esta entrega; publicar los tres repositorios y probar en Linux real antes de etiquetarla.
 
+### Corregido
+
+- La instalación y actualización de DbGate reparan los permisos del paquete npm global para que cada instancia Host pueda ejecutarlo con su propio usuario Linux, evitando `status=203/EXEC` y el `502` del administrador visual.
+
 ### Añadido
 
 - Administración global de MariaDB, PostgreSQL, MongoDB y DbGate para las instancias Host. Los motores se instalan una sola vez en el nodo y cada cuenta conserva catálogos, usuarios, procesos de DbGate y reglas de acceso aislados.
