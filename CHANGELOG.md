@@ -35,6 +35,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Cambiado
 
+- Ajustes separa los motores MariaDB, PostgreSQL y MongoDB del administrador visual DbGate, evitando presentarlo como un servidor de base de datos.
 - Crear un cliente desde administración genera en la misma transacción su usuario real del portal con nombre, correo y contraseña; ya no se crea un acceso ficticio pendiente del primer hosting. Los administradores de cada hosting continúan siendo independientes.
 - La preparación de cuotas en un VPS vacío ya no depende de remontar `/` en solo lectura. Aplica `usrquota` en vivo cuando el kernel lo permite, pausa escritores y crea el archivo vfsv1 únicamente después de verificar que no existen cuentas; si requiere reinicio, el servicio de primer arranque completa el mismo flujo de forma idempotente.
 - Las dependencias JavaScript de VPS usan ahora un lockfile versionado y `npm ci`; el instalador deja de crear archivos no rastreados que luego bloqueaban `xpanel update`.
