@@ -144,6 +144,8 @@ Route::group(['middleware' => ['web']], function () {
 
         Route::get('/admin/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('admin.settings.index');
         Route::put('/admin/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'update'])->name('admin.settings.update');
+        Route::get('/admin/settings/database-engines', [\App\Http\Controllers\Admin\DatabaseEngineController::class, 'index'])->name('admin.settings.database-engines');
+        Route::post('/admin/settings/database-engines/{engine}/install', [\App\Http\Controllers\Admin\DatabaseEngineController::class, 'install'])->name('admin.settings.database-engines.install');
         Route::get('/admin/pages', [\App\Http\Controllers\Admin\PageController::class, 'index'])->name('admin.pages.index');
         Route::get('/admin/pages/{page}', [\App\Http\Controllers\Admin\PageController::class, 'edit'])->name('admin.pages.edit');
         Route::put('/admin/pages/{page}', [\App\Http\Controllers\Admin\PageController::class, 'update'])->name('admin.pages.update');

@@ -42,27 +42,42 @@ legacy_backup_bytes="$(bytes_for "$instance_root/storage/app/backups/sites")"
 backup_bytes=$((backup_bytes + legacy_backup_bytes))
 database_bytes=0
 
-database_names=""
+database_rows=""
 if [[ -f "$catalog" ]]; then
-database_names="$(php -r '
+database_rows="$(php -r '
     $db = new PDO("sqlite:".$argv[1], null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
     $db->exec("PRAGMA query_only = ON");
     if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
-    foreach ($db->query("SELECT DISTINCT name FROM site_databases WHERE status = \x27active\x27") as $row) echo $row["name"]."\n";
+    $columns = array_column($db->query("PRAGMA table_info(site_databases)")->fetchAll(PDO::FETCH_ASSOC), "name");
+    $engine = in_array("engine", $columns, true) ? "COALESCE(engine, \x27mariadb\x27)" : "\x27mariadb\x27";
+    foreach ($db->query("SELECT DISTINCT ".$engine." AS engine, name FROM site_databases WHERE status = \x27active\x27") as $row) echo $row["engine"]."\t".$row["name"]."\n";
 ' "$catalog")" || fail "could not read Host database catalog"
 fi
-while IFS= read -r database; do
+while IFS=$'\t' read -r engine database; do
     [[ -n "$database" ]] || continue
+    [[ "$engine" == mariadb || "$engine" == postgresql || "$engine" == mongodb ]] || fail "unsupported database engine: $engine"
     [[ "$database" =~ ^xp_${uuid_hex:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance: $database"
-    path="/var/lib/mysql/$database"
-    [[ ! -L "$path" ]] || fail "database directory is unsafe: $database"
-    # During a successful delete the SQLite row is removed immediately after
-    # the broker returns, so a short interval with no MariaDB directory is
-    # expected and contributes zero bytes.
-    [[ -d "$path" ]] || continue
-    value="$(bytes_for "$path")"
+    case "$engine" in
+      mariadb)
+        path="/var/lib/mysql/$database"
+        [[ ! -L "$path" ]] || fail "database directory is unsafe: $database"
+        [[ -d "$path" ]] || continue
+        value="$(bytes_for "$path")"
+        ;;
+      postgresql)
+        command -v psql >/dev/null 2>&1 || fail "PostgreSQL is unavailable"
+        value="$(runuser -u postgres -- psql -Atqc "SELECT pg_database_size('$database')")"
+        ;;
+      mongodb)
+        command -v mongosh >/dev/null 2>&1 || fail "MongoDB is unavailable"
+        mongo_secret=/etc/xpanel-host/mongodb-admin.secret
+        [[ -f "$mongo_secret" && ! -L "$mongo_secret" ]] || fail "MongoDB management credentials are unavailable"
+        value="$(mongosh --quiet --host 127.0.0.1 --username xpanel_system --password "$(cat "$mongo_secret")" --authenticationDatabase admin --eval "db.getSiblingDB('$database').stats().storageSize" | tail -n1)"
+        ;;
+    esac
+    [[ "$value" =~ ^[0-9]+$ ]] || fail "invalid $engine database measurement: $database"
     database_bytes=$((database_bytes + value))
-done <<< "$database_names"
+done <<< "$database_rows"
 
 printf 'account_home_bytes=%s\n' "$account_home_bytes"
 printf 'instance_bytes=%s\n' "$instance_bytes"

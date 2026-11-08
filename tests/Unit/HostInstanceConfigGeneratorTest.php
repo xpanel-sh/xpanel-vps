@@ -71,6 +71,7 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('XPANEL_ASSIGNED_CPU_PERCENT="100"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_TERMINAL_ENABLED="true"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_TERMINAL_INTERNAL_PORT="10000"', $firstEnvironment);
+        $this->assertStringContainsString('XPANEL_DBGATE_PORT="30000"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_MEMORY_MIB="768"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_MAX_SITES="3"', $firstEnvironment);
         $this->assertStringContainsString('XPANEL_ASSIGNED_MAX_DATABASES="3"', $firstEnvironment);
@@ -87,6 +88,8 @@ class HostInstanceConfigGeneratorTest extends TestCase
         $this->assertStringContainsString('server_name panel.one.test panel.customer.test;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('location /terminal-ws {', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('proxy_pass http://127.0.0.1:7093;', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('location /dbgate/ {', File::get($firstFiles['nginx']));
+        $this->assertStringContainsString('proxy_pass http://127.0.0.1:30000;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('location = /internal/terminal/consume {', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('allow 127.0.0.1;', File::get($firstFiles['nginx']));
         $this->assertStringContainsString('client_max_body_size 2050m;', File::get($firstFiles['nginx']));

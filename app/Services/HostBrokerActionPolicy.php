@@ -28,7 +28,10 @@ class HostBrokerActionPolicy
             'ssl-issue', 'ssl-wildcard-issue', 'ssl-delete' => $this->certificate($instance, $arguments, $action),
             'ssl-inspect' => $this->certificateInspection($instance, $arguments),
             'site-diagnose' => $this->diagnostic($instance, $arguments),
-            'database-create', 'database-password', 'database-remove' => $this->database($instance, $arguments),
+            'database-create', 'database-password', 'database-remove', 'database-remote-create', 'database-remote-remove' => $this->database($instance, $arguments),
+            'database-remote-sync' => $this->noArguments($arguments, 'La sincronización de acceso remoto'),
+            'dbgate-sync' => $this->noArguments($arguments, 'La sincronización de DbGate'),
+            'database-engine-status' => $this->databaseEngineStatus($arguments),
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
             'host-update-status', 'host-update-start', 'host-update-feed' => $this->hostUpdate($arguments),
@@ -68,6 +71,14 @@ class HostBrokerActionPolicy
     }
 
     /** @param array<int, string> $arguments */
+    private function databaseEngineStatus(array $arguments): void
+    {
+        if (count($arguments) !== 1 || ! in_array($arguments[0], ['mariadb', 'postgresql', 'mongodb', 'dbgate'], true)) {
+            throw new RuntimeException('Motor de base de datos solicitado no válido.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
     private function trafficRate(array $arguments, string $action): void
     {
         if ($action === 'traffic-rate-status' && $arguments !== []) {
@@ -94,9 +105,16 @@ class HostBrokerActionPolicy
             || ! preg_match('/^'.preg_quote($prefix, '/').'[a-z0-9]{9,20}$/', $user)) {
             throw new RuntimeException('El sitio medido no pertenece a la instancia.');
         }
-        foreach (array_slice($arguments, 4) as $database) {
-            if (! preg_match('/^xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_[a-z0-9_]+$/', $database)
-                || ! $this->row($instance, 'database-name', $database)) {
+        foreach (array_slice($arguments, 4) as $descriptor) {
+            // Host releases anterior to multi-engine sent only the database
+            // name. Treat that wire format as MariaDB during rolling updates.
+            [$databaseEngine, $database] = str_contains($descriptor, ':')
+                ? array_pad(explode(':', $descriptor, 2), 2, '')
+                : ['mariadb', $descriptor];
+            $row = $this->row($instance, 'database-name', $database);
+            if (! in_array($databaseEngine, ['mariadb', 'postgresql', 'mongodb'], true)
+                || ! preg_match('/^xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_[a-z0-9_]+$/', $database)
+                || ! $row || ($row['engine'] ?? 'mariadb') !== $databaseEngine) {
                 throw new RuntimeException('La base medida no pertenece a la instancia.');
             }
         }
@@ -419,21 +437,27 @@ class HostBrokerActionPolicy
     private function database(HostInstance $instance, array $arguments): void
     {
         $prefix = 'xp_'.substr(str_replace('-', '', $instance->uuid), 0, 6).'_';
-        if (count($arguments) !== 2 || ! preg_match('/^[a-z0-9_]{1,64}$/', $arguments[0]) || ! preg_match('/^[a-z0-9_]{1,32}$/', $arguments[1])
-            || ! str_starts_with($arguments[0], $prefix) || ! str_starts_with($arguments[1], $prefix)) {
+        $remote = count($arguments) === 4;
+        if ((! $remote && count($arguments) !== 3)
+            || ! in_array($arguments[0] ?? '', ['mariadb', 'postgresql', 'mongodb'], true)
+            || ! preg_match('/^[a-z0-9_]{1,64}$/', $arguments[1] ?? '') || ! preg_match('/^[a-z0-9_]{1,32}$/', $arguments[2] ?? '')
+            || ! str_starts_with($arguments[1], $prefix) || ! str_starts_with($arguments[2], $prefix)
+            || ($remote && filter_var($arguments[3], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false)) {
             throw new RuntimeException('Identificadores de base de datos inválidos.');
         }
-        $row = $this->row($instance, 'database', $arguments[0], $arguments[1]);
-        if (! $row) {
+        [$engine, $database, $username] = $arguments;
+        $row = $this->row($instance, 'database', $database, $username);
+        if (! $row || ($row['engine'] ?? 'mariadb') !== $engine) {
             throw new RuntimeException('La base de datos no pertenece a la instancia.');
         }
-        foreach (['database' => $arguments[0], 'database-user' => $arguments[1]] as $type => $name) {
+        $resourceTypes = $engine === 'mariadb' ? ['database' => $database, 'database-user' => $username] : ["database-$engine" => $database, "database-user-$engine" => $username];
+        foreach ($resourceTypes as $type => $name) {
             $claim = HostBrokerResource::firstOrCreate(
                 ['type' => $type, 'name' => $name],
                 ['host_instance_id' => $instance->id],
             );
             if ($claim->host_instance_id !== $instance->id) {
-                throw new RuntimeException('El recurso MariaDB está reservado por otra instancia.');
+                throw new RuntimeException('El recurso de base de datos está reservado por otra instancia.');
             }
         }
     }

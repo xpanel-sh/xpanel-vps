@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -102,7 +102,10 @@ elif [[ "$ACTION" == "resource-snapshot" ]]; then
   [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && ! -L "$DOCUMENT_ROOT" ]] || fail "resource root escaped the account"
   [[ "$SITE_USER" =~ ^xps${INSTANCE_HEX:0:6}[a-z0-9]{9,20}$ ]] || fail "resource user escaped the account"
   [[ "$ENGINE" =~ ^(nginx|apache|openlitespeed)$ ]] || fail "invalid resource engine"
-  for database in "${@:5}"; do [[ "$database" =~ ^xp_${INSTANCE_HEX:0:6}_[a-z0-9_]+$ ]] || fail "database escaped the account"; done
+  for database in "${@:5}"; do
+    [[ "$database" =~ ^(mariadb|postgresql|mongodb):xp_${INSTANCE_HEX:0:6}_[a-z0-9_]+$ || "$database" =~ ^xp_${INSTANCE_HEX:0:6}_[a-z0-9_]+$ ]] \
+      || fail "database escaped the account"
+  done
 elif [[ "$ACTION" == "access-log-read" ]]; then
   [[ $# -eq 2 ]] || fail "invalid analytics argument count"
   DOMAIN="$1"; ENGINE="$2"
@@ -164,11 +167,17 @@ elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$
     RESOLVED_TARGET="$(realpath -e -- "$TARGET")"
     [[ "$RESOLVED_TARGET" == "$RESOLVED_ROOT" || "$RESOLVED_TARGET" == "$RESOLVED_ROOT/"* ]] || fail "ownership target follows a link outside the site"
   fi
+elif [[ "$ACTION" == database-engine-status ]]; then
+  [[ $# -eq 1 && "$1" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine"
+elif [[ "$ACTION" == database-remote-sync || "$ACTION" == dbgate-sync ]]; then
+  [[ $# -eq 0 ]] || fail "invalid remote database sync"
 else
-  [[ $# -eq 2 ]] || fail "invalid database argument count"
+  if [[ "$ACTION" == database-remote-create || "$ACTION" == database-remote-remove ]]; then [[ $# -eq 4 ]] || fail "invalid remote database argument count"; else [[ $# -eq 3 ]] || fail "invalid database argument count"; fi
   DB_PREFIX="xp_${INSTANCE_HEX:0:6}_"
-  [[ "$1" =~ ^[a-z0-9_]{1,64}$ && "$1" == "$DB_PREFIX"* ]] || fail "database escaped the instance"
-  [[ "$2" =~ ^[a-z0-9_]{1,32}$ && "$2" == "$DB_PREFIX"* ]] || fail "database user escaped the instance"
+  [[ "$1" =~ ^(mariadb|postgresql|mongodb)$ ]] || fail "invalid database engine"
+  [[ "$2" =~ ^[a-z0-9_]{1,64}$ && "$2" == "$DB_PREFIX"* ]] || fail "database escaped the instance"
+  [[ "$3" =~ ^[a-z0-9_]{1,32}$ && "$3" == "$DB_PREFIX"* ]] || fail "database user escaped the instance"
+  if [[ $# -eq 4 ]]; then [[ "$4" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "invalid remote address"; fi
 fi
 
 if [[ "$ACTION" == "access-stage-prepare" ]]; then

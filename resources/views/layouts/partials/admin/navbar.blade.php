@@ -59,6 +59,7 @@
             'match' => ['admin.settings.*', 'admin.daemon.*'], 'title' => 'Ajustes',
             'items' => [
                 ['label' => 'General', 'route' => 'admin.settings.index', 'match' => ['admin.settings.index']],
+                ['label' => 'Bases de datos', 'route' => 'admin.settings.database-engines', 'match' => ['admin.settings.database-engines*']],
                 ['label' => 'Operaciones', 'route' => 'admin.settings.operations', 'match' => ['admin.settings.operations', 'admin.daemon.*']],
             ],
         ],

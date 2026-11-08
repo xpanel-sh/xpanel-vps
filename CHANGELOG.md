@@ -8,6 +8,9 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Administración global de MariaDB, PostgreSQL, MongoDB y DbGate para las instancias Host. Los motores se instalan una sola vez en el nodo y cada cuenta conserva catálogos, usuarios, procesos de DbGate y reglas de acceso aislados.
+- Archivo integral y recuperación de bases multi-motor, incluidas identidades PostgreSQL y usuarios/roles MongoDB, con comprobación de integridad antes de depurar o restaurar.
+- Inventario de cuota y métricas de bases desglosado por motor, sin atribuir a una instancia recursos registrados por otra.
 - Correo administrado publica un hostname canónico compartido para todas las instancias, instala PHP IMAP y Roundcube durante la instalación o reparación, y permite emitir desde Host el certificado común de webmail, SMTP e IMAP mediante el broker firmado.
 
 - Instalación y actualización del stack de correo compartido para Host administrado: Postfix, Dovecot, OpenDKIM, mapas globales y política de límites/salida quedan configurados antes de crear la primera instancia.
@@ -42,6 +45,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- El broker acepta durante una actualización gradual el descriptor MariaDB heredado sin motor, pero exige el formato explícito para PostgreSQL y MongoDB. La depuración retira reglas remotas obsoletas y la recuperación vuelve a publicar la lista autorizada y DbGate.
 - El aprovisionamiento comprueba que el agente WebSocket de terminal esté activo y escuchando en loopback antes de declarar lista una instancia; si quedó detenido, lo reinicia y espera su disponibilidad en lugar de dejar iKode fallando hasta una reparación posterior.
 - Las instancias Host aceptan cargas grandes en sus capas Nginx y PHP-FPM, evitando el 413 del gestor de archivos administrado.
 - El broker permite consultar únicamente el log de acceso de sitios pertenecientes a la instancia, reparando Analytics sin ampliar el acceso al servidor.

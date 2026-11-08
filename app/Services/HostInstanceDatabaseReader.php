@@ -12,8 +12,8 @@ class HostInstanceDatabaseReader
         'site' => 'SELECT id, domain, web_server, type, php_version, php_profile_id, document_root, system_user, public_path, node_version, runtime_port, wildcard_domain, status FROM sites WHERE domain = :first LIMIT 1',
         'profile' => 'SELECT id, php_version, extensions FROM php_profiles WHERE id = :first LIMIT 1',
         'profile-site' => 'SELECT id FROM sites WHERE php_profile_id = :first LIMIT 1',
-        'database' => 'SELECT id FROM site_databases WHERE name = :first AND username = :second LIMIT 1',
-        'database-name' => 'SELECT id FROM site_databases WHERE name = :first LIMIT 1',
+        'database' => 'SELECT id, engine FROM site_databases WHERE name = :first AND username = :second LIMIT 1',
+        'database-name' => 'SELECT id, engine FROM site_databases WHERE name = :first LIMIT 1',
         'aliases' => "SELECT domain FROM domains WHERE site_id = :first AND type = 'alias'",
         'engine' => 'SELECT 1 FROM sites WHERE web_server = :first LIMIT 1',
         'usage-counts' => 'SELECT (SELECT COUNT(*) FROM sites) AS sites, (SELECT COUNT(*) FROM site_databases) AS databases, (SELECT COUNT(*) FROM mail_accounts) AS mail_accounts',
@@ -69,6 +69,24 @@ class HostInstanceDatabaseReader
         } catch (\PDOException $exception) {
             if ($kind === 'aliases' && str_contains($exception->getMessage(), 'no such table: domains')) {
                 return [];
+            }
+            if (in_array($kind, ['database', 'database-name'], true)
+                && str_contains($exception->getMessage(), 'no such column: engine')) {
+                $legacySql = $kind === 'database'
+                    ? 'SELECT id FROM site_databases WHERE name = :first AND username = :second LIMIT 1'
+                    : 'SELECT id FROM site_databases WHERE name = :first LIMIT 1';
+                $statement = $pdo->prepare($legacySql);
+                $parameters = ['first' => $first];
+                if ($kind === 'database') {
+                    $parameters['second'] = $second;
+                }
+                $statement->execute($parameters);
+                $row = $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($row !== null) {
+                    $row['engine'] = 'mariadb';
+                }
+
+                return $row;
             }
             throw $exception;
         }

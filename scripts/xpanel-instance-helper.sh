@@ -80,6 +80,14 @@ if [[ "${1:-}" == "host-release-prepare" ]]; then
     exec bash "$(dirname "${BASH_SOURCE[0]}")/prepare-host-release.sh"
 fi
 
+if [[ "${1:-}" == "database-engine-status" || "${1:-}" == "database-engine-install" ]]; then
+    [[ $# -eq 2 && "$2" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine action"
+    release="$(readlink -f /opt/xpanel-host/current 2>/dev/null || true)"
+    [[ "$release" =~ ^/opt/xpanel-host/releases/[A-Za-z0-9._-]+$ && -f "$release/scripts/xpanel-site-helper.sh" ]] || fail "Host release is unavailable"
+    exec env XPANEL_MANAGEMENT_MODE=vps-control XPANEL_INSTANCE_ROOT=/opt/xpanel-vps \
+        bash "$release/scripts/xpanel-site-helper.sh" "$1" "$2"
+fi
+
 if [[ "${1:-}" == "host-update-start" ]]; then
     [[ $# -eq 2 ]] || fail "host-update-start expects an instance UUID"
     validate_uuid "$2"
@@ -272,23 +280,41 @@ if [[ "$ACTION" == "archive" ]]; then
     DATABASE_LIST="$(php -r '
         $db = new PDO("sqlite:".$argv[1]);
         if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
-        foreach ($db->query("SELECT DISTINCT name, username FROM site_databases WHERE status = \x27active\x27 ORDER BY name") as $row) echo $row["name"]."\t".$row["username"]."\n";
+        $columns = array_column($db->query("PRAGMA table_info(site_databases)")->fetchAll(PDO::FETCH_ASSOC), "name");
+        $engine = in_array("engine", $columns, true) ? "COALESCE(engine, \x27mariadb\x27)" : "\x27mariadb\x27";
+        foreach ($db->query("SELECT DISTINCT ".$engine." AS engine, name, username FROM site_databases WHERE status = \x27active\x27 ORDER BY engine, name") as $row) echo $row["engine"]."\t".$row["name"]."\t".$row["username"]."\n";
     ' "$DATABASE_FILE")" || fail "could not read the instance database catalog"
+    DATABASE_ENGINES=()
     DATABASES=()
     DATABASE_USERS=()
-    while IFS=$'\t' read -r DATABASE DB_USER; do
+    while IFS=$'\t' read -r DB_ENGINE DATABASE DB_USER; do
         if [[ -n "$DATABASE" ]]; then
+            [[ "$DB_ENGINE" == mariadb || "$DB_ENGINE" == postgresql || "$DB_ENGINE" == mongodb ]] || fail "unsupported database engine: $DB_ENGINE"
+            DATABASE_ENGINES+=("$DB_ENGINE")
             DATABASES+=("$DATABASE")
             DATABASE_USERS+=("$DB_USER")
         fi
     done <<< "$DATABASE_LIST"
 
     SOURCE_BYTES="$(du -sb --one-file-system "$ACCOUNT_HOME" "$INSTANCE_ROOT" | awk '{total += $1} END {print total + 0}')"
-    for DATABASE in "${DATABASES[@]}"; do
+    for INDEX in "${!DATABASES[@]}"; do
+        DB_ENGINE="${DATABASE_ENGINES[$INDEX]}"
+        DATABASE="${DATABASES[$INDEX]}"
         [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance: $DATABASE"
-        DATABASE_PATH="/var/lib/mysql/$DATABASE"
-        [[ -d "$DATABASE_PATH" && ! -L "$DATABASE_PATH" ]] || fail "database directory is missing or unsafe: $DATABASE"
-        SOURCE_BYTES=$((SOURCE_BYTES + $(du -sb --one-file-system "$DATABASE_PATH" | awk '{print $1}')))
+        case "$DB_ENGINE" in
+            mariadb)
+                DATABASE_PATH="/var/lib/mysql/$DATABASE"
+                [[ -d "$DATABASE_PATH" && ! -L "$DATABASE_PATH" ]] || fail "database directory is missing or unsafe: $DATABASE"
+                DB_BYTES="$(du -sb --one-file-system "$DATABASE_PATH" | awk '{print $1}')"
+                ;;
+            postgresql) DB_BYTES="$(runuser -u postgres -- psql -Atqc "SELECT pg_database_size('$DATABASE')")" ;;
+            mongodb)
+                [[ -f /etc/xpanel-host/mongodb-admin.secret && ! -L /etc/xpanel-host/mongodb-admin.secret ]] || fail "MongoDB management credentials are unavailable"
+                DB_BYTES="$(mongosh --quiet --host 127.0.0.1 --username xpanel_system --password "$(cat /etc/xpanel-host/mongodb-admin.secret)" --authenticationDatabase admin --eval "db.getSiblingDB('$DATABASE').stats().storageSize" | tail -n1)"
+                ;;
+        esac
+        [[ "$DB_BYTES" =~ ^[0-9]+$ ]] || fail "could not measure $DB_ENGINE database: $DATABASE"
+        SOURCE_BYTES=$((SOURCE_BYTES + DB_BYTES))
     done
     AVAILABLE_BYTES="$(df -PB1 --output=avail "$ARCHIVE_ROOT" | tail -n 1 | tr -d ' ')"
     [[ "$AVAILABLE_BYTES" =~ ^[0-9]+$ ]] || fail "could not inspect free archive space"
@@ -296,12 +322,30 @@ if [[ "$ACTION" == "archive" ]]; then
 
     tar --one-file-system --numeric-owner -C /home -czf "$WORK_DIR/account-home.tar.gz" "$SYSTEM_USER"
     tar --one-file-system --numeric-owner -C /var/lib/xpanel-vps/instances -czf "$WORK_DIR/instance-state.tar.gz" "$UUID"
-    for DATABASE in "${DATABASES[@]}"; do
-        mariadb-dump --protocol=socket --single-transaction --routines --events --triggers --databases "$DATABASE" \
-            | gzip -9 > "$WORK_DIR/databases/$DATABASE.sql.gz"
+    : > "$WORK_DIR/postgresql-roles.tsv"
+    for INDEX in "${!DATABASES[@]}"; do
+        DB_ENGINE="${DATABASE_ENGINES[$INDEX]}"; DATABASE="${DATABASES[$INDEX]}"; DB_USER="${DATABASE_USERS[$INDEX]}"
+        case "$DB_ENGINE" in
+            mariadb)
+                mariadb-dump --protocol=socket --single-transaction --routines --events --triggers --databases "$DATABASE" \
+                    | gzip -9 > "$WORK_DIR/databases/mariadb--$DATABASE.sql.gz"
+                ;;
+            postgresql)
+                runuser -u postgres -- pg_dump --format=custom "$DATABASE" > "$WORK_DIR/databases/postgresql--$DATABASE.dump"
+                ROLE_HASH="$(runuser -u postgres -- psql -Atqc "SELECT rolpassword FROM pg_authid WHERE rolname='$DB_USER'")"
+                [[ "$ROLE_HASH" =~ ^SCRAM-SHA-256\$[0-9]+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$ ]] || fail "PostgreSQL role has an unsupported password representation"
+                printf '%s\t%s\n' "$DB_USER" "$(printf %s "$ROLE_HASH" | base64 -w0)" >> "$WORK_DIR/postgresql-roles.tsv"
+                ;;
+            mongodb)
+                mongodump --quiet --host 127.0.0.1 --username xpanel_system --password "$(cat /etc/xpanel-host/mongodb-admin.secret)" --authenticationDatabase admin \
+                    --db "$DATABASE" --dumpDbUsersAndRoles --archive="$WORK_DIR/databases/mongodb--$DATABASE.archive" --gzip
+                ;;
+        esac
     done
     : > "$WORK_DIR/database-users.sql"
-    for DB_USER in "${DATABASE_USERS[@]}"; do
+    for INDEX in "${!DATABASE_USERS[@]}"; do
+        [[ "${DATABASE_ENGINES[$INDEX]}" == mariadb ]] || continue
+        DB_USER="${DATABASE_USERS[$INDEX]}"
         [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ ]] || fail "database user escaped the instance: $DB_USER"
         while IFS= read -r DB_HOST; do
             [[ -n "$DB_HOST" ]] || continue
@@ -310,9 +354,10 @@ if [[ "$ACTION" == "archive" ]]; then
             mariadb --protocol=socket --batch --skip-column-names -e "SHOW GRANTS FOR '$DB_USER'@'$DB_HOST'" | sed 's/;[[:space:]]*$//; s/$/;/' >> "$WORK_DIR/database-users.sql"
         done < <(mariadb --protocol=socket --batch --skip-column-names -e "SELECT Host FROM mysql.user WHERE User='$DB_USER' ORDER BY Host")
     done
+    sort -u -o "$WORK_DIR/postgresql-roles.tsv" "$WORK_DIR/postgresql-roles.tsv"
     gzip -9 "$WORK_DIR/database-users.sql"
     {
-        printf 'format=2\n'
+        printf 'format=3\n'
         printf 'uuid=%s\n' "$UUID"
         printf 'system_user=%s\n' "$SYSTEM_USER"
         printf 'created_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -354,8 +399,10 @@ if [[ "$ACTION" == "archive-verify" ]]; then
         {
             name=$0; sub(/^\.\//, "", name)
             if (name == "" || name == "databases/") next
-            if (name == "account-home.tar.gz" || name == "instance-state.tar.gz" || name == "database-users.sql.gz" || name == "metadata.txt" || name == "SHA256SUMS") next
-            if (name ~ /^databases\/xp_[a-f0-9]{6}_[a-z0-9_]{1,54}\.sql\.gz$/) next
+            if (name == "account-home.tar.gz" || name == "instance-state.tar.gz" || name == "database-users.sql.gz" || name == "postgresql-roles.tsv" || name == "metadata.txt" || name == "SHA256SUMS") next
+            if (name ~ /^databases\/mariadb--xp_[a-f0-9]{6}_[a-z0-9_]{1,54}\.sql\.gz$/) next
+            if (name ~ /^databases\/postgresql--xp_[a-f0-9]{6}_[a-z0-9_]{1,54}\.dump$/) next
+            if (name ~ /^databases\/mongodb--xp_[a-f0-9]{6}_[a-z0-9_]{1,54}\.archive$/) next
             bad=1
         }
         END { exit bad ? 1 : 0 }
@@ -363,16 +410,20 @@ if [[ "$ACTION" == "archive-verify" ]]; then
     tar -tvzf "$ARCHIVE_PATH" | awk '$1 !~ /^[d-]/ { bad=1 } END { exit bad ? 1 : 0 }' \
         || fail "retention archive contains links or special files"
     tar --no-same-owner --no-same-permissions -C "$VERIFY_DIR" -xzf "$ARCHIVE_PATH"
-    [[ -f "$VERIFY_DIR/account-home.tar.gz" && -f "$VERIFY_DIR/instance-state.tar.gz" && -f "$VERIFY_DIR/database-users.sql.gz" ]] || fail "retention archive is incomplete"
+    [[ -f "$VERIFY_DIR/account-home.tar.gz" && -f "$VERIFY_DIR/instance-state.tar.gz" && -f "$VERIFY_DIR/database-users.sql.gz" && -f "$VERIFY_DIR/postgresql-roles.tsv" ]] || fail "retention archive is incomplete"
     [[ -f "$VERIFY_DIR/metadata.txt" && -f "$VERIFY_DIR/SHA256SUMS" ]] || fail "retention archive metadata is missing"
     grep -qxF "uuid=$UUID" "$VERIFY_DIR/metadata.txt" || fail "retention archive belongs to another instance"
-    grep -qxF "format=2" "$VERIFY_DIR/metadata.txt" || fail "retention archive format cannot restore database identities"
+    grep -qxF "format=3" "$VERIFY_DIR/metadata.txt" || fail "retention archive format cannot restore all database identities"
     (
         cd "$VERIFY_DIR"
         sha256sum --check SHA256SUMS >/dev/null
     ) || fail "an internal retention component failed its checksum"
     gzip -t "$VERIFY_DIR/account-home.tar.gz" "$VERIFY_DIR/instance-state.tar.gz" "$VERIFY_DIR/database-users.sql.gz"
     while IFS= read -r -d '' DATABASE_DUMP; do gzip -t "$DATABASE_DUMP"; done < <(find "$VERIFY_DIR/databases" -type f -name '*.sql.gz' -print0)
+    while IFS= read -r -d '' DATABASE_DUMP; do runuser -u postgres -- pg_restore --list < "$DATABASE_DUMP" >/dev/null; done < <(find "$VERIFY_DIR/databases" -type f -name 'postgresql--*.dump' -print0)
+    while IFS= read -r -d '' DATABASE_DUMP; do gzip -t "$DATABASE_DUMP"; done < <(find "$VERIFY_DIR/databases" -type f -name 'mongodb--*.archive' -print0)
+    awk -F '\t' 'NF != 2 || $1 !~ /^xp_[a-f0-9]{6}_[a-z0-9_]{1,22}$/ || $2 !~ /^[A-Za-z0-9+\/=]+$/ { bad=1 } END { exit bad ? 1 : 0 }' "$VERIFY_DIR/postgresql-roles.tsv" \
+        || fail "retention archive contains invalid PostgreSQL role metadata"
     printf 'verified=%s\n' "$ACTUAL_SHA256"
     exit 0
 fi
@@ -415,8 +466,10 @@ if [[ "$ACTION" == "purge" ]]; then
         php -r '
             $db = new PDO("sqlite:".$argv[1]);
             if (!$db->query("SELECT 1 FROM sqlite_master WHERE type = \x27table\x27 AND name = \x27site_databases\x27")->fetchColumn()) exit(0);
-            foreach ($db->query("SELECT name, username FROM site_databases ORDER BY id") as $row) {
-                echo base64_encode($row["name"])."\t".base64_encode($row["username"])."\n";
+            $columns = array_column($db->query("PRAGMA table_info(site_databases)")->fetchAll(PDO::FETCH_ASSOC), "name");
+            $engine = in_array("engine", $columns, true) ? "COALESCE(engine, \x27mariadb\x27)" : "\x27mariadb\x27";
+            foreach ($db->query("SELECT ".$engine." AS engine, name, username FROM site_databases ORDER BY id") as $row) {
+                echo base64_encode($row["engine"])."\t".base64_encode($row["name"])."\t".base64_encode($row["username"])."\n";
             }
         ' "$DATABASE_FILE" > "$PURGE_STATE/databases.tsv" || fail "could not inventory instance databases"
         chmod 0600 "$PURGE_STATE/runtime.sh" "$PURGE_STATE/sites.tsv" "$PURGE_STATE/databases.tsv"
@@ -456,19 +509,24 @@ if [[ "$ACTION" == "purge" ]]; then
         rm -f -- "/var/log/nginx/$DOMAIN-access.log" "/var/log/nginx/$DOMAIN-error.log"
     done < "$PURGE_STATE/sites.tsv"
 
-    while IFS=$'\t' read -r B_DATABASE B_USERNAME; do
+    while IFS=$'\t' read -r B_DB_ENGINE B_DATABASE B_USERNAME; do
         [[ -n "$B_DATABASE" ]] || continue
+        DB_ENGINE="$(printf %s "$B_DB_ENGINE" | base64 -d)"
         DATABASE="$(printf %s "$B_DATABASE" | base64 -d)"
         DB_USER="$(printf %s "$B_USERNAME" | base64 -d)"
+        [[ "$DB_ENGINE" == mariadb || "$DB_ENGINE" == postgresql || "$DB_ENGINE" == mongodb ]] || fail "unsupported database engine during purge"
         [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance during purge"
         [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ ]] || fail "database user escaped the instance during purge"
-        mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`$DATABASE\`;"
-        while IFS= read -r DB_HOST; do
-            [[ -n "$DB_HOST" ]] || continue
-            [[ "$DB_HOST" =~ ^[A-Za-z0-9.%:_-]+$ ]] || fail "unsafe MariaDB host for instance user"
-            mariadb --protocol=socket -e "DROP USER IF EXISTS '$DB_USER'@'$DB_HOST';"
-        done < <(mariadb --protocol=socket --batch --skip-column-names -e "SELECT Host FROM mysql.user WHERE User='$DB_USER'")
+        bash "$HOST_HELPER" database-remove "$DB_ENGINE" "$DATABASE" "$DB_USER"
     done < "$PURGE_STATE/databases.tsv"
+
+    # Publish an empty allowlist before removing the instance state so stale
+    # database ports are not left open for a purged account.
+    install -d -o "$SYSTEM_USER" -g "$SYSTEM_USER" -m 0750 "$INSTANCE_ROOT/storage/app/databases"
+    : > "$INSTANCE_ROOT/storage/app/databases/remote-hosts"
+    chown "$SYSTEM_USER:$SYSTEM_USER" "$INSTANCE_ROOT/storage/app/databases/remote-hosts"
+    chmod 0640 "$INSTANCE_ROOT/storage/app/databases/remote-hosts"
+    bash "$HOST_HELPER" database-remote-sync
 
     for UNIT in "xpanel-instance-$UUID-scheduler.timer" "xpanel-instance-$UUID-scheduler.service" "xpanel-instance-$UUID-apache.service" "xpanel-instance-$UUID-fpm.service"; do
         systemctl disable --now "$UNIT" >/dev/null 2>&1 || true
@@ -483,6 +541,8 @@ if [[ "$ACTION" == "purge" ]]; then
         fi
     fi
     rm -f -- "/etc/nginx/sites-enabled/xpanel-instance-$UUID.conf" "/etc/nginx/sites-available/xpanel-instance-$UUID.conf" "/etc/nginx/snippets/xpanel-instance-$UUID-tls.conf" "/etc/nginx/snippets/xpanel-traffic-$UUID.conf"
+    systemctl disable --now "xpanel-dbgate-$UUID.service" >/dev/null 2>&1 || true
+    rm -f -- "/etc/systemd/system/xpanel-dbgate-$UUID.service" "/etc/xpanel-host/remote-databases/$UUID.tsv"
     rm -rf -- "/etc/systemd/system/xpanel-instance-$UUID.slice.d"
 
     ACCOUNT_JAIL="/var/lib/xpanel-host/jails/$SYSTEM_USER"
@@ -631,14 +691,49 @@ PY
     chown -R "$SYSTEM_USER:$SYSTEM_USER" "$ACCOUNT_HOME" "$INSTANCE_ROOT"
     chmod 0750 "$ACCOUNT_HOME" "$INSTANCE_ROOT"
 
+    # Recreate PostgreSQL identities before restoring their owned databases.
+    while IFS=$'\t' read -r DB_USER ROLE_HASH_B64; do
+        [[ -n "$DB_USER" ]] || continue
+        [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ && "$ROLE_HASH_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail "PostgreSQL identity escaped the instance"
+        ROLE_HASH="$(printf %s "$ROLE_HASH_B64" | base64 -d)"
+        [[ "$ROLE_HASH" =~ ^SCRAM-SHA-256\$[0-9]+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$ ]] || fail "invalid PostgreSQL password representation"
+        if runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -qx 1; then
+            runuser -u postgres -- psql --set=ON_ERROR_STOP=1 --dbname=postgres -c "ALTER ROLE \"$DB_USER\" PASSWORD '$ROLE_HASH';"
+        else
+            runuser -u postgres -- psql --set=ON_ERROR_STOP=1 --dbname=postgres -c "CREATE ROLE \"$DB_USER\" LOGIN PASSWORD '$ROLE_HASH' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;"
+        fi
+    done < "$OUTER_STAGE/postgresql-roles.tsv"
+
     # Database names are derived from the trusted archive layout and constrained
     # to this UUID namespace. Drop first so retries never merge partial data.
     while IFS= read -r -d '' DATABASE_DUMP; do
         DATABASE="$(basename -- "$DATABASE_DUMP" .sql.gz)"
+        DATABASE="${DATABASE#mariadb--}"
         [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "database escaped the instance during restore"
         mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`$DATABASE\`;"
         gzip -dc -- "$DATABASE_DUMP" | mariadb --protocol=socket
     done < <(find "$OUTER_STAGE/databases" -maxdepth 1 -type f -name '*.sql.gz' -print0 | sort -z)
+    while IFS= read -r -d '' DATABASE_DUMP; do
+        DATABASE="$(basename -- "$DATABASE_DUMP" .dump)"; DATABASE="${DATABASE#postgresql--}"
+        [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "PostgreSQL database escaped the instance during restore"
+        DB_USER="$(php -r '
+            $db=new PDO("sqlite:".$argv[1]);
+            $s=$db->prepare("SELECT username FROM site_databases WHERE name=:name LIMIT 1");
+            $s->execute(["name"=>$argv[2]]); echo $s->fetchColumn() ?: "";
+        ' "$INSTANCE_ROOT/database/database.sqlite" "$DATABASE")"
+        [[ "$DB_USER" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,22}$ ]] || fail "PostgreSQL owner escaped the instance during restore"
+        runuser -u postgres -- psql --dbname=postgres -Atqc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$DATABASE' AND pid <> pg_backend_pid()" >/dev/null
+        runuser -u postgres -- dropdb --if-exists "$DATABASE"
+        runuser -u postgres -- createdb --owner="$DB_USER" "$DATABASE"
+        runuser -u postgres -- pg_restore --exit-on-error --no-owner --role="$DB_USER" --dbname="$DATABASE" < "$DATABASE_DUMP"
+    done < <(find "$OUTER_STAGE/databases" -maxdepth 1 -type f -name 'postgresql--*.dump' -print0 | sort -z)
+    while IFS= read -r -d '' DATABASE_DUMP; do
+        DATABASE="$(basename -- "$DATABASE_DUMP" .archive)"; DATABASE="${DATABASE#mongodb--}"
+        [[ "$DATABASE" =~ ^xp_${UUID_HEX:0:6}_[a-z0-9_]{1,54}$ ]] || fail "MongoDB database escaped the instance during restore"
+        [[ -f /etc/xpanel-host/mongodb-admin.secret && ! -L /etc/xpanel-host/mongodb-admin.secret ]] || fail "MongoDB management credentials are unavailable"
+        mongorestore --quiet --host 127.0.0.1 --username xpanel_system --password "$(cat /etc/xpanel-host/mongodb-admin.secret)" --authenticationDatabase admin \
+            --drop --gzip --restoreDbUsersAndRoles --archive="$DATABASE_DUMP" --nsInclude="$DATABASE.*"
+    done < <(find "$OUTER_STAGE/databases" -maxdepth 1 -type f -name 'mongodb--*.archive' -print0 | sort -z)
 
     DATABASE_USERS_SQL="$WORK_DIR/database-users.sql"
     gzip -dc -- "$OUTER_STAGE/database-users.sql.gz" > "$DATABASE_USERS_SQL"
@@ -690,6 +785,14 @@ if [[ "$ACTION" == "restore-sync" ]]; then
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:access-sync --no-interaction
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:ssl-sync --no-interaction
     sudo -u "$SYSTEM_USER" env HOME="$INSTANCE_ROOT" "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:mail-sync --stage-only --no-interaction
+    HOST_HELPER="$RELEASE_PATH/scripts/xpanel-site-helper.sh"
+    [[ -f "$HOST_HELPER" && ! -L "$HOST_HELPER" ]] || fail "Host helper is unavailable after restore"
+    if [[ -f "$INSTANCE_ROOT/storage/app/databases/remote-hosts" ]]; then
+        bash "$HOST_HELPER" database-remote-sync
+    fi
+    if [[ -f "$INSTANCE_ROOT/storage/app/dbgate/runtime.env" ]]; then
+        bash "$HOST_HELPER" dbgate-sync
+    fi
     bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" sync
     bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-mail-reconcile.sh" outbound-sync
     printf 'synchronized=%s\n' "$UUID"
