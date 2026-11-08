@@ -15,6 +15,15 @@ unset XPANEL_CONTROL_PLANE_URL XPANEL_PANEL_DOMAIN XPANEL_PANEL_ACCESS_MODE XPAN
 [[ "$(id -u)" == "0" ]] || { echo "Ejecuta la actualización con sudo." >&2; exit 1; }
 [[ -f "$ROOT/.env" ]] || { echo "Falta $ROOT/.env" >&2; exit 1; }
 
+# A checkout may restore Git's portable 0644 mode before install.sh runs.
+# These helpers are invoked directly through sudo, so repair ownership and
+# execution permissions at the very beginning of every update.
+for helper in xpanel-site-helper.sh xpanel-instance-helper.sh xpanel-host-broker-helper.sh xpanel-control-plane-helper.sh; do
+  [[ -f "$ROOT/scripts/$helper" && ! -L "$ROOT/scripts/$helper" ]] || { echo "Falta el helper $helper." >&2; exit 1; }
+  chown root:www-data "$ROOT/scripts/$helper"
+  chmod 0750 "$ROOT/scripts/$helper"
+done
+
 ensure_quota_tools() {
   local tool
   for tool in setquota quotaon tune2fs chattr lsattr; do

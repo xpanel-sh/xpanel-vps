@@ -48,6 +48,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Los helpers invocados por `sudo` recuperan propietario y permiso ejecutable al comienzo de la actualización, evitando que una instancia obtenga `command not found` si Git restauró temporalmente el modo `0644`.
 - La actualización elimina phpMyAdmin solo cuando encuentra los marcadores de una instalación heredada administrada por XPanel, sin tocar las bases ni las credenciales de los clientes.
 
 - El broker acepta durante una actualización gradual el descriptor MariaDB heredado sin motor, pero exige el formato explícito para PostgreSQL y MongoDB. La depuración retira reglas remotas obsoletas y la recuperación vuelve a publicar la lista autorizada y DbGate.
