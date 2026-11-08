@@ -9,6 +9,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 ### Añadido
 
 - Administración global de MariaDB, PostgreSQL, MongoDB y DbGate para las instancias Host. Los motores se instalan una sola vez en el nodo y cada cuenta conserva catálogos, usuarios, procesos de DbGate y reglas de acceso aislados.
+- DbGate se instala por defecto tanto en nodos nuevos como durante la actualización de nodos existentes; PostgreSQL y MongoDB permanecen opcionales.
 - Archivo integral y recuperación de bases multi-motor, incluidas identidades PostgreSQL y usuarios/roles MongoDB, con comprobación de integridad antes de depurar o restaurar.
 - Inventario de cuota y métricas de bases desglosado por motor, sin atribuir a una instancia recursos registrados por otra.
 - Correo administrado publica un hostname canónico compartido para todas las instancias, instala PHP IMAP y Roundcube durante la instalación o reparación, y permite emitir desde Host el certificado común de webmail, SMTP e IMAP mediante el broker firmado.

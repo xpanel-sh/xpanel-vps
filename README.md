@@ -123,7 +123,7 @@ La guía completa de servidor, DNS, acceso temporal y SSL está en [GUIA.md](GUI
 curl -fsSL https://get.xpanel.sh | sudo bash -s -- vps stable es
 ```
 
-No es necesario crear ni editar `.env`. El instalador detecta la IP pública y configura automáticamente Laravel, credenciales de MariaDB, Nginx, PHP-FPM, Apache opcional, Certbot, firewall, helpers limitados mediante sudoers, la release de XPanel Host y `xpanel-cli`. Al terminar muestra `https://IP:8443` y las credenciales generadas; solo pregunta antes de reiniciar si falta activar las cuotas en un servidor nuevo. El dominio se configura después desde Administración y el acceso IP permanece para recuperación.
+No es necesario crear ni editar `.env`. El instalador detecta la IP pública y configura automáticamente Laravel, credenciales de MariaDB, DbGate, Nginx, PHP-FPM, Apache opcional, Certbot, firewall, helpers limitados mediante sudoers, la release de XPanel Host y `xpanel-cli`. Al terminar muestra `https://IP:8443` y las credenciales generadas; solo pregunta antes de reiniciar si falta activar las cuotas en un servidor nuevo. El dominio se configura después desde Administración y el acceso IP permanece para recuperación.
 
 Configuración avanzada opcional:
 

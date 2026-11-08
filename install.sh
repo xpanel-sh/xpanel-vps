@@ -546,6 +546,7 @@ else
 fi
 configure_firewall
 ensure_node_runtime
+bash "$ROOT/scripts/install-dbgate.sh"
 command -v php >/dev/null 2>&1 || fail "PHP no está disponible."
 command -v composer >/dev/null 2>&1 || fail "Composer no está disponible."
 
