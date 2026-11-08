@@ -105,6 +105,11 @@ if [[ "${1:-}" == "host-update-start" ]]; then
     systemd-run --quiet --collect --unit="$unit" \
         --property=User=www-data --property="WorkingDirectory=$app_root" \
         /usr/bin/php "$app_root/artisan" xpanel:host-update "$2"
+    sleep 0.25
+    if systemctl is-failed --quiet "$unit.service"; then
+        journalctl -u "$unit.service" --no-pager -n 20 >&2 || true
+        fail "Host update service failed to start"
+    fi
     printf 'started=%s\n' "$unit"
     exit 0
 fi

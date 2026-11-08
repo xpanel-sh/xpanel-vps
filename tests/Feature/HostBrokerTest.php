@@ -442,6 +442,21 @@ class HostBrokerTest extends TestCase
         $this->assertSame('pending', $instance->fresh()->update_status);
     }
 
+    public function test_queued_update_that_never_started_expires_after_five_minutes(): void
+    {
+        [$instance] = $this->instanceWithSite();
+        $instance->update([
+            'update_status' => 'pending',
+            'update_stage' => 'queued',
+            'update_started_at' => now()->subMinutes(6),
+        ]);
+
+        $status = app(HostUpdateCoordinator::class)->status($instance->fresh());
+
+        $this->assertSame('failed', $status['status']);
+        $this->assertStringContainsString('cinco minutos', $status['error']);
+    }
+
     public function test_admin_can_poll_the_live_stage_but_client_cannot(): void
     {
         [$instance] = $this->instanceWithSite();

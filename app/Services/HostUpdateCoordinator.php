@@ -78,15 +78,20 @@ class HostUpdateCoordinator
 
     public function status(HostInstance $instance): array
     {
-        if (in_array($instance->update_status, ['pending', 'running'], true)
-            && $instance->update_started_at?->lt(now()->subHours(2))) {
+        $queuedTooLong = $instance->update_status === 'pending'
+            && $instance->update_stage === 'queued'
+            && $instance->update_started_at?->lt(now()->subMinutes(5));
+        $runningTooLong = in_array($instance->update_status, ['pending', 'running'], true)
+            && $instance->update_started_at?->lt(now()->subHours(2));
+        if ($queuedTooLong || $runningTooLong) {
             HostInstance::query()->whereKey($instance->id)
                 ->whereIn('update_status', ['pending', 'running'])
-                ->where('update_started_at', '<', now()->subHours(2))
                 ->update([
                     'update_status' => 'failed',
                     'update_stage' => 'failed',
-                    'update_error' => 'La actualización excedió dos horas. Revisa el servicio y vuelve a intentarlo.',
+                    'update_error' => $queuedTooLong
+                        ? 'La actualización no pudo iniciar en cinco minutos. Revisa el helper del VPS y vuelve a intentarlo.'
+                        : 'La actualización excedió dos horas. Revisa el servicio y vuelve a intentarlo.',
                     'update_finished_at' => now(),
                 ]);
             $instance->refresh();
