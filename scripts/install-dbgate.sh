@@ -10,7 +10,7 @@ for candidate in /usr/local/bin/dbgate-serve /usr/bin/dbgate-serve; do
 done
 if [[ -z "$executable" ]]; then
   echo "Installing DbGate database manager..."
-  npm install --global --omit=dev dbgate-serve
+  npm install --global --prefix /usr/local --omit=dev dbgate-serve@latest
 fi
 
 executable=""

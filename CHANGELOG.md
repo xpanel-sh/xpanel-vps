@@ -48,6 +48,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- La reparación global de DbGate instala la versión estable actual en `/usr/local` y valida el estado devuelto por Host antes de anunciarla como disponible para las instancias.
 - Los helpers invocados por `sudo` recuperan propietario y permiso ejecutable al comienzo de la actualización, evitando que una instancia obtenga `command not found` si Git restauró temporalmente el modo `0644`.
 - Una actualización de Host que no alcanza a iniciar su unidad systemd deja de bloquear la cuenta: el fallo inmediato se devuelve al panel y una cola abandonada expira a los cinco minutos, mientras los trabajos realmente activos conservan el límite de dos horas.
 - La actualización elimina phpMyAdmin solo cuando encuentra los marcadores de una instalación heredada administrada por XPanel, sin tocar las bases ni las credenciales de los clientes.

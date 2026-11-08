@@ -31,4 +31,14 @@ class DatabaseEngineManagerTest extends TestCase
         (new DatabaseEngineManager($runner))->setDbGateEnabled(false);
         $this->addToAssertionCount(1);
     }
+
+    public function test_install_rejects_a_false_success_status(): void
+    {
+        $runner = Mockery::mock(ServerCommandRunner::class);
+        $runner->shouldReceive('run')->once()->andReturn("installed=false\nenabled=true\nversion=");
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('no quedó disponible');
+        (new DatabaseEngineManager($runner))->install('dbgate');
+    }
 }

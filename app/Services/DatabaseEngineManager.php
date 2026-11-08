@@ -38,11 +38,28 @@ class DatabaseEngineManager
     public function install(string $engine): void
     {
         if (! isset(self::ENGINES[$engine])) throw new RuntimeException('Motor no compatible.');
-        $this->commands->run(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'database-engine-install', $engine], timeout: 1800);
+        $output = $this->commands->run(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'database-engine-install', $engine], timeout: 1800);
+        $metadata = $this->metadata($output);
+        if (($metadata['installed'] ?? 'false') !== 'true') {
+            throw new RuntimeException($engine === 'dbgate'
+                ? 'npm terminó, pero DbGate no quedó disponible en /usr/local/bin/dbgate-serve.'
+                : 'La instalación terminó, pero el motor no quedó disponible.');
+        }
     }
 
     public function setDbGateEnabled(bool $enabled): void
     {
         $this->commands->run(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'dbgate-set-enabled', $enabled ? 'true' : 'false'], timeout: 120);
+    }
+
+    /** @return array<string, string> */
+    private function metadata(string $output): array
+    {
+        $metadata = [];
+        foreach (preg_split('/\R/', $output) ?: [] as $line) {
+            [$key, $value] = array_pad(explode('=', $line, 2), 2, null);
+            if ($key !== '' && $value !== null) $metadata[$key] = $value;
+        }
+        return $metadata;
     }
 }
