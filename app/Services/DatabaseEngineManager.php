@@ -27,9 +27,9 @@ class DatabaseEngineManager
                     [$key, $value] = array_pad(explode('=', $line, 2), 2, null);
                     if ($key !== '' && $value !== null) $metadata[$key] = $value;
                 }
-                $result[$slug] = $definition + ['installed' => ($metadata['installed'] ?? 'false') === 'true', 'version' => $metadata['version'] ?? null, 'error' => null];
+                $result[$slug] = $definition + ['installed' => ($metadata['installed'] ?? 'false') === 'true', 'enabled' => ($metadata['enabled'] ?? 'true') === 'true', 'version' => $metadata['version'] ?? null, 'error' => null];
             } catch (\Throwable $exception) {
-                $result[$slug] = $definition + ['installed' => false, 'version' => null, 'error' => $exception->getMessage()];
+                $result[$slug] = $definition + ['installed' => false, 'enabled' => false, 'version' => null, 'error' => $exception->getMessage()];
             }
         }
         return $result;
@@ -39,5 +39,10 @@ class DatabaseEngineManager
     {
         if (! isset(self::ENGINES[$engine])) throw new RuntimeException('Motor no compatible.');
         $this->commands->run(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'database-engine-install', $engine], timeout: 1800);
+    }
+
+    public function setDbGateEnabled(bool $enabled): void
+    {
+        $this->commands->run(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'dbgate-set-enabled', $enabled ? 'true' : 'false'], timeout: 120);
     }
 }

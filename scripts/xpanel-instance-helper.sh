@@ -88,6 +88,14 @@ if [[ "${1:-}" == "database-engine-status" || "${1:-}" == "database-engine-insta
         bash "$release/scripts/xpanel-site-helper.sh" "$1" "$2"
 fi
 
+if [[ "${1:-}" == "dbgate-set-enabled" ]]; then
+    [[ $# -eq 2 && "$2" =~ ^(true|false)$ ]] || fail "invalid DbGate state"
+    release="$(readlink -f /opt/xpanel-host/current 2>/dev/null || true)"
+    [[ "$release" =~ ^/opt/xpanel-host/releases/[A-Za-z0-9._-]+$ && -f "$release/scripts/xpanel-site-helper.sh" ]] || fail "Host release is unavailable"
+    exec env XPANEL_MANAGEMENT_MODE=vps-control XPANEL_INSTANCE_ROOT=/opt/xpanel-vps \
+        bash "$release/scripts/xpanel-site-helper.sh" dbgate-set-enabled "$2"
+fi
+
 if [[ "${1:-}" == "host-update-start" ]]; then
     [[ $# -eq 2 ]] || fail "host-update-start expects an instance UUID"
     validate_uuid "$2"

@@ -547,6 +547,7 @@ fi
 configure_firewall
 ensure_node_runtime
 bash "$ROOT/scripts/install-dbgate.sh"
+bash "$ROOT/scripts/remove-legacy-phpmyadmin.sh"
 command -v php >/dev/null 2>&1 || fail "PHP no está disponible."
 command -v composer >/dev/null 2>&1 || fail "Composer no está disponible."
 

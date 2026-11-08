@@ -10,6 +10,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 - Administración global de MariaDB, PostgreSQL, MongoDB y DbGate para las instancias Host. Los motores se instalan una sola vez en el nodo y cada cuenta conserva catálogos, usuarios, procesos de DbGate y reglas de acceso aislados.
 - DbGate se instala por defecto tanto en nodos nuevos como durante la actualización de nodos existentes; PostgreSQL y MongoDB permanecen opcionales.
+- La detección de DbGate usa rutas de sistema estables y el administrador puede habilitarlo o deshabilitarlo globalmente para todas las instancias. Las instancias ya no intentan instalar su propia copia.
 - Archivo integral y recuperación de bases multi-motor, incluidas identidades PostgreSQL y usuarios/roles MongoDB, con comprobación de integridad antes de depurar o restaurar.
 - Inventario de cuota y métricas de bases desglosado por motor, sin atribuir a una instancia recursos registrados por otra.
 - Correo administrado publica un hostname canónico compartido para todas las instancias, instala PHP IMAP y Roundcube durante la instalación o reparación, y permite emitir desde Host el certificado común de webmail, SMTP e IMAP mediante el broker firmado.
@@ -46,6 +47,8 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 - La actualización puede aplicar nuevas versiones del panel aunque falten cuotas; omite la reconciliación de Host y mantiene bloqueado su aprovisionamiento hasta verificarlas.
 
 ### Corregido
+
+- La actualización elimina phpMyAdmin solo cuando encuentra los marcadores de una instalación heredada administrada por XPanel, sin tocar las bases ni las credenciales de los clientes.
 
 - El broker acepta durante una actualización gradual el descriptor MariaDB heredado sin motor, pero exige el formato explícito para PostgreSQL y MongoDB. La depuración retira reglas remotas obsoletas y la recuperación vuelve a publicar la lista autorizada y DbGate.
 - El aprovisionamiento comprueba que el agente WebSocket de terminal esté activo y escuchando en loopback antes de declarar lista una instancia; si quedó detenido, lo reinicia y espera su disponibilidad en lugar de dejar iKode fallando hasta una reparación posterior.

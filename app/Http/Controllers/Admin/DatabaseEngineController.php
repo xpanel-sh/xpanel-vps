@@ -20,4 +20,12 @@ class DatabaseEngineController extends Controller
         catch (\Throwable $exception) { return back()->withErrors(['server' => $exception->getMessage()]); }
         return back()->with('status', DatabaseEngineManager::ENGINES[$engine]['label'].' quedó disponible para las instancias Host.');
     }
+
+    public function dbGateState(DatabaseEngineManager $manager): RedirectResponse
+    {
+        $enabled = request()->boolean('enabled');
+        try { $manager->setDbGateEnabled($enabled); }
+        catch (\Throwable $exception) { return back()->withErrors(['server' => $exception->getMessage()]); }
+        return back()->with('status', 'DbGate quedó '.($enabled ? 'habilitado' : 'deshabilitado').' para las instancias Host.');
+    }
 }
