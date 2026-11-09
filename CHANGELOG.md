@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- La actualización saca el panel VPS de mantenimiento antes de reconciliar instancias Host; sus comandos de sincronización pueden llamar al broker firmado sin recibir HTTP 503 y dejar cuentas pendientes.
 - Cada instancia Host conserva tres rutas de acceso: dominio propio verificado, dirección técnica estable con SSL e IP:puerto de recuperación. La dirección técnica ya no se reemplaza al configurar un dominio propio; las listas muestran la ruta disponible en ese momento.
 - Nginx rechaza los nombres no registrados en los puertos web públicos para que un DNS comodín no muestre el sitio de otro cliente. Las instancias antiguas con un dominio propio como dirección principal se migran a la dirección técnica conservando ese dominio como alias.
 - Al preparar una revisión de Host que cambia su agente de terminal, el VPS reconstruye y reinicia el agente compartido para que las instancias reciban las correcciones de conexión sin esperar otra actualización completa del VPS.

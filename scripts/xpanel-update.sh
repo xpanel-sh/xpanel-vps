@@ -69,13 +69,15 @@ sudo -u www-data php "$ROOT/artisan" db:seed --class=DefaultDataSeeder --force
 sudo -u www-data php "$ROOT/artisan" optimize
 
 XPANEL_SKIP_PACKAGES=true XPANEL_INSTALL_CLI=no XPANEL_PRESERVE_HOST_RELEASE=true bash "$ROOT/install.sh"
+# Managed Host reconciliation calls the signed VPS broker over HTTP. The
+# broker must be reachable before a Host runs sites/access synchronization.
+sudo -u www-data php "$ROOT/artisan" up
 if bash "$ROOT/scripts/xpanel-project-quota.sh" status >/dev/null 2>&1; then
   printf 'Verificando y reconciliando instancias Host existentes...\n'
   sudo -u www-data php "$ROOT/artisan" xpanel:system-reconcile --repair --no-interaction
 else
   echo "AVISO: cuotas inactivas. Se omitió la reconciliación de Host; no se crearán ni modificarán cuentas hasta verificar las cuotas." >&2
 fi
-sudo -u www-data php "$ROOT/artisan" up
 trap - EXIT
 
 echo "XPanel VPS actualizado. Respaldo previo: $backup_root"
