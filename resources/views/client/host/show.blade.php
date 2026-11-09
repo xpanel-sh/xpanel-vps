@@ -16,7 +16,7 @@
                     <div class="kt-card-header"><h2 class="kt-card-title">{{ $account->name }}</h2><span class="kt-badge kt-badge-outline {{ $account->status === 'active' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ ucfirst($account->status) }}</span></div>
                     <div class="kt-card-content p-6 grid gap-4 text-sm">
                         <div class="flex justify-between gap-3"><span class="text-secondary-foreground">Plan</span><strong class="text-mono">{{ $account->plan?->name ?? 'Sin plan' }}</strong></div>
-                        <div class="flex justify-between gap-3"><span class="text-secondary-foreground">Panel</span><span class="text-mono truncate">{{ $account->custom_panel_domain ?: ($instance?->panel_domain ?? 'Preparando') }}</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-secondary-foreground">Panel</span><span class="text-mono truncate">{{ $instance?->panelUrl() ?? 'Preparando' }}</span></div>
                         <div class="flex justify-between gap-3"><span class="text-secondary-foreground">Versión</span><span class="text-mono">{{ $instance?->version ?? 'Pendiente' }}</span></div>
                         <a class="kt-btn kt-btn-outline justify-center mt-2" href="{{ route('client.host.account', $account) }}">Ver hosting</a>
                     </div>

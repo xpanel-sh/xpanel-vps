@@ -42,7 +42,9 @@ class HostInstanceProvisioner
         }
 
         $uuid = (string) Str::uuid();
-        $panelDomain ??= $this->technicalPanelDomain($uuid);
+        // The technical address belongs to VPS and must never be replaced by
+        // a customer website or a custom panel alias.
+        $panelDomain = $this->technicalPanelDomain($uuid);
         $root = rtrim(config('xpanel.host_instances.root'), '/').'/'.$uuid;
         $configuredRelease = config('xpanel.host_instances.release_path');
         // The server may prepare a newer shared Host release without
@@ -83,7 +85,7 @@ class HostInstanceProvisioner
         ]);
     }
 
-    private function technicalPanelDomain(string $uuid): string
+    public function technicalPanelDomain(string $uuid): string
     {
         $cloudDomain = strtolower(trim((string) config('xpanel.host_instances.cloud_domain'), '.'));
         if (! filter_var($cloudDomain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {

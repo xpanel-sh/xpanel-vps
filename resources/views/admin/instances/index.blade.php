@@ -39,7 +39,7 @@
                                 <tr>
                                     <td class="px-5 py-4">
                                         <a class="font-semibold text-mono hover:text-primary" href="{{ route('admin.instances.show', $instance) }}">{{ $instance->hostingAccount?->name ?? 'Hosting' }}</a>
-                                        <div class="mt-1 truncate text-xs text-secondary-foreground">{{ $instance->hostingAccount?->custom_panel_domain ?: $instance->panel_domain }}</div>
+                                        <div class="mt-1 truncate text-xs text-secondary-foreground">{{ $instance->panelUrl() }}</div>
                                     </td>
                                     <td class="px-5 py-4"><div class="font-medium">{{ $instance->tenant->name }}</div><div class="mt-1 text-xs text-secondary-foreground">{{ $instance->tenant->user?->email }}</div></td>
                                     <td class="px-5 py-4"><div class="font-medium text-mono">{{ $instance->hostingAccount?->plan?->name ?? 'Sin plan' }}</div><div class="mt-1 text-xs text-secondary-foreground">{{ $instance->version ?: 'Versión pendiente' }}</div></td>

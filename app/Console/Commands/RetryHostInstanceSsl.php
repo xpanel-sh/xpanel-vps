@@ -26,7 +26,14 @@ class RetryHostInstanceSsl extends Command
             ->where(fn ($query) => $query->whereNull('ssl_attempted_at')->orWhere('ssl_attempted_at', '<=', now()->subMinutes(10)))
             ->with(['tenant.user', 'hostingAccount'])
             ->each(function (HostInstance $instance) use ($certificates, $provisioner): void {
-                if ($certificates->issue($instance)) {
+                $technicalIssued = $instance->ssl_status !== 'active' && $certificates->issue($instance);
+                $technicalReady = $instance->ssl_status === 'active' || $technicalIssued;
+                $customIssued = false;
+                if ($technicalReady && $instance->hostingAccount?->custom_panel_domain
+                    && $instance->hostingAccount->custom_domain_status !== 'active') {
+                    $customIssued = $certificates->issueCustom($instance->fresh(['hostingAccount', 'tenant.user']));
+                }
+                if ($technicalIssued || $customIssued) {
                     $provisioner->apply($instance->fresh());
                 }
             });

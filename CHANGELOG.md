@@ -8,6 +8,8 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Cada instancia Host conserva tres rutas de acceso: dominio propio verificado, dirección técnica estable con SSL e IP:puerto de recuperación. La dirección técnica ya no se reemplaza al configurar un dominio propio; las listas muestran la ruta disponible en ese momento.
+- Nginx rechaza los nombres no registrados en los puertos web públicos para que un DNS comodín no muestre el sitio de otro cliente. Las instancias antiguas con un dominio propio como dirección principal se migran a la dirección técnica conservando ese dominio como alias.
 - Al preparar una revisión de Host que cambia su agente de terminal, el VPS reconstruye y reinicia el agente compartido para que las instancias reciban las correcciones de conexión sin esperar otra actualización completa del VPS.
 - Al actualizar o reparar una instancia Host, se regeneran los accesos SSH de sus sitios para que la terminal cargue el `HOME` escribible del hosting; `npm ci` y `npm run build` ya no necesitan un `export HOME` manual tras reconectar.
 - Instalación y actualización completan automáticamente la configuración pendiente de `dpkg` antes de llamar a `apt`, con el panel aún disponible. Si un paquete sigue fallando, se detienen con un diagnóstico claro.
@@ -17,6 +19,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Añadido
 
+- Al contratar o crear un hosting, el dominio opcional corresponde al primer sitio web. Sin dominio se entrega un Host vacío; con dominio se crea el sitio PHP después de activar la instancia. Un fallo del sitio queda visible y reintentable sin desactivar el hosting.
 - Administración global de MariaDB, PostgreSQL, MongoDB y DbGate para las instancias Host. Los motores se instalan una sola vez en el nodo y cada cuenta conserva catálogos, usuarios, procesos de DbGate y reglas de acceso aislados.
 - DbGate se instala por defecto tanto en nodos nuevos como durante la actualización de nodos existentes; PostgreSQL y MongoDB permanecen opcionales.
 - La detección de DbGate usa rutas de sistema estables y el administrador puede habilitarlo o deshabilitarlo globalmente para todas las instancias. Las instancias ya no intentan instalar su propia copia.

@@ -95,14 +95,62 @@ class HostInstanceProvisioningTest extends TestCase
         $this->assertStringContainsString('203.0.113.10', $instance->fresh()->ssl_last_error);
     }
 
-    public function test_custom_domain_certificate_does_not_require_the_old_domain(): void
+    public function test_optional_first_site_is_processed_after_the_host_is_active(): void
+    {
+        $user = User::factory()->create(['role' => 'client']);
+        $tenant = Tenant::create([
+            'name' => 'Cliente Sitio', 'domain' => 'client.test', 'user_id' => $user->id, 'status' => 'active',
+        ]);
+        $instance = app(HostInstanceProvisioner::class)->create($tenant);
+        $account = $instance->hostingAccount;
+        $account->update(['initial_site_domain' => 'site.example.com', 'initial_site_status' => 'pending']);
+        $sites = app(\App\Services\InitialHostSiteProvisioner::class);
+
+        $this->assertFalse($sites->provision($account->fresh()));
+        $this->assertSame('pending', $account->fresh()->initial_site_status);
+
+        $instance->update(['status' => 'active']);
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        $commands = \Mockery::mock(\App\Services\ServerCommandRunner::class);
+        $commands->shouldReceive('run')->once()->with([
+            'sudo', '-n', config('xpanel.host_instances.helper'), 'initial-site-create',
+            $instance->uuid, 'site.example.com', $instance->release_path,
+        ], null, 1800)->andReturn('created');
+
+        $this->assertTrue((new \App\Services\InitialHostSiteProvisioner($commands))->provision($account->fresh()));
+        $this->assertSame('active', $account->fresh()->initial_site_status);
+        $this->assertSame('active', $instance->fresh()->status);
+    }
+
+    public function test_legacy_custom_panel_domain_is_migrated_to_a_technical_address(): void
+    {
+        $user = User::factory()->create(['role' => 'client']);
+        $tenant = Tenant::create([
+            'name' => 'Cliente antiguo', 'domain' => 'old.test', 'user_id' => $user->id, 'status' => 'active',
+        ]);
+        $instance = app(HostInstanceProvisioner::class)->create($tenant);
+        $instance->update(['panel_domain' => 'panel.customer.test', 'ssl_status' => 'active']);
+
+        $migration = require database_path('migrations/2026_11_09_000002_restore_technical_host_domains.php');
+        $migration->up();
+
+        $instance->refresh();
+        $this->assertStringStartsWith('h-', $instance->panel_domain);
+        $this->assertSame('pending', $instance->ssl_status);
+        $this->assertSame('panel.customer.test', $instance->hostingAccount->custom_panel_domain);
+        $this->assertSame('active', $instance->hostingAccount->custom_domain_status);
+        $this->assertSame('https://panel.customer.test', $instance->panelUrl());
+    }
+
+    public function test_custom_domain_extends_the_technical_certificate_without_replacing_the_fallback(): void
     {
         $user = User::factory()->create(['role' => 'client']);
         $tenant = Tenant::create([
             'name' => 'Cliente', 'domain' => 'client.test', 'user_id' => $user->id, 'status' => 'active',
         ]);
         $instance = app(HostInstanceProvisioner::class)->create($tenant, 'misspelled.invalid');
-        $instance->update(['status' => 'active']);
+        $this->assertStringStartsWith('h-', $instance->panel_domain);
+        $instance->update(['status' => 'active', 'ssl_status' => 'active']);
         $instance->hostingAccount->update([
             'custom_panel_domain' => 'panel.customer.test', 'custom_domain_status' => 'waiting_dns',
         ]);
@@ -110,13 +158,13 @@ class HostInstanceProvisioningTest extends TestCase
         $commands = \Mockery::mock(\App\Services\ServerCommandRunner::class);
         $commands->shouldReceive('run')->once()->with([
             'sudo', '-n', config('xpanel.host_instances.helper'), 'ssl-issue',
-            $instance->uuid, 'panel.customer.test', $user->email,
+            $instance->uuid, $instance->panel_domain, $user->email, 'panel.customer.test',
         ], null, 300)->andReturn('active');
         $certificates = \Mockery::mock(HostInstanceCertificateProvisioner::class, [$commands])
             ->makePartial()->shouldAllowMockingProtectedMethods();
         $certificates->shouldReceive('addresses')->once()->with('panel.customer.test')->andReturn(['203.0.113.10']);
 
-        $this->assertTrue($certificates->issue($instance->fresh()));
+        $this->assertTrue($certificates->issueCustom($instance->fresh()));
         $this->assertSame('https://panel.customer.test', $instance->fresh()->panelUrl());
         $environment = File::get(app(\App\Services\HostInstanceConfigGenerator::class)->generate($instance->fresh())['environment']);
         $this->assertStringContainsString('APP_URL="https://panel.customer.test"', $environment);
@@ -130,7 +178,7 @@ class HostInstanceProvisioningTest extends TestCase
             'name' => 'Cliente', 'domain' => 'client.test', 'user_id' => $user->id, 'status' => 'active',
         ]);
         $instance = app(HostInstanceProvisioner::class)->create($tenant, 'old.invalid');
-        $instance->update(['status' => 'active']);
+        $instance->update(['status' => 'active', 'ssl_status' => 'active']);
         $instance->hostingAccount->update(['custom_panel_domain' => 'panel.customer.test']);
         $commands = \Mockery::mock(\App\Services\ServerCommandRunner::class);
         $commands->shouldNotReceive('run');
@@ -138,8 +186,9 @@ class HostInstanceProvisioningTest extends TestCase
             ->makePartial()->shouldAllowMockingProtectedMethods();
         $certificates->shouldReceive('addresses')->once()->with('panel.customer.test')->andReturn([]);
 
-        $this->assertFalse($certificates->issue($instance->fresh()));
+        $this->assertFalse($certificates->issueCustom($instance->fresh()));
         $this->assertStringContainsString('panel.customer.test', $instance->fresh()->hostingAccount->custom_domain_last_error);
-        $this->assertStringNotContainsString('old.invalid', $instance->fresh()->ssl_last_error);
+        $this->assertSame('active', $instance->fresh()->ssl_status);
+        $this->assertSame('https://'.$instance->panel_domain, $instance->fresh()->panelUrl());
     }
 }

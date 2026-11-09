@@ -163,7 +163,7 @@ class HostInstanceController extends Controller
         return back()->with('success', 'La recuperación comenzó en segundo plano. El hosting quedará suspendido al terminar para que puedas revisarlo.');
     }
 
-    public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner)
+    public function store(Request $request, Tenant $tenant, HostInstanceProvisioner $provisioner, \App\Services\InitialHostSiteProvisioner $initialSites)
     {
         abort_unless(config('xpanel.host_instances.enabled'), 404);
         $tenant->loadMissing('user');
@@ -172,16 +172,14 @@ class HostInstanceController extends Controller
             $emailRules[] = Rule::unique('users', 'email')->ignore($tenant->user_id);
         }
         $validated = $request->validate([
-            'panel_domain' => [
-                'nullable', 'string', 'max:253', 'unique:host_instances,panel_domain',
-                'regex:/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/',
-            ],
+            'site_domain' => ['nullable', 'string', 'max:253'],
             'plan_id' => ['required', 'integer', 'exists:hosting_plans,id'],
             'name' => ['nullable', 'string', 'max:120'],
             'admin_name' => ['required', 'string', 'max:255'],
             'admin_email' => $emailRules,
             'admin_password' => ['required', 'string', 'min:16', 'max:128'],
         ]);
+        $initialDomain = $initialSites->validateAvailable($validated['site_domain'] ?? null);
 
         try {
             $provisioner->assertPlanReady(\App\Models\HostingPlan::findOrFail($validated['plan_id']));
@@ -189,7 +187,7 @@ class HostInstanceController extends Controller
             return back()->withErrors(['hosting' => $exception->getMessage()])->withInput();
         }
 
-        $account = DB::transaction(function () use ($tenant, $validated): HostingAccount {
+        $account = DB::transaction(function () use ($tenant, $validated, $initialDomain): HostingAccount {
             if (! $tenant->access_ready) {
                 $tenant->user->update([
                     'name' => $validated['admin_name'],
@@ -208,13 +206,15 @@ class HostInstanceController extends Controller
                 'admin_name' => $validated['admin_name'],
                 'admin_email' => strtolower($validated['admin_email']),
                 'status' => 'active',
+                'initial_site_domain' => $initialDomain,
+                'initial_site_status' => $initialDomain ? 'pending' : null,
             ]);
         });
 
         try {
             $instance = $provisioner->create(
                 $account,
-                filled($validated['panel_domain'] ?? null) ? strtolower($validated['panel_domain']) : null,
+                null,
                 $validated['admin_password'],
             );
         } catch (\Throwable $e) {
@@ -272,6 +272,14 @@ class HostInstanceController extends Controller
             $issued ? 'success' : 'warning',
             $issued ? 'Certificado SSL emitido correctamente.' : ($instance->fresh()->ssl_last_error ?: 'SSL pendiente de DNS.'),
         );
+    }
+
+    public function retryInitialSite(HostInstance $instance)
+    {
+        $account = $instance->hostingAccount;
+        abort_unless($account?->initial_site_domain && $account->initial_site_status === 'error', 409);
+        $account->update(['initial_site_status' => 'pending', 'initial_site_error' => null]);
+        return back()->with('success', 'Se reintentará la creación del primer sitio en el siguiente ciclo.');
     }
 
     public function update(HostInstance $instance, HostUpdateCoordinator $updates)

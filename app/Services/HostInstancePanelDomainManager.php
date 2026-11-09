@@ -20,7 +20,7 @@ class HostInstancePanelDomainManager
             'custom_domain_status' => $domain ? 'waiting_dns' : 'not_configured',
             'custom_domain_last_error' => null,
         ]);
-        $instance->update(['ssl_status' => 'pending', 'ssl_last_error' => null]);
+        // The customer's DNS must not invalidate the technical certificate.
     }
 
     public function apply(HostInstance $instance): void
@@ -31,7 +31,7 @@ class HostInstancePanelDomainManager
         $this->provisioner->apply($instance, null, 'skip');
 
         if ($instance->hostingAccount?->custom_panel_domain) {
-            $issued = $this->certificates->issue($instance->fresh(['hostingAccount', 'tenant.user']));
+            $issued = $this->certificates->issueCustom($instance->fresh(['hostingAccount', 'tenant.user']));
             if (! $issued) {
                 $fresh = $instance->fresh(['hostingAccount']);
                 throw new RuntimeException($fresh->hostingAccount?->custom_domain_last_error

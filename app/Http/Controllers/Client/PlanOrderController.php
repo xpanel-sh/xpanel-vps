@@ -24,10 +24,11 @@ class PlanOrderController extends Controller
         return view('client.orders.index', compact('tenant', 'orders'));
     }
 
-    public function store(Request $request, HostingPlan $plan, HostInstanceProvisioner $provisioner, HostInstanceCertificateProvisioner $certificates, AccountNotifier $notifier)
+    public function store(Request $request, HostingPlan $plan, HostInstanceProvisioner $provisioner, HostInstanceCertificateProvisioner $certificates, AccountNotifier $notifier, \App\Services\InitialHostSiteProvisioner $initialSites)
     {
         abort_unless($plan->is_active, 404);
         $tenant = $request->attributes->get('tenant');
+        $initialDomain = $initialSites->validateAvailable($request->validate(['site_domain' => ['nullable', 'string', 'max:253']])['site_domain'] ?? null);
 
         if (config('xpanel.host_instances.enabled')) {
             try {
@@ -40,7 +41,7 @@ class PlanOrderController extends Controller
         }
 
         $activatedAt = now();
-        [$order, $account] = DB::transaction(function () use ($tenant, $plan, $activatedAt): array {
+        [$order, $account] = DB::transaction(function () use ($tenant, $plan, $activatedAt, $initialDomain): array {
             $order = PlanOrder::create([
                 'number' => 'XP-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
                 'tenant_id' => $tenant->id,
@@ -61,6 +62,8 @@ class PlanOrderController extends Controller
                 'plan_order_id' => $order->id,
                 'name' => $plan->name.' #'.($tenant->hostingAccounts()->count() + 1),
                 'status' => 'active',
+                'initial_site_domain' => $initialDomain,
+                'initial_site_status' => $initialDomain ? 'pending' : null,
             ]);
             $order->update(['hosting_account_id' => $account->id]);
             $tenant->update(['status' => 'active']);

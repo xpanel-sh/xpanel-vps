@@ -851,6 +851,29 @@ if [[ "$ACTION" == "restore-complete" ]]; then
     exit 0
 fi
 
+if [[ "$ACTION" == "initial-site-create" ]]; then
+    [[ $# -eq 3 ]] || fail "initial-site-create expects UUID, domain and release"
+    UUID="$1"
+    DOMAIN="$2"
+    validate_uuid "$UUID"
+    [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid initial site domain"
+    INSTANCE_ROOT="/var/lib/xpanel-vps/instances/$UUID"
+    [[ -f "$INSTANCE_ROOT/runtime.sh" && ! -L "$INSTANCE_ROOT/runtime.sh" ]] || fail "instance runtime unavailable"
+    # shellcheck disable=SC1090
+    source "$INSTANCE_ROOT/runtime.sh"
+    [[ "${XPANEL_INSTANCE_ID:-}" == "$UUID" && "${XPANEL_MANAGEMENT_MODE:-}" == "vps-instance" ]] || fail "instance identity mismatch"
+    [[ "${XPANEL_ACCOUNT_USER:-}" =~ ^xhi[a-f0-9]{12}$ ]] || fail "invalid instance user"
+    [[ "${XPANEL_ACCOUNT_HOME:-}" == "/home/$XPANEL_ACCOUNT_USER" ]] || fail "invalid account home"
+    RELEASE_PATH="$(readlink -f "$3" 2>/dev/null || true)"
+    [[ "$RELEASE_PATH" =~ ^/opt/xpanel-host/releases/[A-Za-z0-9._-]+$ ]] || fail "Host release unavailable"
+    [[ "$RELEASE_PATH" == "${XPANEL_HOST_RELEASE_PATH:-}" ]] || fail "Host release differs from the instance"
+    [[ -f "$RELEASE_PATH/artisan" ]] || fail "Host artisan unavailable"
+    [[ "${XPANEL_HOST_PHP_VERSION:-}" =~ ^8\.[0-9]+$ ]] || fail "invalid Host PHP version"
+    PHP_BIN="/usr/bin/php$XPANEL_HOST_PHP_VERSION"
+    [[ -x "$PHP_BIN" ]] || fail "Host PHP CLI unavailable"
+    exec runuser -u "$XPANEL_ACCOUNT_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:initial-site "$DOMAIN" --no-interaction
+fi
+
 if [[ "$ACTION" == "ssl-issue" ]]; then
     [[ $# -eq 3 || $# -eq 4 ]] || fail "ssl-issue expects 3 or 4 arguments"
     UUID="$1"

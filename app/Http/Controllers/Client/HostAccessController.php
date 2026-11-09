@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\HostingAccount;
+use App\Models\HostBrokerResource;
 use App\Models\HostingPlan;
 use App\Models\PlanOrder;
 use App\Models\SystemSetting;
@@ -111,6 +112,10 @@ class HostAccessController extends Controller
             ],
         ]);
         $domain = strtolower(trim((string) ($data['custom_panel_domain'] ?? '')));
+        if ($domain && ($hostingAccount->initial_site_domain === $domain
+            || HostBrokerResource::query()->where('type', 'site-domain')->where('name', $domain)->exists())) {
+            return back()->withErrors(['custom_panel_domain' => 'Este dominio ya pertenece a un sitio web. Usa otra dirección para el panel.'])->withInput();
+        }
         if ($instance = $hostingAccount->hostInstance) {
             $domains->stage($instance, $domain ?: null);
             $domains->apply($instance->fresh());
@@ -125,6 +130,14 @@ class HostAccessController extends Controller
         return back()->with($domain ? 'success' : 'info', $domain
             ? 'Dominio guardado. XPanel emitirá el SSL cuando su DNS apunte al servidor.'
             : 'Se retiró el dominio personalizado; la dirección incluida continúa activa.');
+    }
+
+    public function retryInitialSite(Request $request, HostingAccount $hostingAccount)
+    {
+        $this->authorizeAccount($request, $hostingAccount);
+        abort_unless($hostingAccount->initial_site_domain && $hostingAccount->initial_site_status === 'error', 409);
+        $hostingAccount->update(['initial_site_status' => 'pending', 'initial_site_error' => null]);
+        return back()->with('success', 'Se reintentará la creación de tu sitio en unos minutos.');
     }
 
     private function authorizeAccount(Request $request, HostingAccount $account): void

@@ -14,7 +14,7 @@
         </div>
         <div class="kt-card"><div class="kt-card-header"><h2 class="kt-card-title">Hostings recientes</h2><a class="kt-link" href="{{ route('client.host.show') }}">Ver todos</a></div><div class="kt-card-table kt-scrollable-x-auto"><table class="kt-table align-middle"><thead><tr><th>Hosting</th><th>Plan</th><th>Panel</th><th>Estado</th><th></th></tr></thead><tbody>
             @forelse($hostingAccounts->take(5) as $account)
-                <tr><td class="text-mono font-medium">{{ $account->name }}</td><td>{{ $account->plan?->name ?? 'Sin plan' }}</td><td class="text-secondary-foreground">{{ $account->custom_panel_domain ?: ($account->hostInstance?->panel_domain ?? 'Preparando') }}</td><td><span class="kt-badge kt-badge-sm kt-badge-outline {{ $account->status === 'active' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ ucfirst($account->status) }}</span></td><td class="text-end"><a class="kt-btn kt-btn-sm kt-btn-ghost" href="{{ route('client.host.account', $account) }}">Administrar</a></td></tr>
+                <tr><td class="text-mono font-medium">{{ $account->name }}</td><td>{{ $account->plan?->name ?? 'Sin plan' }}</td><td class="text-secondary-foreground">{{ $account->hostInstance?->panelUrl() ?? 'Preparando' }}</td><td><span class="kt-badge kt-badge-sm kt-badge-outline {{ $account->status === 'active' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ ucfirst($account->status) }}</span></td><td class="text-end"><a class="kt-btn kt-btn-sm kt-btn-ghost" href="{{ route('client.host.account', $account) }}">Administrar</a></td></tr>
             @empty
                 <tr><td colspan="5" class="text-center py-8 text-secondary-foreground">Todavía no tienes una cuenta de hosting.</td></tr>
             @endforelse

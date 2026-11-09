@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('xpanel:instances:retry-ssl')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('xpanel:instances:retry-ssl')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('xpanel:initial-sites')->everyMinute()->withoutOverlapping();
         $schedule->command('xpanel:hosting-lifecycle')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('xpanel:quotas-reconcile')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('xpanel:telemetry-send')->twiceDaily(2, 14)->withoutOverlapping();

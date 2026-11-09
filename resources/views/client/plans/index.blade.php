@@ -24,7 +24,7 @@
                                     <div class="flex justify-between"><span class="text-secondary-foreground">Transferencia (reducción de velocidad al superar el límite)</span><span class="text-mono font-medium">{{ $plan->bandwidth_gb > 0 ? $plan->bandwidth_gb.' GB/mes' : 'Sin umbral definido' }}</span></div>
                                 </div>
                                 <div class="grid gap-1.5 mt-5 text-xs text-secondary-foreground"><div>Duración: {{ $plan->billing_period_months }} mes(es)</div><div>Plazo para pagar: {{ $plan->payment_due_days }} días</div></div>
-                                <form method="POST" action="{{ route('client.plans.contract', $plan) }}" class="mt-6">@csrf<button class="kt-btn kt-btn-primary justify-center w-full">Contratar nuevo hosting</button></form>
+                                <form method="POST" action="{{ route('client.plans.contract', $plan) }}" class="mt-6 grid gap-3">@csrf<label class="grid gap-1 text-sm"><span>Dominio del primer sitio (opcional)</span><input class="kt-input" type="text" name="site_domain" value="{{ old('site_domain') }}" placeholder="ejemplo.com" autocomplete="off"></label><p class="text-xs text-secondary-foreground">Sin dominio, tendrás un hosting vacío y podrás crear el sitio después.</p><button class="kt-btn kt-btn-primary justify-center w-full">Contratar nuevo hosting</button></form>
                             </div>
                         </div>
                     @endforeach

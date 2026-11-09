@@ -478,6 +478,11 @@ class HostBrokerActionPolicy
         if (! $this->domain($domain)) {
             throw new RuntimeException('La instancia contiene un alias inválido.');
         }
+        if ($domain === strtolower(trim((string) config('xpanel.host_instances.cloud_domain'), '.'))
+            || HostInstance::query()->where('panel_domain', $domain)->exists()
+            || \App\Models\HostingAccount::query()->where('custom_panel_domain', $domain)->exists()) {
+            throw new RuntimeException('El dominio está reservado para el acceso a un panel.');
+        }
         $wildcards = HostBrokerResource::query()
             ->where('type', 'site-domain')->where('name', 'like', '*.%')
             ->where('host_instance_id', '!=', $instance->id)->pluck('name');

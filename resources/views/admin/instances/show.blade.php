@@ -33,7 +33,7 @@
                             <h1 class="truncate text-2xl font-semibold text-mono">{{ $account?->name ?? 'Instancia Host' }}</h1>
                             <span class="kt-badge kt-badge-outline {{ $instance->status === 'active' ? 'kt-badge-success' : 'kt-badge-warning' }}">{{ $instance->status === 'active' ? 'Operativo' : ucfirst($instance->status) }}</span>
                         </div>
-                        <p class="mt-1 truncate text-sm text-secondary-foreground">{{ $account?->custom_panel_domain ?: $instance->panel_domain }}</p>
+                        <p class="mt-1 truncate text-sm text-secondary-foreground">{{ $instance->panelUrl() }}</p>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -44,6 +44,13 @@
                     @if($instance->status === 'active')<a class="kt-btn kt-btn-primary" href="{{ route('admin.instances.access', $instance) }}" target="_blank" rel="noopener"><i class="ki-filled ki-exit-right-corner"></i>Abrir panel</a>@endif
                 </div>
             </div>
+
+            <section class="kt-card"><div class="kt-card-header"><h2 class="kt-card-title">Accesos al panel</h2></div><div class="kt-card-content grid gap-3 p-5 text-sm md:grid-cols-3">
+                <div><div class="text-secondary-foreground">1 · Dominio propio <span class="kt-badge kt-badge-outline">{{ $account?->custom_domain_status ?: 'No configurado' }}</span></div>@if($account?->custom_panel_domain)<a class="kt-link mt-1 break-all" href="https://{{ $account->custom_panel_domain }}" target="_blank" rel="noopener">https://{{ $account->custom_panel_domain }}</a>@else<p class="mt-1">Opcional</p>@endif</div>
+                <div><div class="text-secondary-foreground">2 · Dirección técnica <span class="kt-badge kt-badge-outline">{{ $instance->ssl_status === 'active' ? 'SSL activo' : 'SSL pendiente' }}</span></div><a class="kt-link mt-1 break-all" href="https://{{ $instance->panel_domain }}" target="_blank" rel="noopener">https://{{ $instance->panel_domain }}</a></div>
+                <div><div class="text-secondary-foreground">3 · IP y puerto</div>@if($instance->fallbackUrl())<a class="kt-link mt-1 break-all" href="{{ $instance->fallbackUrl() }}" target="_blank" rel="noopener">{{ $instance->fallbackUrl() }}</a>@endif</div>
+            </div></section>
+            @if($account?->initial_site_domain)<section class="kt-card"><div class="kt-card-content p-5 flex flex-wrap items-center justify-between gap-3"><div><strong class="text-sm">Primer sitio: {{ $account->initial_site_domain }}</strong><p class="text-xs text-secondary-foreground mt-1">Estado: {{ $account->initial_site_status ?: 'pendiente' }}</p>@if($account->initial_site_error)<p class="text-xs text-destructive mt-1">{{ $account->initial_site_error }}</p>@endif</div>@if($account->initial_site_status === 'error')<form method="post" action="{{ route('admin.instances.initial-site.retry', $instance) }}">@csrf<button class="kt-btn kt-btn-outline" type="submit">Reintentar sitio</button></form>@endif</div></section>@endif
 
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 @foreach([

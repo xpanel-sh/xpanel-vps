@@ -331,6 +331,21 @@ EOF
   fi
   ln -sfn /etc/nginx/sites-available/xpanel-vps-panel.conf /etc/nginx/sites-enabled/xpanel-vps-panel.conf
   rm -f /etc/nginx/sites-enabled/default
+  # An unmatched wildcard hostname must not fall through to a customer's site.
+  cat > /etc/nginx/conf.d/00-xpanel-vps-unmatched.conf <<'EOF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 404;
+}
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
+EOF
   nginx -t
   systemctl enable --now nginx
   systemctl reload nginx

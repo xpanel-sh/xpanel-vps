@@ -12,6 +12,7 @@ class HostingAccount extends Model
     protected $fillable = [
         'uuid', 'tenant_id', 'hosting_plan_id', 'plan_order_id', 'name', 'admin_name', 'admin_email', 'status',
         'custom_panel_domain', 'custom_domain_status', 'custom_domain_last_error',
+        'initial_site_domain', 'initial_site_status', 'initial_site_error',
         'cancellation_requested_at', 'suspend_at', 'suspended_at', 'purge_after',
         'purge_archive_status', 'purge_archive_path', 'purge_archive_sha256', 'purge_archive_error',
         'purge_archive_requested_at', 'purge_archived_at',
