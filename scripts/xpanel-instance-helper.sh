@@ -80,6 +80,15 @@ if [[ "${1:-}" == "host-release-prepare" ]]; then
     exec bash "$(dirname "${BASH_SOURCE[0]}")/prepare-host-release.sh"
 fi
 
+if [[ "${1:-}" == "database-engine-install-start" || "${1:-}" == "database-engine-install-status" ]]; then
+    if [[ "$1" == "database-engine-install-start" ]]; then
+        [[ $# -eq 2 && "$2" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine"
+        exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-database-engine-install.sh" start "$2"
+    fi
+    [[ $# -eq 1 ]] || fail "invalid database engine status request"
+    exec bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-database-engine-install.sh" status
+fi
+
 if [[ "${1:-}" == "database-engine-status" || "${1:-}" == "database-engine-install" ]]; then
     [[ $# -eq 2 && "$2" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine action"
     release="$(readlink -f /opt/xpanel-host/current 2>/dev/null || true)"

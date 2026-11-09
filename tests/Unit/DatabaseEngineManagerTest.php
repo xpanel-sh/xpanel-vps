@@ -32,13 +32,24 @@ class DatabaseEngineManagerTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function test_install_rejects_a_false_success_status(): void
+    public function test_installation_starts_in_background_instead_of_waiting_for_apt(): void
     {
         $runner = Mockery::mock(ServerCommandRunner::class);
-        $runner->shouldReceive('run')->once()->andReturn("installed=false\nenabled=true\nversion=");
+        $runner->shouldReceive('run')->once()->with([
+            'sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'database-engine-install-start', 'postgresql',
+        ], null, 30)->andReturn("state=queued\nengine=postgresql");
+
+        (new DatabaseEngineManager($runner))->startInstallation('postgresql');
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_installation_rejects_a_false_start_status(): void
+    {
+        $runner = Mockery::mock(ServerCommandRunner::class);
+        $runner->shouldReceive('run')->once()->andReturn("state=failed\nengine=dbgate");
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('no quedó disponible');
-        (new DatabaseEngineManager($runner))->install('dbgate');
+        $this->expectExceptionMessage('No se pudo iniciar');
+        (new DatabaseEngineManager($runner))->startInstallation('dbgate');
     }
 }
