@@ -57,9 +57,14 @@ if [[ ! -d "$target" ]]; then
   staging=''
 fi
 
-[[ -d "$target" ]] && printf 'XPANEL_STAGE:ready\n'
-
 [[ -f "$target/artisan" && -f "$target/public/index.php" && -f "$target/vendor/autoload.php" && -f "$target/public/build/manifest.json" ]] || { echo 'La release preparada está incompleta.' >&2; exit 1; }
+previous_release="$(readlink -f "$base/current" 2>/dev/null || true)"
+if [[ ! -x /usr/local/bin/xpanel-vps-terminal-agent ]] \
+  || { [[ "$previous_release" != "$target" ]] \
+    && { [[ ! -d "$previous_release/agent" ]] || ! diff -qr "$previous_release/agent" "$target/agent" >/dev/null; }; }; then
+  run_step terminal 'Agente de terminal de Host' bash /opt/xpanel-vps/scripts/configure-host-terminal.sh "$target"
+fi
+printf 'XPANEL_STAGE:ready\n'
 link="$base/.current.$revision"
 ln -s "$target" "$link"
 mv -Tf -- "$link" "$base/current"

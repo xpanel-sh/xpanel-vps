@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Al preparar una revisión de Host que cambia su agente de terminal, el VPS reconstruye y reinicia el agente compartido para que las instancias reciban las correcciones de conexión sin esperar otra actualización completa del VPS.
 - Al actualizar o reparar una instancia Host, se regeneran los accesos SSH de sus sitios para que la terminal cargue el `HOME` escribible del hosting; `npm ci` y `npm run build` ya no necesitan un `export HOME` manual tras reconectar.
 - Instalación y actualización completan automáticamente la configuración pendiente de `dpkg` antes de llamar a `apt`, con el panel aún disponible. Si un paquete sigue fallando, se detienen con un diagnóstico claro.
 - Al eliminar una base PostgreSQL, el broker ya no reconcilia la cuota antes de que Host quite la fila del catálogo; el reconciliador periódico aplica el nuevo total. La medición también trata una base eliminada durante esa transición como cero bytes.
