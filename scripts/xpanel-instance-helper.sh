@@ -1048,6 +1048,10 @@ if [[ ! -f "$ACCESS_STAGE/authorized_keys" ]]; then
     install -o "$SYSTEM_USER" -g "$SYSTEM_USER" -m 0640 /dev/null "$ACCESS_STAGE/authorized_keys"
 fi
 bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" access-sync "$SYSTEM_USER" "$ACCOUNT_HOME" 0 0 0 1 </dev/null
+# A pinned Host release can change the site jail profile. Refresh existing
+# site terminals as well, otherwise they keep an old HOME until each site's
+# SSH setting is saved again.
+runuser -u "$SYSTEM_USER" --preserve-environment -- "$PHP_BIN" "$RELEASE_PATH/artisan" xpanel:access-sync --no-interaction
 
 if [[ -n "$INITIAL_PASSWORD" ]]; then
     printf '%s\n' "$INITIAL_PASSWORD" | runuser -u "$SYSTEM_USER" --preserve-environment -- \
