@@ -117,6 +117,7 @@ detect_server_ip() {
 install_packages() {
   [[ "$SKIP_PACKAGES" != "true" ]] || return 0
 
+  bash "$ROOT/scripts/xpanel-dpkg-ready.sh"
   apt-get update -y
   echo "postfix postfix/mailname string ${XPANEL_MAIL_HOSTNAME:-$(hostname -f 2>/dev/null || hostname)}" | debconf-set-selections
   echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections

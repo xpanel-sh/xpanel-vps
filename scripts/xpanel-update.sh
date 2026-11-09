@@ -15,6 +15,9 @@ unset XPANEL_CONTROL_PLANE_URL XPANEL_PANEL_DOMAIN XPANEL_PANEL_ACCESS_MODE XPAN
 [[ "$(id -u)" == "0" ]] || { echo "Ejecuta la actualización con sudo." >&2; exit 1; }
 [[ -f "$ROOT/.env" ]] || { echo "Falta $ROOT/.env" >&2; exit 1; }
 
+# Repair interrupted package configuration while the panel is still live.
+bash "$ROOT/scripts/xpanel-dpkg-ready.sh"
+
 # A checkout may restore Git's portable 0644 mode before install.sh runs.
 # These helpers are invoked directly through sudo, so repair ownership and
 # execution permissions at the very beginning of every update.

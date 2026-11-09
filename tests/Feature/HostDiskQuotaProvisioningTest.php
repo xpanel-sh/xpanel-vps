@@ -39,6 +39,19 @@ class HostDiskQuotaProvisioningTest extends TestCase
         $this->assertStringContainsString('unset DB_CONNECTION DB_HOST DB_PORT DB_DATABASE', $update);
     }
 
+    public function test_installer_and_updater_finish_interrupted_packages_before_apt(): void
+    {
+        $installer = file_get_contents(base_path('install.sh'));
+        $updater = file_get_contents(base_path('scripts/xpanel-update.sh'));
+        $preflight = file_get_contents(base_path('scripts/xpanel-dpkg-ready.sh'));
+
+        $this->assertStringContainsString('DEBIAN_FRONTEND=noninteractive dpkg --configure -a', $preflight);
+        $this->assertStringContainsString('dpkg --audit', $preflight);
+        $this->assertLessThan(strpos($installer, 'apt-get update -y'), strpos($installer, 'xpanel-dpkg-ready.sh'));
+        $this->assertLessThan(strpos($updater, "\nensure_quota_tools\n"), strpos($updater, 'xpanel-dpkg-ready.sh'));
+        $this->assertLessThan(strpos($updater, 'php "$ROOT/artisan" down'), strpos($updater, 'xpanel-dpkg-ready.sh'));
+    }
+
     public function test_user_quota_is_prepared_before_maintenance_and_preserves_project_accounts(): void
     {
         $update = file_get_contents(base_path('scripts/xpanel-update.sh'));
