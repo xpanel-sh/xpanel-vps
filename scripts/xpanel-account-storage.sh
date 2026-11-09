@@ -66,7 +66,9 @@ while IFS=$'\t' read -r engine database; do
         ;;
       postgresql)
         command -v psql >/dev/null 2>&1 || fail "PostgreSQL is unavailable"
-        value="$(runuser -u postgres -- psql -Atqc "SELECT pg_database_size('$database')")"
+        # A catalog row may briefly outlive the physical database while Host
+        # completes deletion. Missing databases contribute zero bytes.
+        value="$(runuser -u postgres -- psql --dbname=postgres -Atqc "SELECT COALESCE((SELECT pg_database_size(oid) FROM pg_database WHERE datname='$database'), 0)")"
         ;;
       mongodb)
         command -v mongosh >/dev/null 2>&1 || fail "MongoDB is unavailable"

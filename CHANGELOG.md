@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- Al eliminar una base PostgreSQL, el broker ya no reconcilia la cuota antes de que Host quite la fila del catálogo; el reconciliador periódico aplica el nuevo total. La medición también trata una base eliminada durante esa transición como cero bytes.
 - La instalación de motores de bases se ejecuta en un trabajo de systemd con estado visible en Ajustes; el navegador deja de esperar a `apt`, evitando el `502` y reintentos simultáneos que interrumpían `dpkg`.
 - La instalación y actualización de DbGate reparan los permisos del paquete npm global para que cada instancia Host pueda ejecutarlo con su propio usuario Linux, evitando `status=203/EXEC` y el `502` del administrador visual.
 

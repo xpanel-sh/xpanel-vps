@@ -197,9 +197,14 @@ fi
 
 if [[ "$ACTION" == database-create || "$ACTION" == database-remove ]]; then
   bash "$RELEASE_PATH/scripts/xpanel-site-helper.sh" "$ACTION" "$@"
-  marker_root="/etc/xpanel-vps/instances/$UUID"
-  if [[ -f "$marker_root/project-quota-applied" ]]; then project_id="$(<"$marker_root/project-quota-applied")"; else project_id=100000; fi
-  bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" reconcile-total "$UUID" "$PANEL_USER" "$project_id" >/dev/null
+  # Host removes its SQLite catalog row after this broker call returns. A
+  # reconciliation here would still measure the deleted PostgreSQL database
+  # and turn an otherwise successful delete into an error.
+  if [[ "$ACTION" == database-create ]]; then
+    marker_root="/etc/xpanel-vps/instances/$UUID"
+    if [[ -f "$marker_root/project-quota-applied" ]]; then project_id="$(<"$marker_root/project-quota-applied")"; else project_id=100000; fi
+    bash "$(dirname "${BASH_SOURCE[0]}")/xpanel-project-quota.sh" reconcile-total "$UUID" "$PANEL_USER" "$project_id" >/dev/null
+  fi
   exit 0
 fi
 
