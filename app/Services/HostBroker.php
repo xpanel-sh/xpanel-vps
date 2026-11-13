@@ -82,6 +82,15 @@ class HostBroker
 
                 return 'started';
             }
+            if ($payload['action'] === 'host-archive-worker-start') {
+                $output = $this->commands->run([
+                    'sudo', '-n', (string) config('xpanel.host_instances.helper'),
+                    'host-archive-worker-start', $instance->uuid,
+                ]);
+                $operation->update(['status' => 'completed', 'output' => $output]);
+
+                return $output;
+            }
             if ($payload['action'] === 'engine-status') {
                 $engine = $payload['arguments'][0];
                 $package = collect(app(NativePackageManager::class)->catalog())->firstWhere('slug', $engine);

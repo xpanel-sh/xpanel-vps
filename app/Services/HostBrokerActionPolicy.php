@@ -35,6 +35,7 @@ class HostBrokerActionPolicy
             'php-profile-remove' => $this->phpProfileRemove($instance, $arguments),
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
             'host-update-status', 'host-update-start', 'host-update-feed' => $this->hostUpdate($arguments),
+            'host-archive-worker-start' => $this->noArguments($arguments, 'La compresión de archivos'),
             'engine-status' => $this->engineStatus($arguments),
             'access-remove' => $this->accessRemoval($instance, $arguments),
             'access-stage-prepare' => $this->accessRemoval($instance, $arguments),

@@ -416,6 +416,23 @@ class HostBrokerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_signed_host_can_start_only_its_own_archive_worker(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        config()->set('xpanel.host_instances.helper', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh');
+        $this->mock(ServerCommandRunner::class)->shouldReceive('run')->once()
+            ->with(['sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-instance-helper.sh', 'host-archive-worker-start', $instance->uuid])
+            ->andReturn('started');
+
+        $payload = $this->payload($instance, 'host-archive-worker-start', []);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'started');
+
+        $invalid = $this->payload($instance, 'host-archive-worker-start', ['another-instance']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_update_claim_prevents_duplicate_requests_and_recovers_stale_work(): void
     {
         [$instance] = $this->instanceWithSite();

@@ -123,6 +123,16 @@ if [[ "${1:-}" == "host-update-start" ]]; then
     exit 0
 fi
 
+if [[ "${1:-}" == "host-archive-worker-start" ]]; then
+    [[ $# -eq 2 ]] || fail "host-archive-worker-start expects an instance UUID"
+    validate_uuid "$2"
+    [[ -f "/var/lib/xpanel-vps/instances/$2/.env" ]] || fail "instance environment unavailable"
+    systemctl enable --now "xpanel-instance-$2-scheduler.timer"
+    systemctl --no-block start "xpanel-instance-$2-scheduler.service"
+    echo started
+    exit 0
+fi
+
 if [[ "${1:-}" == "archive-start" ]]; then
     [[ $# -eq 2 ]] || fail "archive-start expects an instance UUID"
     validate_uuid "$2"
