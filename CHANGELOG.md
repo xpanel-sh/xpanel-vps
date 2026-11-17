@@ -8,6 +8,8 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- El broker de Host permite cambiar permisos solo en archivos de los sitios registrados por la instancia; valida el usuario, la ruta y el modo octal.
+- La compresión solicitada desde una instancia Host inicia un worker transitorio con el entorno y usuario de esa instancia, sin depender del temporizador compartido.
 - El broker permite que una instancia Host active únicamente su propio servicio de tareas ZIP; el cliente puede iniciar y seguir la compresión desde iKode sin acceso a comandos del VPS.
 - La actualización saca el panel VPS de mantenimiento antes de reconciliar instancias Host; sus comandos de sincronización pueden llamar al broker firmado sin recibir HTTP 503 y dejar cuentas pendientes.
 - Cada instancia Host conserva tres rutas de acceso: dominio propio verificado, dirección técnica estable con SSL e IP:puerto de recuperación. La dirección técnica ya no se reemplaza al configurar un dominio propio; las listas muestran la ruta disponible en ese momento.

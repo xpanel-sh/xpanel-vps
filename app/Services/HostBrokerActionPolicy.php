@@ -42,7 +42,7 @@ class HostBrokerActionPolicy
             'access-sync' => $this->accessSync($instance, $arguments),
             'mail-sync', 'mail-outbound-sync' => $this->noArguments($arguments, 'La sincronización de correo'),
             'mail-ssl-issue' => $this->noArguments($arguments, 'La emisión SSL del correo'),
-            'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree' => $this->ownership($instance, $arguments, $action),
+            'ownership-fix', 'ownership-sync-path', 'ownership-sync-tree', 'file-permissions-set' => $this->ownership($instance, $arguments, $action),
             default => throw new RuntimeException('La acción no está permitida por el broker.'),
         };
     }
@@ -138,7 +138,7 @@ class HostBrokerActionPolicy
     /** @param array<int, string> $arguments */
     private function ownership(HostInstance $instance, array $arguments, string $action): void
     {
-        if (count($arguments) !== ($action === 'ownership-fix' ? 3 : 4)) {
+        if (count($arguments) !== ($action === 'ownership-fix' ? 3 : ($action === 'file-permissions-set' ? 5 : 4))) {
             throw new RuntimeException('Argumentos de permisos inválidos.');
         }
         [$domain, $documentRoot, $siteUser] = $arguments;
@@ -152,11 +152,14 @@ class HostBrokerActionPolicy
         if (! $site || $site['document_root'] !== $documentRoot || $site['system_user'] !== $siteUser) {
             throw new RuntimeException('El sitio no pertenece a la instancia.');
         }
-        if ($action === 'ownership-sync-path') {
+        if (in_array($action, ['ownership-sync-path', 'file-permissions-set'], true)) {
             $path = $arguments[3];
             if (($path !== $expectedRoot && ! str_starts_with($path, $expectedRoot.'/'))
                 || str_contains($path, '..') || str_contains($path, '\\') || str_contains($path, "\0")) {
                 throw new RuntimeException('La ruta de permisos sale del sitio.');
+            }
+            if ($action === 'file-permissions-set' && ($path === $expectedRoot || ! preg_match('/^[0-7]{3}$/', $arguments[4]))) {
+                throw new RuntimeException('Permisos solicitados no válidos.');
             }
         }
     }

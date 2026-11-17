@@ -127,9 +127,18 @@ if [[ "${1:-}" == "host-archive-worker-start" ]]; then
     [[ $# -eq 2 ]] || fail "host-archive-worker-start expects an instance UUID"
     validate_uuid "$2"
     [[ -f "/var/lib/xpanel-vps/instances/$2/.env" ]] || fail "instance environment unavailable"
-    systemctl enable --now "xpanel-instance-$2-scheduler.timer"
-    systemctl --no-block start "xpanel-instance-$2-scheduler.service"
-    echo started
+    instance_root="/var/lib/xpanel-vps/instances/$2"
+    release_path="$(readlink -f /opt/xpanel-host/current)"
+    [[ -f "$release_path/artisan" && -f "$instance_root/runtime.sh" ]] || fail "instance release unavailable"
+    uuid_hex="${2//-/}"
+    system_user="xhi${uuid_hex:0:12}"
+    id "$system_user" >/dev/null 2>&1 || fail "instance user unavailable"
+    unit="xpanel-instance-${2//-/}-archive-$(date +%s%N)"
+    systemd-run --quiet --collect --unit="$unit" \
+        --property="WorkingDirectory=$release_path" \
+        /bin/bash -c '. "$1"; exec /usr/sbin/runuser -u "$2" --preserve-environment -- /usr/bin/php "$3/artisan" xpanel:archives-run --no-interaction' \
+        xpanel-archive "$instance_root/runtime.sh" "$system_user" "$release_path"
+    printf 'started=%s\n' "$unit"
     exit 0
 fi
 

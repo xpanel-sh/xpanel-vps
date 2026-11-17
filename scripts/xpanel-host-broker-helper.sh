@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|file-permissions-set|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -153,8 +153,8 @@ elif [[ "$ACTION" == "access-remove" || "$ACTION" == "access-sync" || "$ACTION" 
   DOMAIN="${DOCUMENT_ROOT##*/}"
   [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid access site root"
   [[ ! -L "$DOCUMENT_ROOT" ]] || fail "access site root is a symlink"
-elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$ACTION" == "ownership-sync-tree" ]]; then
-  if [[ "$ACTION" == "ownership-fix" ]]; then [[ $# -eq 3 ]] || fail "invalid ownership argument count"; else [[ $# -eq 4 ]] || fail "invalid ownership argument count"; fi
+elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$ACTION" == "ownership-sync-tree" || "$ACTION" == "file-permissions-set" ]]; then
+  if [[ "$ACTION" == "ownership-fix" ]]; then [[ $# -eq 3 ]] || fail "invalid ownership argument count"; elif [[ "$ACTION" == "file-permissions-set" ]]; then [[ $# -eq 5 ]] || fail "invalid permission argument count"; else [[ $# -eq 4 ]] || fail "invalid ownership argument count"; fi
   DOMAIN="$1"; DOCUMENT_ROOT="$2"; SITE_USER="$3"
   [[ "$DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]] || fail "invalid ownership domain"
   [[ "$DOCUMENT_ROOT" == "/home/$PANEL_USER/public_html/$DOMAIN" && -d "$DOCUMENT_ROOT" && ! -L "$DOCUMENT_ROOT" ]] || fail "invalid ownership site root"
@@ -166,6 +166,9 @@ elif [[ "$ACTION" == "ownership-fix" || "$ACTION" == "ownership-sync-path" || "$
     RESOLVED_ROOT="$(realpath -e -- "$DOCUMENT_ROOT")"
     RESOLVED_TARGET="$(realpath -e -- "$TARGET")"
     [[ "$RESOLVED_TARGET" == "$RESOLVED_ROOT" || "$RESOLVED_TARGET" == "$RESOLVED_ROOT/"* ]] || fail "ownership target follows a link outside the site"
+    if [[ "$ACTION" == "file-permissions-set" ]]; then
+      [[ "$TARGET" != "$DOCUMENT_ROOT" && "$5" =~ ^[0-7]{3}$ ]] || fail "invalid file permission mode or root"
+    fi
   fi
 elif [[ "$ACTION" == database-engine-status ]]; then
   [[ $# -eq 1 && "$1" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine"
