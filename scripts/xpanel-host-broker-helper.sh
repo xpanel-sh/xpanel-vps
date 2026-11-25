@@ -174,6 +174,15 @@ elif [[ "$ACTION" == database-engine-status ]]; then
   [[ $# -eq 1 && "$1" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine"
 elif [[ "$ACTION" == database-remote-sync || "$ACTION" == dbgate-sync ]]; then
   [[ $# -eq 0 ]] || fail "invalid remote database sync"
+elif [[ "$ACTION" == codex-auth-start || "$ACTION" == codex-auth-status || "$ACTION" == codex-auth-logout ]]; then
+  [[ $# -eq 0 ]] || fail "invalid Codex authentication arguments"
+elif [[ "$ACTION" == codex-job-start ]]; then
+  [[ $# -eq 3 ]] || fail "invalid Codex job arguments"
+  [[ "$1" == "/home/$PANEL_USER/public_html" || "$1" == "/home/$PANEL_USER/public_html/"* ]] || fail "Codex workspace escaped the account"
+  [[ "$2" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ ]] || fail "invalid Codex job ID"
+  [[ "$3" == new || "$3" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ ]] || fail "invalid Codex thread ID"
+elif [[ "$ACTION" == codex-job-status ]]; then
+  [[ $# -eq 1 && "$1" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ ]] || fail "invalid Codex job ID"
 else
   if [[ "$ACTION" == database-remote-create || "$ACTION" == database-remote-remove ]]; then [[ $# -eq 4 ]] || fail "invalid remote database argument count"; else [[ $# -eq 3 ]] || fail "invalid database argument count"; fi
   DB_PREFIX="xp_${INSTANCE_HEX:0:6}_"
