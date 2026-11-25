@@ -436,6 +436,58 @@ class HostBrokerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_codex_login_status_uses_scoped_broker_helper_without_audit_rows(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        config()->set('xpanel.host_instances.broker_helper', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh');
+        $this->mock(ServerCommandRunner::class)->shouldReceive('run')->once()
+            ->with([
+                'sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh', 'execute',
+                $instance->uuid, $instance->system_user, $instance->release_path, $instance->instance_root,
+                'codex-auth-status',
+            ], null, 30)->andReturn('disconnected');
+
+        $payload = $this->payload($instance, 'codex-auth-status', []);
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', 'disconnected');
+        $this->assertDatabaseCount('host_broker_operations', 0);
+    }
+
+    public function test_codex_job_cannot_target_an_unregistered_site_or_another_account(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $job = '01234567-89ab-4def-8abc-0123456789ab';
+        foreach (['/home/another/public_html/example.test', '/home/'.$instance->system_user.'/public_html/other.test'] as $directory) {
+            $payload = $this->payload($instance, 'codex-job-start', [$directory, $job, 'new']);
+            $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+                ->assertStatus(422);
+        }
+    }
+
+    public function test_codex_job_for_a_registered_site_passes_the_prompt_to_the_scoped_helper(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        $directory = '/home/'.$instance->system_user.'/public_html/example.test';
+        $job = '01234567-89ab-4def-8abc-0123456789ab';
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        config()->set('xpanel.host_instances.broker_helper', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh');
+        $this->mock(HostInstanceDatabaseReader::class)->shouldReceive('query')->once()
+            ->withArgs(fn (HostInstance $candidate, string $kind, string $domain, string $second) =>
+                $candidate->is($instance) && $kind === 'site' && $domain === 'example.test' && $second === '')
+            ->andReturn(['document_root' => $directory]);
+        $this->mock(ServerCommandRunner::class)->shouldReceive('run')->once()
+            ->with([
+                'sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh', 'execute',
+                $instance->uuid, $instance->system_user, $instance->release_path, $instance->instance_root,
+                'codex-job-start', $directory, $job, 'new',
+            ], 'Revisa el sitio', 600)->andReturn($job);
+
+        $payload = $this->payload($instance, 'codex-job-start', [$directory, $job, 'new']);
+        $payload['input'] = base64_encode('Revisa el sitio');
+        $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+            ->assertOk()->assertJsonPath('output', $job);
+    }
+
     public function test_update_claim_prevents_duplicate_requests_and_recovers_stale_work(): void
     {
         [$instance] = $this->instanceWithSite();

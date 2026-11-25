@@ -8,6 +8,7 @@ Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. 
 
 ### Corregido
 
+- El broker ejecuta el inicio de sesión y las tareas Codex de Host como usuario de la cuenta, sin pedir `sudo` al PHP-FPM aislado por `NoNewPrivileges`; valida el sitio y los identificadores antes de lanzar cada tarea.
 - El broker de Host permite cambiar permisos solo en archivos de los sitios registrados por la instancia; valida el usuario, la ruta y el modo octal.
 - La compresión solicitada desde una instancia Host inicia un worker transitorio con el entorno y usuario de esa instancia, sin depender del temporizador compartido.
 - El broker permite que una instancia Host active únicamente su propio servicio de tareas ZIP; el cliente puede iniciar y seguir la compresión desde iKode sin acceso a comandos del VPS.

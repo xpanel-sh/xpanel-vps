@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|file-permissions-set|mail-sync|mail-outbound-sync|mail-ssl-issue) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|file-permissions-set|mail-sync|mail-outbound-sync|mail-ssl-issue|codex-auth-start|codex-auth-status|codex-auth-logout|codex-job-start|codex-job-status) ;;
   *) fail "action is not brokered" ;;
 esac
 

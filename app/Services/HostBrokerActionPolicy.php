@@ -36,6 +36,9 @@ class HostBrokerActionPolicy
             'panel-domain-set' => $this->panelDomain($instance, $arguments),
             'host-update-status', 'host-update-start', 'host-update-feed' => $this->hostUpdate($arguments),
             'host-archive-worker-start' => $this->noArguments($arguments, 'La compresión de archivos'),
+            'codex-auth-start', 'codex-auth-status', 'codex-auth-logout' => $this->noArguments($arguments, 'La sesión Codex'),
+            'codex-job-start' => $this->codexJobStart($instance, $arguments),
+            'codex-job-status' => $this->codexJobStatus($arguments),
             'engine-status' => $this->engineStatus($arguments),
             'access-remove' => $this->accessRemoval($instance, $arguments),
             'access-stage-prepare' => $this->accessRemoval($instance, $arguments),
@@ -52,6 +55,35 @@ class HostBrokerActionPolicy
     {
         if ($arguments !== []) {
             throw new RuntimeException('La actualización de Host no acepta argumentos.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function codexJobStart(HostInstance $instance, array $arguments): void
+    {
+        if (count($arguments) !== 3) {
+            throw new RuntimeException('Argumentos de Codex inválidos.');
+        }
+        [$directory, $job, $thread] = $arguments;
+        $home = '/home/'.$instance->system_user.'/public_html';
+        if ($directory !== $home) {
+            $domain = basename($directory);
+            $site = $this->domain($domain) ? $this->row($instance, 'site', $domain) : null;
+            if ($directory !== $home.'/'.$domain || ! $site || $site['document_root'] !== $directory) {
+                throw new RuntimeException('El sitio de Codex no pertenece a esta instancia.');
+            }
+        }
+        if (! preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $job)
+            || ($thread !== 'new' && ! preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $thread))) {
+            throw new RuntimeException('Identificador de Codex inválido.');
+        }
+    }
+
+    /** @param array<int, string> $arguments */
+    private function codexJobStatus(array $arguments): void
+    {
+        if (count($arguments) !== 1 || ! preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $arguments[0])) {
+            throw new RuntimeException('Identificador de tarea Codex inválido.');
         }
     }
 

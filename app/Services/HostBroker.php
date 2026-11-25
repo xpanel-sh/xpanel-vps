@@ -37,6 +37,16 @@ class HostBroker
                 ], JSON_THROW_ON_ERROR);
         }
 
+        if (in_array($payload['action'], ['codex-auth-status', 'codex-job-status'], true)) {
+            $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
+
+            return $this->commands->run(array_merge([
+                'sudo', '-n', config('xpanel.host_instances.broker_helper'), 'execute',
+                $instance->uuid, $instance->system_user, $instance->release_path, $instance->instance_root,
+                $payload['action'],
+            ], $payload['arguments']), null, 30);
+        }
+
         if ($payload['action'] === 'traffic-rate-status') {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
             $snippet = '/etc/nginx/snippets/xpanel-traffic-'.$instance->uuid.'.conf';
