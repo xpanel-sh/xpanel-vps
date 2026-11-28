@@ -453,6 +453,30 @@ class HostBrokerTest extends TestCase
         $this->assertDatabaseCount('host_broker_operations', 0);
     }
 
+    public function test_codex_installation_is_optional_and_scoped_to_an_active_instance(): void
+    {
+        [$instance, $secret] = $this->instanceWithSite();
+        config()->set('xpanel.native_hosting.apply_system_changes', true);
+        config()->set('xpanel.host_instances.broker_helper', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh');
+        $commands = $this->mock(ServerCommandRunner::class);
+        $command = [
+            'sudo', '-n', '/opt/xpanel-vps/scripts/xpanel-host-broker-helper.sh', 'execute',
+            $instance->uuid, $instance->system_user, $instance->release_path, $instance->instance_root,
+        ];
+        $commands->shouldReceive('run')->once()->with([...$command, 'codex-install-status'], null, 30)->andReturn('missing');
+        $commands->shouldReceive('run')->once()->with([...$command, 'codex-install-start'], null, 600)->andReturn('installing');
+
+        foreach (['codex-install-status' => 'missing', 'codex-install-start' => 'installing'] as $action => $expected) {
+            $payload = $this->payload($instance, $action, []);
+            $this->postJson(route('api.host-broker'), $payload, ['X-XPanel-Signature' => $this->signature($payload, $secret)])
+                ->assertOk()->assertJsonPath('output', $expected);
+        }
+
+        $invalid = $this->payload($instance, 'codex-install-start', ['unexpected']);
+        $this->postJson(route('api.host-broker'), $invalid, ['X-XPanel-Signature' => $this->signature($invalid, $secret)])
+            ->assertStatus(422);
+    }
+
     public function test_codex_job_cannot_target_an_unregistered_site_or_another_account(): void
     {
         [$instance, $secret] = $this->instanceWithSite();

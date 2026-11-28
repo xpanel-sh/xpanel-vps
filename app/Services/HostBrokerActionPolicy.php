@@ -37,6 +37,7 @@ class HostBrokerActionPolicy
             'host-update-status', 'host-update-start', 'host-update-feed' => $this->hostUpdate($arguments),
             'host-archive-worker-start' => $this->noArguments($arguments, 'La compresión de archivos'),
             'codex-auth-start', 'codex-auth-status', 'codex-auth-logout' => $this->noArguments($arguments, 'La sesión Codex'),
+            'codex-install-start', 'codex-install-status' => $this->noArguments($arguments, 'La instalación de Codex'),
             'codex-job-start' => $this->codexJobStart($instance, $arguments),
             'codex-job-status' => $this->codexJobStatus($arguments),
             'engine-status' => $this->engineStatus($arguments),

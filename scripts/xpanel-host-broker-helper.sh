@@ -48,7 +48,7 @@ shift 5
 id "$PANEL_USER" >/dev/null 2>&1 || fail "panel user unavailable"
 
 case "$ACTION" in
-  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|file-permissions-set|mail-sync|mail-outbound-sync|mail-ssl-issue|codex-auth-start|codex-auth-status|codex-auth-logout|codex-job-start|codex-job-status) ;;
+  apply|remove|site-restart|site-diagnose|resource-snapshot|access-log-read|traffic-rate-set|ssl-issue|ssl-wildcard-issue|ssl-delete|ssl-inspect|database-create|database-password|database-remove|database-remote-create|database-remote-remove|database-remote-sync|database-engine-status|dbgate-sync|php-profile-remove|access-sync|access-remove|access-stage-prepare|ownership-fix|ownership-sync-path|ownership-sync-tree|file-permissions-set|mail-sync|mail-outbound-sync|mail-ssl-issue|codex-auth-start|codex-auth-status|codex-auth-logout|codex-install-start|codex-install-status|codex-job-start|codex-job-status) ;;
   *) fail "action is not brokered" ;;
 esac
 
@@ -174,7 +174,7 @@ elif [[ "$ACTION" == database-engine-status ]]; then
   [[ $# -eq 1 && "$1" =~ ^(mariadb|postgresql|mongodb|dbgate)$ ]] || fail "invalid database engine"
 elif [[ "$ACTION" == database-remote-sync || "$ACTION" == dbgate-sync ]]; then
   [[ $# -eq 0 ]] || fail "invalid remote database sync"
-elif [[ "$ACTION" == codex-auth-start || "$ACTION" == codex-auth-status || "$ACTION" == codex-auth-logout ]]; then
+elif [[ "$ACTION" == codex-auth-start || "$ACTION" == codex-auth-status || "$ACTION" == codex-auth-logout || "$ACTION" == codex-install-start || "$ACTION" == codex-install-status ]]; then
   [[ $# -eq 0 ]] || fail "invalid Codex authentication arguments"
 elif [[ "$ACTION" == codex-job-start ]]; then
   [[ $# -eq 3 ]] || fail "invalid Codex job arguments"

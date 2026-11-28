@@ -37,7 +37,7 @@ class HostBroker
                 ], JSON_THROW_ON_ERROR);
         }
 
-        if (in_array($payload['action'], ['codex-auth-status', 'codex-job-status'], true)) {
+        if (in_array($payload['action'], ['codex-auth-status', 'codex-job-status', 'codex-install-status'], true)) {
             $this->policy->authorize($instance, $payload['action'], $payload['arguments']);
 
             return $this->commands->run(array_merge([

@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [0.2.0-beta.1] - En preparación
 
+- Las instancias Host pueden solicitar la instalación opcional de Codex una sola vez por nodo VPS; el broker limita la acción y permite consultar su estado sin mezclar las sesiones de los hostings.
+
 Esta es una versión de pruebas, no una promesa de cuotas totales garantizadas. Agrupa los cambios de esta entrega; publicar los tres repositorios y probar en Linux real antes de etiquetarla.
 
 ### Corregido
